@@ -20,7 +20,7 @@ export default function Home() {
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-zinc-300">
             Estima cuántas personas necesitas para cubrir tu semana, considerando colaciones,
-            traslapes y el efecto domingo. Resultado: horas-persona, FTE y mix sugerido de contratos.
+            traslapes y el efecto domingo. Obtienes horas-persona, FTE y mix sugerido de contratos.
           </p>
 
           <div className="mt-7 flex flex-wrap gap-3">
@@ -53,8 +53,8 @@ export default function Home() {
               <p className="text-sm font-semibold text-zinc-200">Para quién</p>
               <ul className="mt-3 list-disc space-y-2 pl-5 text-zinc-300">
                 <li>Restaurantes, comida rápida, tiendas y retail</li>
-                <li>Jefaturas operativas y dueños que arman turnos “a ojo”</li>
-                <li>Quien quiere una referencia rápida antes de contratar</li>
+                <li>Quien arma turnos “a ojo” y quiere una referencia rápida</li>
+                <li>Operaciones que necesitan estimar antes de contratar</li>
               </ul>
               <p className="mt-4 text-sm text-zinc-400">
                 MVP: iremos sumando presets por rubro, link compartible y exportación.
@@ -64,7 +64,7 @@ export default function Home() {
         </section>
 
         <footer className="mt-12 border-t border-zinc-900 pt-6 text-xs text-zinc-500">
-          © {new Date().getFullYear()} Dotaciones.cl — herramienta gratuita (MVP)
+          © {new Date().getFullYear()} Dotaciones.cl — herramienta gratuita
         </footer>
       </div>
     </main>

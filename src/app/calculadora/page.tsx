@@ -289,9 +289,26 @@ export default function CalculadoraPage() {
           </table>
         </div>
 
-        <button onClick={onCalculate} disabled={loading} style={{ marginTop: 12 }}>
-          {loading ? "Calculando..." : "Calcular"}
-        </button>
+        <button
+  onClick={onCalculate}
+  disabled={loading}
+  style={{
+    marginTop: 12,
+    background: loading ? "#991b1b" : "#dc2626", // rojo
+    color: "white",
+    fontWeight: 800, // negrita fuerte
+    padding: "14px 18px",
+    borderRadius: 14,
+    border: "2px solid #ef4444",
+    boxShadow: "0 10px 24px rgba(220,38,38,0.25)",
+    cursor: loading ? "not-allowed" : "pointer",
+    width: "100%",
+    fontSize: 16,
+    letterSpacing: 0.5,
+  }}
+>
+  {loading ? "CALCULANDO..." : "CALCULAR"}
+</button>
       </div>
 
       <div style={{ marginTop: 16 }}>
@@ -350,8 +367,8 @@ export default function CalculadoraPage() {
       </div>
 
       <div style={{ marginTop: 24, color: "#777", fontSize: 12 }}>
-        MVP: cálculo semanal + regla domingo + mixes. Próximo: presets, link compartible, diseño iLovePDF style.
-      </div>
+  Dotaciones.cl — MVP v0.1
+</div>
     </div>
   );
 }
