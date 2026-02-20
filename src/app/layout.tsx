@@ -12,19 +12,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Calculadora de Dotación Retail en Chile | Dotaciones.cl",
   description:
     "Calcula cuántas personas necesitas para cubrir tu operación retail considerando horas semanales, colaciones, traslapes y efecto domingo. Herramienta gratuita online.",
   metadataBase: new URL("https://dotaciones.cl"),
   openGraph: {
     title: "Calculadora de Dotación Retail en Chile",
-    description:
-      "Calcula dotación semanal considerando descansos y domingos. Gratis.",
+    description: "Calcula dotación semanal considerando descansos y domingos. Gratis.",
     url: "https://dotaciones.cl",
     siteName: "Dotaciones.cl",
     locale: "es_CL",
     type: "website",
+  },
+  alternates: {
+    canonical: "https://dotaciones.cl",
   },
 };
 
@@ -34,10 +36,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    <html lang="es-CL">
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
       </body>
     </html>
