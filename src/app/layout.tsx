@@ -14,14 +14,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Calculadora de Dotación Retail en Chile | Dotaciones.cl",
+  title:
+    "Calculadora de Dotación Retail Chile | ¿Cuántas personas necesito para mi tienda?",
   description:
-    "Calcula cuántas personas necesitas para cubrir tu operación retail considerando horas semanales, colaciones y efecto domingo. Herramienta gratuita online.",
+    "Calcula la dotación mínima retail en Chile considerando efecto domingo, horas hombre y mix de contratos. Herramienta gratuita para operaciones y RRHH.",
   metadataBase: new URL("https://dotaciones.cl"),
   openGraph: {
-    title: "Calculadora de Dotación Retail en Chile",
+    title:
+      "Calculadora de Dotación Retail Chile | Efecto Domingo y Horas Hombre",
     description:
-      "Calcula dotación semanal considerando descansos y domingos. Gratis.",
+      "Herramienta gratuita para calcular cuántas personas necesitas en tu tienda retail.",
     url: "https://dotaciones.cl",
     siteName: "Dotaciones.cl",
     locale: "es_CL",
