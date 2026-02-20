@@ -1,6 +1,6 @@
 // src/app/calculadora/page.tsx
 "use client";
-
+import { track } from "@vercel/analytics";
 import { useMemo, useState } from "react";
 
 type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -85,23 +85,29 @@ export default function CalculadoraPage() {
   );
 
   async function onCalculate() {
-    setLoading(true);
-    setResp(null);
-    try {
-      const r = await fetch("/api/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      const data = (await r.json()) as CalcResponse;
-      setResp(data);
-    } catch (e: any) {
-      setResp({ ok: false, error: e?.message ?? "Error" });
-    } finally {
-      setLoading(false);
-    }
-  }
+  setLoading(true);
+  setResp(null);
 
+  // Evento analytics
+  track("calculate_clicked", {
+    fullHoursPerWeek,
+    threshold: fullTimeThresholdHours,
+  });
+
+  try {
+    const r = await fetch("/api/calculate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    const data = await r.json();
+    setResp(data);
+  } catch (e: any) {
+    setResp({ ok: false, error: e?.message ?? "Error" });
+  } finally {
+    setLoading(false);
+  }
+}
   function updateDay(d: DayKey, patch: Partial<DayInput>) {
     setDays((prev) => ({ ...prev, [d]: { ...prev[d], ...patch } }));
   }
