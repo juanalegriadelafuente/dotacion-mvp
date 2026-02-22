@@ -1,7 +1,8 @@
 // src/app/calculadora/page.tsx
 "use client";
+
 import { track } from "@vercel/analytics";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 type DayInput = {
@@ -15,11 +16,21 @@ type DayInput = {
 
 type ContractType = { name: string; hoursPerWeek: number };
 
+type AllowedJornadas = {
+  FT_6X1: boolean;
+  FT_5X2: boolean;
+  FT_4X3: boolean;
+  PT_WEEKEND: boolean;
+  PT_3DAYS: boolean;
+};
+
 type CalcInput = {
+  requestId?: string;
   fullHoursPerWeek: number;
   fullTimeThresholdHours: number;
   fullTimeSundayAvailability: number;
   partTimeSundayAvailability: number;
+  allowedJornadas: AllowedJornadas;
   days: Record<DayKey, DayInput>;
   contracts: ContractType[];
 };
@@ -48,9 +59,18 @@ function defaultDays(): Record<DayKey, DayInput> {
     breakMinutes: 60,
   };
   const days = Object.fromEntries(DAY_ORDER.map((d) => [d, { ...base }])) as Record<DayKey, DayInput>;
-  // domingo más chico por defecto
   days.sun = { ...base, hoursOpen: 8, requiredPeople: 1 };
   return days;
+}
+
+function defaultAllowedJornadas(): AllowedJornadas {
+  return {
+    FT_6X1: true,
+    FT_5X2: true,
+    FT_4X3: true,
+    PT_WEEKEND: true,
+    PT_3DAYS: true,
+  };
 }
 
 export default function CalculadoraPage() {
@@ -59,12 +79,13 @@ export default function CalculadoraPage() {
   const [fullTimeSundayAvailability, setFullTimeSundayAvailability] = useState(0.5);
   const [partTimeSundayAvailability, setPartTimeSundayAvailability] = useState(1.0);
 
+  const [allowedJornadas, setAllowedJornadas] = useState<AllowedJornadas>(defaultAllowedJornadas());
+
   const [days, setDays] = useState<Record<DayKey, DayInput>>(defaultDays());
 
   const [contracts, setContracts] = useState<ContractType[]>([
     { name: "42h", hoursPerWeek: 42 },
-    { name: "36h", hoursPerWeek: 36 },
-    { name: "30h", hoursPerWeek: 30 },
+    { name: "40h", hoursPerWeek: 40 },
     { name: "20h", hoursPerWeek: 20 },
     { name: "16h", hoursPerWeek: 16 },
   ]);
@@ -72,42 +93,29 @@ export default function CalculadoraPage() {
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<CalcResponse | null>(null);
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const input: CalcInput = useMemo(
     () => ({
       fullHoursPerWeek,
       fullTimeThresholdHours,
       fullTimeSundayAvailability,
       partTimeSundayAvailability,
+      allowedJornadas,
       days,
       contracts,
     }),
-    [fullHoursPerWeek, fullTimeThresholdHours, fullTimeSundayAvailability, partTimeSundayAvailability, days, contracts]
+    [
+      fullHoursPerWeek,
+      fullTimeThresholdHours,
+      fullTimeSundayAvailability,
+      partTimeSundayAvailability,
+      allowedJornadas,
+      days,
+      contracts,
+    ]
   );
 
-  async function onCalculate() {
-  setLoading(true);
-  setResp(null);
-
-  // Evento analytics
-  track("calculate_clicked", {
-    fullHoursPerWeek,
-    threshold: fullTimeThresholdHours,
-  });
-
-  try {
-    const r = await fetch("/api/calculate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-    const data = await r.json();
-    setResp(data);
-  } catch (e: any) {
-    setResp({ ok: false, error: e?.message ?? "Error" });
-  } finally {
-    setLoading(false);
-  }
-}
   function updateDay(d: DayKey, patch: Partial<DayInput>) {
     setDays((prev) => ({ ...prev, [d]: { ...prev[d], ...patch } }));
   }
@@ -132,37 +140,49 @@ export default function CalculadoraPage() {
     setContracts((prev) => prev.filter((_, idx) => idx !== i));
   }
 
-  function loadRetailExample() {
-    setFullHoursPerWeek(42);
-    setFullTimeThresholdHours(30);
-    setFullTimeSundayAvailability(0.5);
-    setPartTimeSundayAvailability(1.0);
+  function toggleJornada(key: keyof AllowedJornadas) {
+    setAllowedJornadas((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
-    // Semana típica: 2 personas casi todo el día; viernes algo más; domingo más corto.
-    setDays(() => {
-      const base: DayInput = {
-        open: true,
-        hoursOpen: 12,
-        requiredPeople: 2,
-        shiftsPerDay: 2,
-        overlapMinutes: 30,
-        breakMinutes: 60,
-      };
-      const out = Object.fromEntries(DAY_ORDER.map((d) => [d, { ...base }])) as Record<DayKey, DayInput>;
-      out.fri = { ...base, hoursOpen: 13, requiredPeople: 3 };
-      out.sun = { ...base, hoursOpen: 8, requiredPeople: 1 };
-      return out;
+  async function onCalculate() {
+    setLoading(true);
+    setResp(null);
+
+    // abort request anterior si existe (evita carreras)
+    abortRef.current?.abort();
+    const ac = new AbortController();
+    abortRef.current = ac;
+
+    const requestId = `${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+    const payload = { ...input, requestId };
+
+    // Analytics (evento)
+    track("calculate_clicked", {
+      threshold: fullTimeThresholdHours,
+      fullHoursPerWeek,
+      reqId: requestId,
     });
 
-    setContracts([
-      { name: "42h", hoursPerWeek: 42 },
-      { name: "36h", hoursPerWeek: 36 },
-      { name: "30h", hoursPerWeek: 30 },
-      { name: "20h", hoursPerWeek: 20 },
-      { name: "16h", hoursPerWeek: 16 },
-    ]);
+    try {
+      const r = await fetch("/api/calculate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-store",
+        },
+        cache: "no-store",
+        signal: ac.signal,
+        body: JSON.stringify(payload),
+      });
 
-    setResp(null);
+      const data = (await r.json()) as CalcResponse;
+      setResp(data);
+    } catch (e: any) {
+      if (e?.name === "AbortError") return;
+      setResp({ ok: false, error: e?.message ?? "Error" });
+    } finally {
+      setLoading(false);
+    }
   }
 
   const result = resp && resp.ok ? resp.result : null;
@@ -171,57 +191,19 @@ export default function CalculadoraPage() {
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24, fontFamily: "system-ui" }}>
       <h1 style={{ fontSize: 28, fontWeight: 800 }}>Calculadora de Dotación Retail</h1>
       <p style={{ marginTop: 8, color: "#555" }}>
-        Rellena tu semana y presiona <b>CALCULAR</b>. Te entregará un estimado de FTE (personas full-time equivalentes)
-        y 2–3 propuestas de mix de contratos.
+        Completa tu semana y presiona <b>CALCULAR</b>. El motor propone mixes considerando jornada (5x2/6x1/4x3/PT)
+        y el efecto domingo.
       </p>
 
-      <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <button
-          onClick={loadRetailExample}
-          style={{
-            background: "#111827",
-            color: "white",
-            padding: "10px 14px",
-            borderRadius: 12,
-            border: "1px solid #111827",
-            cursor: "pointer",
-            fontWeight: 700,
-          }}
-        >
-          Cargar ejemplo retail típico
-        </button>
-
-        <a
-          href="/"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            padding: "10px 14px",
-            borderRadius: 12,
-            border: "1px solid #ddd",
-            textDecoration: "none",
-            color: "#111",
-            fontWeight: 700,
-          }}
-        >
-          Volver al inicio
-        </a>
-      </div>
-
-      {/* PASO 1: Parámetros + Contratos */}
+      {/* Paso 1: Parámetros + Jornadas */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
         <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Paso 1 — Parámetros</h2>
-            <span style={{ fontSize: 12, color: "#666" }}>Define reglas base</span>
-          </div>
+          <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Paso 1 — Parámetros</h2>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
             <label style={{ display: "grid", gap: 6 }}>
               Full (h/sem)
-              <div style={{ fontSize: 12, color: "#666" }}>
-                Horas semanales de un contrato full típico (ej: 42).
-              </div>
+              <div style={{ fontSize: 12, color: "#666" }}>Ej: 42 (máximo legal próximo).</div>
               <input
                 type="number"
                 value={fullHoursPerWeek}
@@ -232,9 +214,7 @@ export default function CalculadoraPage() {
 
             <label style={{ display: "grid", gap: 6 }}>
               Umbral full-time (h)
-              <div style={{ fontSize: 12, color: "#666" }}>
-                Desde cuántas horas semanales se considera full time para aplicar el “efecto domingo” (ej: 30h).
-              </div>
+              <div style={{ fontSize: 12, color: "#666" }}>Desde cuántas horas se considera full (ej: 30).</div>
               <input
                 type="number"
                 value={fullTimeThresholdHours}
@@ -244,10 +224,8 @@ export default function CalculadoraPage() {
             </label>
 
             <label style={{ display: "grid", gap: 6 }}>
-              Domingo full (&gt; umbral)
-              <div style={{ fontSize: 12, color: "#666" }}>
-                Factor domingo para full time. Ej: 0.5 significa que “rinden la mitad” los domingos.
-              </div>
+              Factor domingo full (&gt; umbral)
+              <div style={{ fontSize: 12, color: "#666" }}>Ej: 0.5 (pierdes 2 domingos al mes).</div>
               <input
                 type="number"
                 step="0.1"
@@ -258,10 +236,8 @@ export default function CalculadoraPage() {
             </label>
 
             <label style={{ display: "grid", gap: 6 }}>
-              Domingo part (≤ umbral)
-              <div style={{ fontSize: 12, color: "#666" }}>
-                Factor domingo para part time. Normalmente 1.0 (sin castigo).
-              </div>
+              Factor domingo part (≤ umbral)
+              <div style={{ fontSize: 12, color: "#666" }}>Ej: 1.0 (pueden trabajar todos los domingos).</div>
               <input
                 type="number"
                 step="0.1"
@@ -277,91 +253,114 @@ export default function CalculadoraPage() {
               onClick={() => applyToAll({ shiftsPerDay: 2 })}
               style={{ padding: "10px 12px", borderRadius: 12, border: "1px solid #ddd", cursor: "pointer" }}
             >
-              2 turnos por día (semana completa)
+              2 turnos por día
             </button>
             <button
               onClick={() => applyToAll({ overlapMinutes: 30 })}
               style={{ padding: "10px 12px", borderRadius: 12, border: "1px solid #ddd", cursor: "pointer" }}
             >
-              Traslape 30 min (semana completa)
+              Traslape 30 min
             </button>
             <button
               onClick={() => applyToAll({ breakMinutes: 60 })}
               style={{ padding: "10px 12px", borderRadius: 12, border: "1px solid #ddd", cursor: "pointer" }}
             >
-              Colación 60 min (semana completa)
+              Colación 60 min
             </button>
-          </div>
-
-          <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
-            <b>Tip:</b> “Traslape” es el tiempo que se cruzan turnos (sirve para colación/cambio de turno).
           </div>
         </div>
 
         <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Paso 2 — Contratos</h2>
-            <span style={{ fontSize: 12, color: "#666" }}>Define el set de contratos</span>
+          <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Paso 1.5 — Política de jornadas</h2>
+          <div style={{ marginTop: 8, fontSize: 12, color: "#666" }}>
+            Marca lo que tu empresa permite. Esto cambia completamente los mixes.
           </div>
 
-          <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
-            {contracts.map((c, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 130px 90px", gap: 8 }}>
-                <input
-                  value={c.name}
-                  onChange={(e) => updateContract(i, { name: e.target.value })}
-                  style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-                />
-                <input
-                  type="number"
-                  value={c.hoursPerWeek}
-                  onChange={(e) => updateContract(i, { hoursPerWeek: Number(e.target.value) })}
-                  style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-                />
-                <button
-                  onClick={() => removeContract(i)}
-                  style={{
-                    padding: "10px 12px",
-                    borderRadius: 10,
-                    border: "1px solid #fca5a5",
-                    background: "#fff",
-                    color: "#991b1b",
-                    fontWeight: 800,
-                    cursor: "pointer",
-                  }}
-                >
-                  Eliminar
-                </button>
+          <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="checkbox" checked={allowedJornadas.FT_5X2} onChange={() => toggleJornada("FT_5X2")} />
+              <div>
+                <b>Full 5x2</b> <span style={{ color: "#666" }}>(cuerpo base típico)</span>
               </div>
-            ))}
-          </div>
+            </label>
 
-          <button
-            style={{
-              marginTop: 12,
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid #ddd",
-              cursor: "pointer",
-              fontWeight: 800,
-            }}
-            onClick={addContract}
-          >
-            + Agregar contrato
-          </button>
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="checkbox" checked={allowedJornadas.FT_6X1} onChange={() => toggleJornada("FT_6X1")} />
+              <div>
+                <b>Full 6x1</b> <span style={{ color: "#666" }}>(útil para cobertura extendida)</span>
+              </div>
+            </label>
 
-          <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
-            El motor probará combinaciones y te propondrá 2–3 mixes razonables para cubrir la semana.
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="checkbox" checked={allowedJornadas.FT_4X3} onChange={() => toggleJornada("FT_4X3")} />
+              <div>
+                <b>Full 4x3</b> <span style={{ color: "#666" }}>(solo si el contrato es ≤ 40h)</span>
+              </div>
+            </label>
+
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="checkbox" checked={allowedJornadas.PT_WEEKEND} onChange={() => toggleJornada("PT_WEEKEND")} />
+              <div>
+                <b>PT fin de semana</b> <span style={{ color: "#666" }}>(Sáb+Dom fijo, típico 20h/16h)</span>
+              </div>
+            </label>
+
+            <label style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input type="checkbox" checked={allowedJornadas.PT_3DAYS} onChange={() => toggleJornada("PT_3DAYS")} />
+              <div>
+                <b>PT 3 días</b> <span style={{ color: "#666" }}>(flex, para empresas que lo permiten)</span>
+              </div>
+            </label>
           </div>
         </div>
       </div>
 
-      {/* PASO 3: Semana */}
+      {/* Paso 2: Contratos */}
       <div style={{ marginTop: 16, border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Paso 3 — Semana (Lun a Dom)</h2>
-          <span style={{ fontSize: 12, color: "#666" }}>Qué necesitas cada día</span>
+        <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Paso 2 — Contratos</h2>
+        <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+          {contracts.map((c, i) => (
+            <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 130px 90px", gap: 8 }}>
+              <input
+                value={c.name}
+                onChange={(e) => updateContract(i, { name: e.target.value })}
+                style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
+              <input
+                type="number"
+                value={c.hoursPerWeek}
+                onChange={(e) => updateContract(i, { hoursPerWeek: Number(e.target.value) })}
+                style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
+              <button
+                onClick={() => removeContract(i)}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: "1px solid #fca5a5",
+                  background: "#fff",
+                  color: "#991b1b",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                Eliminar
+              </button>
+            </div>
+          ))}
         </div>
+
+        <button
+          style={{ marginTop: 12, padding: "10px 12px", borderRadius: 12, border: "1px solid #ddd", cursor: "pointer", fontWeight: 800 }}
+          onClick={addContract}
+        >
+          + Agregar contrato
+        </button>
+      </div>
+
+      {/* Paso 3: Semana */}
+      <div style={{ marginTop: 16, border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
+        <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Paso 3 — Semana (Lun a Dom)</h2>
 
         <div style={{ overflowX: "auto", marginTop: 12 }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -370,7 +369,7 @@ export default function CalculadoraPage() {
                 <th style={{ textAlign: "left", padding: 6 }}>Día</th>
                 <th style={{ padding: 6 }}>Abierto</th>
                 <th style={{ padding: 6 }}>Horas abierto</th>
-                <th style={{ padding: 6 }}>Personas requeridas</th>
+                <th style={{ padding: 6 }}>Personas req.</th>
                 <th style={{ padding: 6 }}>Turnos/día</th>
                 <th style={{ padding: 6 }}>Traslape (min)</th>
                 <th style={{ padding: 6 }}>Colación (min)</th>
@@ -381,11 +380,7 @@ export default function CalculadoraPage() {
                 <tr key={d} style={{ borderTop: "1px solid #eee" }}>
                   <td style={{ padding: 6, fontWeight: 700 }}>{DAY_LABEL[d]}</td>
                   <td style={{ textAlign: "center", padding: 6 }}>
-                    <input
-                      type="checkbox"
-                      checked={days[d].open}
-                      onChange={(e) => updateDay(d, { open: e.target.checked })}
-                    />
+                    <input type="checkbox" checked={days[d].open} onChange={(e) => updateDay(d, { open: e.target.checked })} />
                   </td>
                   <td style={{ padding: 6 }}>
                     <input
@@ -433,7 +428,6 @@ export default function CalculadoraPage() {
           </table>
         </div>
 
-        {/* BOTÓN ROJO */}
         <button
           onClick={onCalculate}
           disabled={loading}
@@ -454,18 +448,11 @@ export default function CalculadoraPage() {
         >
           {loading ? "CALCULANDO..." : "CALCULAR"}
         </button>
-
-        <div style={{ marginTop: 10, fontSize: 12, color: "#666" }}>
-          Si aparece “brecha por colación”, normalmente se resuelve subiendo el traslape o ajustando turnos.
-        </div>
       </div>
 
-      {/* PASO 4: Resultados */}
+      {/* Resultados */}
       <div style={{ marginTop: 16 }}>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Paso 4 — Resultados</h2>
-          <span style={{ fontSize: 12, color: "#666" }}>Resumen + mixes sugeridos</span>
-        </div>
+        <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>Resultados</h2>
 
         {!resp && <p style={{ color: "#666" }}>Presiona <b>CALCULAR</b> para ver resultados.</p>}
 
@@ -477,35 +464,20 @@ export default function CalculadoraPage() {
 
         {result && (
           <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
-            {/* RESUMEN HUMANO */}
             <div style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
               <div style={{ fontSize: 16, fontWeight: 900 }}>
-                Estimación: necesitas aproximadamente <span style={{ color: "#111" }}>{Number(result.fte).toFixed(2)}</span>{" "}
-                FTE (personas full-time equivalentes).
+                Estimación: <span>{Number(result.fte).toFixed(2)}</span> FTE
               </div>
 
               <div style={{ marginTop: 10, display: "grid", gap: 6, color: "#333" }}>
-                <div><b>Horas requeridas (semana):</b> {result.requiredHours}</div>
-                <div><b>Horas cubiertas (según mix):</b> {result.covHours}</div>
-                <div><b>Brecha por colación vs traslape:</b> {result.gapHours}</div>
-              </div>
-
-              <div style={{ marginTop: 10 }}>
-                {result.gapHours > 0 ? (
-                  <div style={{ color: "#b45309", fontWeight: 800 }}>
-                    ⚠️ Hay brecha por colación. Recomendación típica: subir traslape o ajustar turnos.
-                  </div>
-                ) : (
-                  <div style={{ color: "#166534", fontWeight: 800 }}>
-                    ✅ Colación cubierta (no hay brecha relevante).
+                <div><b>Horas requeridas:</b> {result.requiredHours}</div>
+                <div><b>Brecha colación vs traslape:</b> {result.gapHours}</div>
+                <div><b>Domingo requerido:</b> {result.sundayReq}</div>
+                {result.requestId && (
+                  <div style={{ fontSize: 12, color: "#666" }}>
+                    Debug requestId: <b>{result.requestId}</b> (debería cambiar cada cálculo)
                   </div>
                 )}
-              </div>
-
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontWeight: 800 }}>
-                  Domingo requerido: {result.sundayReq}
-                </div>
               </div>
 
               {result.warnings?.length > 0 && (
@@ -520,7 +492,6 @@ export default function CalculadoraPage() {
               )}
             </div>
 
-            {/* MIXES */}
             <div style={{ display: "grid", gap: 12 }}>
               {result.mixes?.map((m: any, idx: number) => (
                 <div key={idx} style={{ border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
@@ -546,7 +517,7 @@ export default function CalculadoraPage() {
                       <li key={j}>
                         {it.count} × {it.contractName}{" "}
                         <span style={{ color: "#666" }}>
-                          (h/sem {it.hoursPerWeek}, factor domingo {it.sundayFactor})
+                          ({it.jornada}, {it.hoursPerWeek}h/sem, factor dom {it.sundayFactor})
                         </span>
                       </li>
                     ))}
@@ -558,7 +529,7 @@ export default function CalculadoraPage() {
         )}
 
         <div style={{ marginTop: 18, color: "#777", fontSize: 12 }}>
-          Dotaciones.cl — MVP v0.1
+          Dotaciones.cl — MVP v0.2
         </div>
       </div>
     </div>

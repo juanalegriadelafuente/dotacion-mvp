@@ -1,21 +1,25 @@
 // src/app/reporte/[id]/page.tsx
-import { supabaseAdmin } from "@/lib/supabaseServer";
 import Link from "next/link";
+import { supabaseAdmin } from "@/lib/supabaseServer";
 
 export const dynamic = "force-dynamic";
 
 function fmtNum(n: any, digits = 0) {
   const x = Number(n);
   if (!Number.isFinite(x)) return "-";
-  return x.toLocaleString("es-CL", { maximumFractionDigits: digits, minimumFractionDigits: digits });
+  return x.toLocaleString("es-CL", {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  });
 }
 
 export default async function ReportePage({
   params,
 }: {
-  params: { id: string };
+  // Next 16 (Turbopack): params puede venir como Promise
+  params: Promise<{ id: string }>;
 }) {
-  const id = params.id;
+  const { id } = await params;
 
   const { data, error } = await supabaseAdmin
     .from("leads")
@@ -27,164 +31,106 @@ export default async function ReportePage({
     return (
       <div style={{ padding: 24, fontFamily: "system-ui" }}>
         <h1>Reporte no encontrado</h1>
-        <p>Es posible que el link sea inválido o haya expirado.</p>
+        <p>Es posible que el link sea inválido, haya expirado, o el reporte no exista.</p>
         <Link href="/calculadora">Volver a la calculadora</Link>
       </div>
     );
   }
 
-  const r = data.calc_result ?? {};
-  const mixes = r.mixes ?? [];
+  const calc_input = data.calc_input ?? {};
+  const calc_result = data.calc_result ?? {};
 
   return (
-    <html lang="es">
-      <head>
-        <title>Informe de Dotación — Dotaciones.cl</title>
-        <meta name="robots" content="noindex,nofollow" />
-        <style>{`
-          :root { color-scheme: light; }
-          body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; background: #f5f6f8; color: #111; }
-          .wrap { max-width: 920px; margin: 0 auto; padding: 28px 16px 40px; }
-          .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; padding: 18px; }
-          .row { display: grid; gap: 12px; grid-template-columns: 1fr; }
-          @media (min-width: 860px) { .row { grid-template-columns: 1.2fr 0.8fr; } }
-          h1 { font-size: 26px; margin: 0; }
-          h2 { font-size: 16px; margin: 0 0 8px; }
-          .muted { color: #6b7280; font-size: 13px; }
-          .kpi { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-          @media (min-width: 860px) { .kpi { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-          .k { border: 1px solid #eef2f7; border-radius: 12px; padding: 10px; background: #fbfdff; }
-          .k .lbl { font-size: 12px; color:#6b7280; }
-          .k .val { font-size: 18px; font-weight: 700; margin-top: 3px; }
-          .btns { display:flex; gap:10px; flex-wrap: wrap; }
-          .btn { appearance:none; border:0; cursor:pointer; padding:10px 14px; border-radius:12px; font-weight:700; font-size:14px; }
-          .btn.print { background:#dc2626; color:#fff; }
-          .btn.back { background:#111827; color:#fff; text-decoration:none; display:inline-flex; align-items:center; }
-          .mix { border:1px solid #e5e7eb; border-radius:14px; padding:12px; }
-          .mix h3 { margin:0; font-size:14px; }
-          ul { margin: 8px 0 0 18px; }
-          li { margin: 4px 0; }
+    <div style={{ maxWidth: 900, margin: "0 auto", padding: 24, fontFamily: "system-ui" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
+        <h1 style={{ margin: 0 }}>Reporte</h1>
+        <div style={{ fontSize: 12, color: "#666" }}>
+          ID: <code>{id}</code>
+        </div>
+      </div>
 
-          /* Print */
-          @media print {
-            body { background:#fff; }
-            .no-print { display:none !important; }
-            .wrap { padding: 0; }
-            .card { border: 0; }
-          }
-        `}</style>
-      </head>
+      <p style={{ color: "#666", marginTop: 8 }}>
+        Este reporte fue generado desde Dotaciones.cl (MVP). Guarda este link si quieres volver después.
+      </p>
 
-      <body>
-        <div className="wrap">
-          <div className="card no-print" style={{ marginBottom: 12 }}>
-            <div className="btns">
-              <button className="btn print" onClick={() => window.print()}>
-                Descargar PDF
-              </button>
-              <Link className="btn back" href="/calculadora">
-                Volver a la calculadora
-              </Link>
-            </div>
-            <div className="muted" style={{ marginTop: 10 }}>
-              Tip: al imprimir, elige “Guardar como PDF”.
-            </div>
+      <div style={{ marginTop: 16, border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
+        <h2 style={{ marginTop: 0 }}>Resumen</h2>
+
+        <div style={{ display: "grid", gap: 8 }}>
+          <div>
+            <b>FTE estimado:</b> {fmtNum(calc_result.fte, 2)}
           </div>
-
-          <div className="card">
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <div>
-                <h1>Informe Ejecutivo de Dotación (Retail)</h1>
-                <div className="muted">
-                  Generado en Dotaciones.cl • ID {data.id} • {new Date(data.created_at).toLocaleString("es-CL")}
-                </div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontWeight: 700 }}>{data.email}</div>
-                <div className="muted">
-                  {(data.role ?? "—")} • {(data.company_size ?? "—")} • {(data.city ?? "—")}
-                </div>
-              </div>
-            </div>
-
-            <div className="row" style={{ marginTop: 16 }}>
-              <div>
-                <h2>Resumen</h2>
-                <div className="kpi">
-                  <div className="k">
-                    <div className="lbl">Horas requeridas (semana)</div>
-                    <div className="val">{fmtNum(r.requiredHours, 0)} h</div>
-                  </div>
-                  <div className="k">
-                    <div className="lbl">FTE estimado</div>
-                    <div className="val">{fmtNum(r.fte, 2)}</div>
-                  </div>
-                  <div className="k">
-                    <div className="lbl">Requerimiento domingo</div>
-                    <div className="val">{fmtNum(r.sundayReq, 0)}</div>
-                  </div>
-                  <div className="k">
-                    <div className="lbl">Colación (h)</div>
-                    <div className="val">{fmtNum(r.breakHours, 0)}</div>
-                  </div>
-                  <div className="k">
-                    <div className="lbl">Traslape (h)</div>
-                    <div className="val">{fmtNum(r.overlapHours, 0)}</div>
-                  </div>
-                  <div className="k">
-                    <div className="lbl">Brecha colación-traslape (h)</div>
-                    <div className="val">{fmtNum(r.gapHours, 0)}</div>
-                  </div>
-                </div>
-
-                {Array.isArray(r.warnings) && r.warnings.length > 0 && (
-                  <div style={{ marginTop: 12 }}>
-                    <h2>Alertas</h2>
-                    <ul>
-                      {r.warnings.map((w: string, i: number) => (
-                        <li key={i}>{w}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h2>Mix de contratos sugeridos</h2>
-                <div style={{ display: "grid", gap: 10 }}>
-                  {mixes.length === 0 && <div className="muted">No hay mixes en este reporte.</div>}
-                  {mixes.map((m: any, idx: number) => (
-                    <div className="mix" key={idx}>
-                      <h3>{m.title}</h3>
-                      <div className="muted" style={{ marginTop: 6 }}>
-                        Headcount: <b>{m.headcount}</b> • Horas: <b>{m.hoursTotal}</b> • Holgura:{" "}
-                        <b>{m.slackHours}</b> ({Math.round((m.slackPct ?? 0) * 100)}%)
-                      </div>
-                      <div className="muted" style={{ marginTop: 6 }}>
-                        Domingo: {fmtNum(m.sundayCap, 2)} / {fmtNum(m.sundayReq, 0)}{" "}
-                        {m.sundayOk ? "✅" : "❌"}
-                      </div>
-                      <ul>
-                        {(m.items ?? []).map((it: any, j: number) => (
-                          <li key={j}>
-                            {it.count}× {it.contractName} ({it.hoursPerWeek}h/sem) • factor domingo{" "}
-                            {it.sundayFactor}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="muted" style={{ marginTop: 14 }}>
-              Nota: Este informe es una estimación operativa basada en tus parámetros. Próximamente: versión Pro con
-              costo empresa y valorización de escenarios.
-            </div>
+          <div>
+            <b>Horas requeridas:</b> {fmtNum(calc_result.requiredHours, 2)}
+          </div>
+          <div>
+            <b>Brecha colación vs traslape:</b> {fmtNum(calc_result.gapHours, 2)}
+          </div>
+          <div>
+            <b>Domingo requerido:</b> {fmtNum(calc_result.sundayReq, 2)}
           </div>
         </div>
-      </body>
-    </html>
+      </div>
+
+      <div style={{ marginTop: 16, border: "1px solid #ddd", borderRadius: 12, padding: 16 }}>
+        <h2 style={{ marginTop: 0 }}>Mixes sugeridos</h2>
+
+        {Array.isArray(calc_result.mixes) && calc_result.mixes.length > 0 ? (
+          <div style={{ display: "grid", gap: 12 }}>
+            {calc_result.mixes.map((m: any, idx: number) => (
+              <div key={idx} style={{ border: "1px solid #eee", borderRadius: 12, padding: 12 }}>
+                <div style={{ fontWeight: 900 }}>{m.title ?? `Mix ${idx + 1}`}</div>
+                <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
+                  <div>
+                    <b>Personas:</b> {fmtNum(m.headcount)}
+                  </div>
+                  <div>
+                    <b>Horas totales:</b> {fmtNum(m.hoursTotal, 2)}{" "}
+                    <span style={{ color: "#666" }}>
+                      (holgura {fmtNum(m.slackHours, 2)} / {fmtNum((m.slackPct ?? 0) * 100, 0)}%)
+                    </span>
+                  </div>
+                  <div>
+                    <b>Domingo:</b> {fmtNum(m.sundayCap, 2)} / {fmtNum(m.sundayReq, 2)}{" "}
+                    <span style={{ fontWeight: 900 }}>{m.sundayOk ? "✅" : "❌"}</span>
+                  </div>
+                </div>
+
+                {Array.isArray(m.items) && m.items.length > 0 && (
+                  <>
+                    <div style={{ marginTop: 10, fontWeight: 900 }}>Composición</div>
+                    <ul style={{ marginTop: 6 }}>
+                      {m.items.map((it: any, j: number) => (
+                        <li key={j}>
+                          {it.count} × {it.contractName}{" "}
+                          <span style={{ color: "#666" }}>
+                            (h/sem {it.hoursPerWeek}, factor domingo {it.sundayFactor})
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ color: "#666" }}>No hay mixes guardados en este reporte.</p>
+        )}
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <details>
+          <summary style={{ cursor: "pointer", fontWeight: 800 }}>Ver input guardado (debug)</summary>
+          <pre style={{ whiteSpace: "pre-wrap", marginTop: 10, fontSize: 12, color: "#333" }}>
+            {JSON.stringify(calc_input, null, 2)}
+          </pre>
+        </details>
+      </div>
+
+      <div style={{ marginTop: 18 }}>
+        <Link href="/calculadora">Volver a la calculadora</Link>
+      </div>
+    </div>
   );
 }

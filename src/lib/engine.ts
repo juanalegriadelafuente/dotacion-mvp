@@ -1,263 +1,361 @@
+// src/lib/engine.ts
 export type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
 export type DayInput = {
   open: boolean;
-  hoursOpen: number; // H_d (already computed)
-  requiredPeople: number; // R_d
-  shiftsPerDay: number; // S_d
-  overlapMinutes: number; // O_d
-  breakMinutes: number; // Bk_d
+  hoursOpen: number;
+  requiredPeople: number;
+  shiftsPerDay: number;
+  overlapMinutes: number;
+  breakMinutes: number;
 };
 
-export type ContractType = {
-  name: string;         // "42h", "20h", etc
-  hoursPerWeek: number; // h_i
-};
+export type ContractType = { name: string; hoursPerWeek: number };
 
 export type CalcInput = {
-  fullHoursPerWeek: number; // default 42, editable
-  fullTimeThresholdHours: number; // default 30
-  fullTimeSundayAvailability: number; // default 0.5 (A)
-  partTimeSundayAvailability: number; // default 1.0
+  fullHoursPerWeek: number; // ej 42
   days: Record<DayKey, DayInput>;
   contracts: ContractType[];
 };
 
 export type MixItem = {
+  count: number;
   contractName: string;
   hoursPerWeek: number;
-  count: number;
+  jornadaId: string;
+  jornadaName: string;
   sundayFactor: number;
 };
 
-export type MixResult = {
+export type Mix = {
   title: string;
-  items: MixItem[];
   headcount: number;
   hoursTotal: number;
   slackHours: number;
   slackPct: number;
-  sundayReq: number;
-  sundayCap: number;
+  sundayCap: number; // “capacidad domingo” en equivalentes relativos
+  sundayReq: number; // “requerimiento domingo” en equivalentes relativos
   sundayOk: boolean;
+  items: MixItem[];
 };
 
-export type CalcOutput = {
+export type CalcResult = {
   covHours: number;
   breakHours: number;
   overlapHours: number;
   gapHours: number;
   requiredHours: number;
   fte: number;
-
   sundayReq: number;
   warnings: string[];
-
-  mixes: MixResult[];
+  mixes: Mix[];
 };
 
-function clampInt(n: number, min: number, max: number): number {
-  const x = Math.floor(n);
-  return Math.max(min, Math.min(max, x));
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
 }
 
-function ceilDiv(a: number, b: number): number {
-  return Math.ceil(a / b);
+function round2(x: number) {
+  return Math.round(x * 100) / 100;
 }
 
-function sundayFactorForContract(
-  hoursPerWeek: number,
-  threshold: number,
-  ftSunday: number,
-  ptSunday: number
-): number {
-  return hoursPerWeek > threshold ? ftSunday : ptSunday;
+/**
+ * Jornadas (MODELO GENERAL / OPERATIVO)
+ * Opción 2 (la que elegiste):
+ * - 6x1: 0.55
+ * - 5x2: 0.50
+ * - 4x3: 0.45 (solo si <= 40h)
+ * - PT fin de semana: 1.00 (Sáb+Dom fijo)
+ */
+type Jornada = {
+  id: string;
+  name: string;
+  daysWorked: number;
+  sundayFactor: number;
+  weekendOnly?: boolean;
+  maxHours?: number; // regla dura para 4x3
+};
+
+const JORNADAS: Jornada[] = [
+  { id: "J_6X1", name: "6x1 (rotativo)", daysWorked: 6, sundayFactor: 0.55 },
+  { id: "J_5X2", name: "5x2", daysWorked: 5, sundayFactor: 0.5 },
+  { id: "J_4X3", name: "4x3 (ley 40h)", daysWorked: 4, sundayFactor: 0.45, maxHours: 40 },
+  { id: "J_PT_WEEKEND", name: "PT fin de semana (Sáb+Dom)", daysWorked: 2, sundayFactor: 1.0, weekendOnly: true },
+];
+
+function getJornada(id: string) {
+  const j = JORNADAS.find((x) => x.id === id);
+  if (!j) throw new Error(`Jornada desconocida: ${id}`);
+  return j;
 }
 
-export function calculate(input: CalcInput): CalcOutput {
-  const warnings: string[] = [];
-  if (!input.contracts?.length) throw new Error("No contracts provided.");
-  if (input.fullHoursPerWeek <= 0) throw new Error("fullHoursPerWeek must be > 0.");
-  if (input.fullTimeSundayAvailability < 0 || input.fullTimeSundayAvailability > 1) {
-    throw new Error("fullTimeSundayAvailability must be in [0,1].");
+/**
+ * Mapping de contratos -> jornadas posibles (simple, pero muy real para retail).
+ * - PT (<=20h): fin de semana fijo Sáb+Dom
+ * - Full/semi-full: 5x2 siempre; 6x1 si >=40h; 4x3 si <=40h
+ */
+function jornadasParaContrato(hoursPerWeek: number): Jornada[] {
+  const h = hoursPerWeek;
+
+  if (h <= 20) return [getJornada("J_PT_WEEKEND")];
+
+  const out: Jornada[] = [];
+  out.push(getJornada("J_5X2"));
+
+  if (h >= 40) out.push(getJornada("J_6X1"));
+
+  const j43 = getJornada("J_4X3");
+  if (h <= (j43.maxHours ?? 999)) out.push(j43);
+
+  // unique by id
+  return Array.from(new Map(out.map((x) => [x.id, x])).values());
+}
+
+/**
+ * Demanda semanal en horas-persona (sin solver de turnos aún):
+ * sum(día abierto) requiredPeople * hoursOpen
+ */
+function computeRequiredHours(days: Record<DayKey, DayInput>) {
+  let requiredHours = 0;
+  let sundayReqHours = 0;
+
+  const keys = Object.keys(days) as DayKey[];
+  for (const k of keys) {
+    const d = days[k];
+    if (!d.open) continue;
+    const need = d.requiredPeople * d.hoursOpen;
+    requiredHours += need;
+    if (k === "sun") sundayReqHours = need;
   }
+  return { requiredHours, sundayReqHours };
+}
 
-  // --- compute weekly coverage (cov) ---
-  let covHours = 0;
+/**
+ * Brecha colación vs traslape (modelo simple y útil):
+ * breakHours = sum(requiredPeople * breakMinutes/60)
+ * overlapHours = sum(requiredPeople * overlapMinutes/60)
+ * gap = max(0, break - overlap)
+ */
+function computeBreakOverlapGap(days: Record<DayKey, DayInput>) {
   let breakHours = 0;
   let overlapHours = 0;
 
-  (Object.keys(input.days) as DayKey[]).forEach((d) => {
-    const day = input.days[d];
-
-    if (!day.open || day.hoursOpen <= 0) return;
-
-    const H = Math.max(0, day.hoursOpen);
-    const R = Math.max(0, Math.floor(day.requiredPeople));
-    const S = Math.max(0, Math.floor(day.shiftsPerDay));
-    const O = Math.max(0, day.overlapMinutes);
-    const Bk = Math.max(0, day.breakMinutes);
-
-    covHours += R * H;
-
-    if (S <= 0) {
-      warnings.push(`${d}: open day but shiftsPerDay <= 0. Check shifts.`);
-      return;
-    }
-
-    // Break hours = R * S * Bk
-    if (Bk > 0) {
-      breakHours += R * S * (Bk / 60);
-    }
-
-    // Overlap hours = R * (S-1) * O
-    if (S === 1 && O > 0) {
-      warnings.push(`${d}: overlap ignored because shiftsPerDay=1.`);
-    }
-    if (S > 1 && O > 0) {
-      overlapHours += R * (S - 1) * (O / 60);
-    }
-
-    // sanity
-    if (S >= 2 && H <= (Bk / 60)) {
-      warnings.push(`${d}: hoursOpen looks too low vs breakMinutes. Check inputs.`);
-    }
-  });
+  const keys = Object.keys(days) as DayKey[];
+  for (const k of keys) {
+    const d = days[k];
+    if (!d.open) continue;
+    breakHours += d.requiredPeople * (d.breakMinutes / 60);
+    overlapHours += d.requiredPeople * (d.overlapMinutes / 60);
+  }
 
   const gapHours = Math.max(0, breakHours - overlapHours);
-  const requiredHours = covHours + gapHours;
-  const fte = requiredHours / input.fullHoursPerWeek;
+  return { breakHours, overlapHours, gapHours };
+}
 
-  if (gapHours > 0.01) {
-    warnings.push(
-      `Break gap detected: breaks=${breakHours.toFixed(1)}h, overlap=${overlapHours.toFixed(1)}h, gap=${gapHours.toFixed(1)}h.`
-    );
-  }
+/**
+ * Evalúa un mix con un proxy dominical:
+ * - Convertimos “horas domingo” a “equivalentes” usando baseDayHours = fullHours/7
+ * - Capacidad domingo:
+ *    por contrato-jornada: (hoursPerWeek/fullHours) * sundayFactor
+ *   (PT weekend sale bien parado porque sundayFactor=1.0)
+ *
+ * Esto NO calendariza (eso sería Turnera), pero sí modela el “cuello” dominical.
+ */
+function buildMix(
+  fullHoursPerWeek: number,
+  effectiveRequiredHours: number,
+  sundayReqHours: number,
+  cand: Array<{
+    contractName: string;
+    hoursPerWeek: number;
+    jornadaId: string;
+    jornadaName: string;
+    sundayFactor: number;
+  }>,
+  counts: number[]
+): Mix {
+  const items: MixItem[] = [];
+  let hoursTotal = 0;
+  let headcount = 0;
+  let sundayCapEquiv = 0;
 
-  // --- Sunday requirement in "slots" ---
-  const sun = input.days.sun;
-  const sundayReq = (sun?.open && sun.hoursOpen > 0)
-    ? Math.max(0, Math.floor(sun.requiredPeople)) * Math.max(0, Math.floor(sun.shiftsPerDay))
-    : 0;
+  for (let i = 0; i < cand.length; i++) {
+    const n = counts[i] ?? 0;
+    if (n <= 0) continue;
+    const c = cand[i];
 
-  // --- generate mixes (brute force bounded) ---
-  const contracts = input.contracts
-    .map((c) => {
-      const h = Math.max(1, Math.floor(c.hoursPerWeek));
-      return {
-        ...c,
-        hoursPerWeek: h,
-        sundayFactor: sundayFactorForContract(
-          h,
-          input.fullTimeThresholdHours,
-          input.fullTimeSundayAvailability,
-          input.partTimeSundayAvailability
-        ),
-      };
-    })
-    .sort((a, b) => b.hoursPerWeek - a.hoursPerWeek);
+    headcount += n;
+    hoursTotal += n * c.hoursPerWeek;
 
-  const bounds = contracts.map((c) => clampInt(ceilDiv(requiredHours, c.hoursPerWeek) + 2, 0, 30));
+    // Capacidad dominical relativa (equivalentes)
+    const sundayEquivPerPerson = (c.hoursPerWeek / fullHoursPerWeek) * c.sundayFactor;
+    sundayCapEquiv += n * sundayEquivPerPerson;
 
-  type Combo = number[];
-  const combos: { counts: Combo; hoursTotal: number; headcount: number; sundayCap: number }[] = [];
-
-  function rec(i: number, counts: number[], hoursAcc: number, headAcc: number, sunAcc: number) {
-    if (i === contracts.length) {
-      if (hoursAcc + 1e-9 >= requiredHours && sunAcc + 1e-9 >= sundayReq) {
-        combos.push({ counts: [...counts], hoursTotal: hoursAcc, headcount: headAcc, sundayCap: sunAcc });
-      }
-      return;
-    }
-
-    const c = contracts[i];
-    const maxN = bounds[i];
-
-    for (let n = 0; n <= maxN; n++) {
-      const newHours = hoursAcc + n * c.hoursPerWeek;
-      const newHead = headAcc + n;
-      const newSun = sunAcc + n * c.sundayFactor;
-
-      if (newHead > 60) break;
-
-      counts.push(n);
-      rec(i + 1, counts, newHours, newHead, newSun);
-      counts.pop();
-    }
-  }
-
-  rec(0, [], 0, 0, 0);
-
-  if (combos.length === 0) {
-    warnings.push(
-      "No feasible mix found with current contracts + Sunday rule. Add more <=30h contracts or adjust Sunday availability."
-    );
-    return {
-      covHours, breakHours, overlapHours, gapHours, requiredHours, fte,
-      sundayReq,
-      warnings,
-      mixes: [],
-    };
-  }
-
-  function toMixResult(title: string, combo: (typeof combos)[number]): MixResult {
-    const items: MixItem[] = contracts.map((c, idx) => ({
-      contractName: c.name,
+    items.push({
+      count: n,
+      contractName: c.contractName,
       hoursPerWeek: c.hoursPerWeek,
-      count: combo.counts[idx],
+      jornadaId: c.jornadaId,
+      jornadaName: c.jornadaName,
       sundayFactor: c.sundayFactor,
-    })).filter(x => x.count > 0);
-
-    const slackHours = combo.hoursTotal - requiredHours;
-    const slackPct = requiredHours > 0 ? slackHours / requiredHours : 0;
-
-    return {
-      title,
-      items,
-      headcount: combo.headcount,
-      hoursTotal: combo.hoursTotal,
-      slackHours,
-      slackPct,
-      sundayReq,
-      sundayCap: combo.sundayCap,
-      sundayOk: combo.sundayCap + 1e-9 >= sundayReq,
-    };
+    });
   }
 
-  const byMinHeadcount = [...combos].sort((a, b) =>
-    (a.headcount - b.headcount) ||
-    ((a.hoursTotal - requiredHours) - (b.hoursTotal - requiredHours))
-  )[0];
+  const slackHours = hoursTotal - effectiveRequiredHours;
+  const slackPct = effectiveRequiredHours > 0 ? slackHours / effectiveRequiredHours : 0;
 
-  const byMinSlack = [...combos].sort((a, b) =>
-    ((a.hoursTotal - requiredHours) - (b.hoursTotal - requiredHours)) ||
-    (a.headcount - b.headcount)
-  )[0];
+  // Requerimiento domingo en equivalentes (si fullHours=42, baseDay=6h)
+  const baseDayHours = fullHoursPerWeek / 7;
+  const sundayReqEquiv = baseDayHours > 0 ? sundayReqHours / baseDayHours : 0;
 
-  const byRobust = [...combos].sort((a, b) => {
-    const aPct = (a.hoursTotal - requiredHours) / Math.max(1e-9, requiredHours);
-    const bPct = (b.hoursTotal - requiredHours) / Math.max(1e-9, requiredHours);
-    const aDist = Math.abs(aPct - 0.10);
-    const bDist = Math.abs(bPct - 0.10);
-    return (aDist - bDist) || (a.headcount - b.headcount);
-  })[0];
-
-  const unique = new Map<string, typeof combos[number]>();
-  [byMinHeadcount, byMinSlack, byRobust].forEach((c) => {
-    const key = c.counts.join(",");
-    if (!unique.has(key)) unique.set(key, c);
-  });
-
-  const chosen = Array.from(unique.values());
-  const mixes: MixResult[] = [];
-  if (chosen[0]) mixes.push(toMixResult("Menos personas", chosen[0]));
-  if (chosen[1]) mixes.push(toMixResult("Más eficiente", chosen[1]));
-  if (chosen[2]) mixes.push(toMixResult("Más robusto", chosen[2]));
+  const sundayOk = sundayCapEquiv + 1e-9 >= sundayReqEquiv;
 
   return {
-    covHours, breakHours, overlapHours, gapHours, requiredHours, fte,
-    sundayReq,
+    title: "",
+    headcount,
+    hoursTotal: round2(hoursTotal),
+    slackHours: round2(slackHours),
+    slackPct,
+    sundayCap: round2(sundayCapEquiv),
+    sundayReq: round2(sundayReqEquiv),
+    sundayOk,
+    items,
+  };
+}
+
+function scoreMix(m: Mix) {
+  // Penaliza fuerte si no cumple domingo
+  const sundayPenalty = m.sundayOk ? 0 : 1000 + Math.max(0, m.sundayReq - m.sundayCap) * 100;
+
+  // Penaliza demasiada holgura (pero no mata el mix)
+  const slackPenalty = Math.max(0, m.slackHours) * 0.3;
+
+  // Penaliza headcount (queremos menos personas, pero no a costa de romper domingo)
+  return m.headcount * 10 + slackPenalty + sundayPenalty;
+}
+
+function maxCountByHours(h: number) {
+  if (h >= 40) return 20;
+  if (h >= 30) return 25;
+  if (h >= 20) return 35;
+  return 40;
+}
+
+/**
+ * Motor principal
+ */
+export function calculate(input: CalcInput): CalcResult {
+  const fullHoursPerWeek = clamp(input.fullHoursPerWeek, 1, 60);
+
+  const warnings: string[] = [];
+
+  // Requerimiento
+  const { requiredHours, sundayReqHours } = computeRequiredHours(input.days);
+
+  // Colación vs traslape
+  const { breakHours, overlapHours, gapHours } = computeBreakOverlapGap(input.days);
+
+  // “Horas efectivas” a cubrir: demanda + brecha
+  const effectiveRequiredHours = requiredHours + gapHours;
+
+  if (gapHours > 0) warnings.push("⚠️ Brecha por colación vs traslape: sube traslape o ajusta turnos.");
+  if (sundayReqHours === 0) warnings.push("ℹ️ Domingo cerrado o sin demanda: el cuello dominical no influye.");
+
+  // Expandir contratos en (contrato + jornada)
+  const expanded = input.contracts.flatMap((c) => {
+    const jornadas = jornadasParaContrato(c.hoursPerWeek);
+    return jornadas.map((j) => ({
+      contractName: c.name,
+      hoursPerWeek: c.hoursPerWeek,
+      jornadaId: j.id,
+      jornadaName: j.name,
+      sundayFactor: j.sundayFactor,
+      weekendOnly: !!j.weekendOnly,
+    }));
+  });
+
+  // Orden: primero PT weekend (porque salva domingo), luego lo demás
+  expanded.sort((a, b) => {
+    if (a.weekendOnly !== b.weekendOnly) return a.weekendOnly ? -1 : 1;
+    // luego mayor factor domingo
+    return b.sundayFactor - a.sundayFactor;
+  });
+
+  // Candidatos (top N)
+  const CAND = expanded.slice(0, 6);
+
+  // Búsqueda acotada (heurística)
+  const mixesAll: Mix[] = [];
+  const limits = CAND.map((c) => maxCountByHours(c.hoursPerWeek));
+  const steps = CAND.map((c) => (c.hoursPerWeek >= 30 ? 1 : 2));
+
+  for (let a = 0; a <= (limits[0] ?? 0); a += (steps[0] ?? 1)) {
+    for (let b = 0; b <= (limits[1] ?? 0); b += (steps[1] ?? 1)) {
+      for (let c = 0; c <= (limits[2] ?? 0); c += (steps[2] ?? 1)) {
+        for (let d = 0; d <= (limits[3] ?? 0); d += (steps[3] ?? 1)) {
+          const counts = [a, b, c, d, 0, 0];
+
+          const m = buildMix(fullHoursPerWeek, effectiveRequiredHours, sundayReqHours, CAND, counts);
+
+          // Reglas básicas de filtro
+          if (m.hoursTotal < effectiveRequiredHours) continue;
+          if (m.slackPct > 0.6) continue;
+
+          mixesAll.push(m);
+          if (mixesAll.length > 2500) break;
+        }
+        if (mixesAll.length > 2500) break;
+      }
+      if (mixesAll.length > 2500) break;
+    }
+    if (mixesAll.length > 2500) break;
+  }
+
+  // Fallback si no encuentra nada
+  if (mixesAll.length === 0) {
+    const fb = expanded.find((x) => x.hoursPerWeek >= 30) ?? expanded[0];
+    const needed = Math.ceil(effectiveRequiredHours / fb.hoursPerWeek);
+    const fallback = buildMix(
+      fullHoursPerWeek,
+      effectiveRequiredHours,
+      sundayReqHours,
+      [fb],
+      [needed]
+    );
+    fallback.title = "Fallback — revisa parámetros";
+    mixesAll.push(fallback);
+  }
+
+  // Rank
+  mixesAll.sort((x, y) => scoreMix(x) - scoreMix(y));
+
+  // Elegir top 3 distintos
+  const picked: Mix[] = [];
+  for (const m of mixesAll) {
+    const sig = `${m.headcount}-${m.sundayOk}-${Math.round(m.slackHours)}`;
+    if (picked.some((p) => `${p.headcount}-${p.sundayOk}-${Math.round(p.slackHours)}` === sig)) continue;
+    picked.push(m);
+    if (picked.length >= 3) break;
+  }
+
+  picked.forEach((m, idx) => {
+    const base =
+      idx === 0 ? "Mix recomendado (balance)" : idx === 1 ? "Alternativa (menos personas)" : "Alternativa (mejor domingo)";
+    const tag = m.sundayOk ? "✅ domingo OK" : "⚠️ domingo justo";
+    m.title = `${base} — ${tag}`;
+  });
+
+  const fte = fullHoursPerWeek > 0 ? effectiveRequiredHours / fullHoursPerWeek : 0;
+
+  return {
+    covHours: picked[0]?.hoursTotal ?? 0,
+    breakHours: round2(breakHours),
+    overlapHours: round2(overlapHours),
+    gapHours: round2(gapHours),
+    requiredHours: round2(effectiveRequiredHours),
+    fte: round2(fte),
+    sundayReq: picked[0]?.sundayReq ?? 0,
     warnings,
-    mixes,
+    mixes: picked,
   };
 }

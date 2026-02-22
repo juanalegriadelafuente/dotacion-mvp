@@ -2,45 +2,48 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseServer";
 
-type LeadPayload = {
-  email: string;
-  role?: string;
-  company_size?: string;
-  city?: string;
-  calc_input?: any;
-  calc_result?: any;
-};
-
-function isEmail(x: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x);
+function isValidEmail(email: string) {
+  // simple y suficiente para MVP
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 export async function POST(req: Request) {
   try {
-    const body = (await req.json()) as LeadPayload;
+    const body = await req.json();
 
-    const email = (body.email ?? "").trim().toLowerCase();
-    if (!email || !isEmail(email)) {
-      return NextResponse.json({ ok: false, error: "Email inválido" }, { status: 400 });
+    const email = String(body?.email ?? "").trim().toLowerCase();
+    const role = body?.role ?? null;
+    const company_size = body?.company_size ?? null;
+    const city = body?.city ?? null;
+    const source = body?.source ?? "dotaciones.cl";
+
+    const calc_input = body?.calc_input ?? null;
+    const calc_result = body?.calc_result ?? null;
+
+    if (!email || !isValidEmail(email)) {
+      return NextResponse.json({ ok: false, error: "Email inválido." }, { status: 400 });
     }
 
-    const role = (body.role ?? "").trim().slice(0, 80) || null;
-    const company_size = (body.company_size ?? "").trim().slice(0, 80) || null;
-    const city = (body.city ?? "").trim().slice(0, 80) || null;
+    // Seguridad mínima: evitamos guardar basura gigante
+    const inputSize = calc_input ? JSON.stringify(calc_input).length : 0;
+    const resultSize = calc_result ? JSON.stringify(calc_result).length : 0;
+
+    // 200 KB cada uno, ajustable
+    if (inputSize > 200_000 || resultSize > 200_000) {
+      return NextResponse.json({ ok: false, error: "Payload demasiado grande." }, { status: 413 });
+    }
 
     const { data, error } = await supabaseAdmin
       .from("leads")
-      .insert([
-        {
-          email,
-          role,
-          company_size,
-          city,
-          source: "dotaciones.cl",
-          calc_input: body.calc_input ?? null,
-          calc_result: body.calc_result ?? null,
-        },
-      ])
+      .insert({
+        email,
+        role,
+        company_size,
+        city,
+        source,
+        calc_input,
+        calc_result,
+      })
       .select("id")
       .single();
 
@@ -48,8 +51,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, id: data.id });
+    return NextResponse.json({ ok: true, id: data.id }, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message ?? "Error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: e?.message ?? "Error inesperado." },
+      { status: 500 }
+    );
   }
 }
