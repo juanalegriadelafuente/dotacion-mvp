@@ -15,10 +15,10 @@ type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 type DayInput = {
   open: boolean;
   hoursOpen: number;
-  requiredPeople: number; // Personas simultáneas
-  shiftsPerDay: number; // Cambios de turno/día
-  overlapMinutes: number; // Traslape
-  breakMinutes: number; // Colación no imputable
+  requiredPeople: number;
+  shiftsPerDay: number;
+  overlapMinutes: number;
+  breakMinutes: number;
 };
 
 type ContractType = { name: string; hoursPerWeek: number };
@@ -29,7 +29,7 @@ type Preferences = {
   allow_5x2: boolean;
   allow_4x3: boolean;
   allow_pt_weekend: boolean;
-  pt_weekend_strict: boolean; // lógica silenciosa
+  pt_weekend_strict: boolean;
 };
 
 type CalcInput = {
@@ -180,14 +180,12 @@ function Button({
   variant = "secondary",
   disabled,
   style,
-  type = "button",
 }: {
   children: ReactNode;
   onClick?: () => void;
   variant?: "primary" | "secondary" | "danger";
   disabled?: boolean;
   style?: CSSProperties;
-  type?: "button" | "submit";
 }) {
   const base: CSSProperties = {
     height: 42,
@@ -210,7 +208,7 @@ function Button({
   };
 
   return (
-    <button type={type} onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...style }}>
+    <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...style }}>
       {children}
     </button>
   );
@@ -246,7 +244,7 @@ function Modal({
     >
       <div
         style={{
-          width: "min(560px, 100%)",
+          width: "min(620px, 100%)",
           borderRadius: 16,
           border: "1px solid var(--border)",
           background: "var(--panel)",
@@ -306,12 +304,16 @@ export default function CalculadoraPage() {
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<CalcResponse | null>(null);
 
-  // ✅ Lead capture
-  const [email, setEmail] = useState("");
-  const [emailModalOpen, setEmailModalOpen] = useState(false);
-  const [emailError, setEmailError] = useState<string | null>(null);
+  // ✅ Lead fields
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadName, setLeadName] = useState("");
+  const [leadRole, setLeadRole] = useState("");
+  const [leadIndustry, setLeadIndustry] = useState("");
+  const [leadEmployees, setLeadEmployees] = useState<string>("");
+
+  const [leadModalOpen, setLeadModalOpen] = useState(false);
+  const [leadError, setLeadError] = useState<string | null>(null);
   const [leadStatus, setLeadStatus] = useState<string | null>(null);
-  const [pendingCalc, setPendingCalc] = useState(false);
 
   const input: CalcInput = useMemo(
     () => ({
@@ -392,7 +394,21 @@ export default function CalculadoraPage() {
     setResp(null);
   }
 
-  async function runCalculateAndCaptureLead(finalEmail: string) {
+  function profileComplete() {
+    const e = leadEmail.trim();
+    const n = leadName.trim();
+    const r = leadRole.trim();
+    const i = leadIndustry.trim();
+    const emp = Number(leadEmployees);
+    if (!isValidEmail(e)) return false;
+    if (!n) return false;
+    if (!r) return false;
+    if (!i) return false;
+    if (!Number.isFinite(emp) || emp <= 0) return false;
+    return true;
+  }
+
+  async function runCalculateAndLead() {
     setLoading(true);
     setResp(null);
     setLeadStatus(null);
@@ -419,12 +435,13 @@ export default function CalculadoraPage() {
         return;
       }
 
-      // 2) Save lead + send email
+      // 2) Lead + email
       const leadPayload = {
-        email: finalEmail,
-        role: "calculadora",
-        company_size: "na",
-        city: "na",
+        email: leadEmail.trim(),
+        full_name: leadName.trim(),
+        role: leadRole.trim(),
+        industry: leadIndustry.trim(),
+        employees: Number(leadEmployees),
         source: "dotaciones.cl/calculadora",
         calc_input: input,
         calc_result: (data as any).result,
@@ -439,14 +456,13 @@ export default function CalculadoraPage() {
 
       const leadData = (await lr.json()) as LeadResponse;
 
-      // mostramos resultados igual (aunque email falle)
       setResp(data);
 
       if (leadData && (leadData as any).ok === true) {
         const sent = (leadData as any).emailSent;
         const reportUrl = (leadData as any).reportUrl;
         if (sent) {
-          setLeadStatus(`✅ Reporte enviado a ${finalEmail}${reportUrl ? ` · Link: ${reportUrl}` : ""}`);
+          setLeadStatus(`✅ Reporte enviado a ${leadEmail.trim()}${reportUrl ? ` · Link: ${reportUrl}` : ""}`);
         } else {
           setLeadStatus(`⚠️ Lead guardado, pero no se pudo enviar correo. ${reportUrl ? `Link: ${reportUrl}` : ""}`);
         }
@@ -458,38 +474,37 @@ export default function CalculadoraPage() {
       setLeadStatus("Error ejecutando el cálculo.");
     } finally {
       setLoading(false);
-      setPendingCalc(false);
     }
   }
 
   async function onCalculateClick() {
-    // ✅ Si no hay email, pedimos antes de mostrar resultados (lead-first)
-    if (!email.trim()) {
-      setEmailError(null);
+    // Si no está completo, pedimos modal
+    if (!profileComplete()) {
+      setLeadError(null);
       setLeadStatus(null);
-      setPendingCalc(true);
-      setEmailModalOpen(true);
+      setLeadModalOpen(true);
       return;
     }
-    if (!isValidEmail(email)) {
-      setEmailError("Email inválido.");
-      setLeadStatus(null);
-      setPendingCalc(true);
-      setEmailModalOpen(true);
-      return;
-    }
-    await runCalculateAndCaptureLead(email.trim());
+    await runCalculateAndLead();
   }
 
-  async function onSubmitEmail() {
-    const e = email.trim();
-    if (!isValidEmail(e)) {
-      setEmailError("Escribe un email válido (ej: nombre@dominio.com).");
-      return;
-    }
-    setEmailError(null);
-    setEmailModalOpen(false);
-    await runCalculateAndCaptureLead(e);
+  async function onSubmitLead() {
+    setLeadError(null);
+
+    const e = leadEmail.trim();
+    const n = leadName.trim();
+    const r = leadRole.trim();
+    const i = leadIndustry.trim();
+    const emp = Number(leadEmployees);
+
+    if (!isValidEmail(e)) return setLeadError("Email inválido.");
+    if (!n) return setLeadError("Nombre es obligatorio.");
+    if (!r) return setLeadError("Cargo es obligatorio.");
+    if (!i) return setLeadError("Industria es obligatoria.");
+    if (!Number.isFinite(emp) || emp <= 0) return setLeadError("Cantidad de empleados inválida.");
+
+    setLeadModalOpen(false);
+    await runCalculateAndLead();
   }
 
   const result = resp && resp.ok ? resp.result : null;
@@ -501,7 +516,7 @@ export default function CalculadoraPage() {
           Calculadora de Dotación Retail
         </h1>
         <p style={{ marginTop: 10, color: "var(--muted)" }}>
-          Rellena tu semana y presiona <b>CALCULAR</b>. Te enviamos un reporte por correo (para descargar y comparar mixes).
+          Rellena tu semana y presiona <b>CALCULAR</b>. Te enviamos un reporte por correo.
         </p>
 
         <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -528,7 +543,6 @@ export default function CalculadoraPage() {
           </a>
         </div>
 
-        {/* Paso 1 + Paso 3 */}
         <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <Card title="Paso 1 — Parámetros" right="Reglas base">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -556,11 +570,6 @@ export default function CalculadoraPage() {
                 <Input type="number" step="0.1" value={partTimeSundayAvailability} onChange={(e) => setPartTimeSundayAvailability(Number(e.target.value))} />
               </label>
             </div>
-
-            {/* ✅ Sacamos los 3 botones que no aportaban */}
-            <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-              Tip: Ajusta “Cambios de turno”, “Traslape” y “Colación no imputable” por día en la tabla de la semana.
-            </div>
           </Card>
 
           <Card title="Paso 3 — Contratos" right="Tu set real">
@@ -569,9 +578,7 @@ export default function CalculadoraPage() {
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 140px 110px", gap: 10 }}>
                   <Input value={c.name} onChange={(e) => updateContract(i, { name: e.target.value })} />
                   <Input type="number" value={c.hoursPerWeek} onChange={(e) => updateContract(i, { hoursPerWeek: Number(e.target.value) })} />
-                  <Button variant="danger" onClick={() => removeContract(i)}>
-                    Eliminar
-                  </Button>
+                  <Button variant="danger" onClick={() => removeContract(i)}>Eliminar</Button>
                 </div>
               ))}
             </div>
@@ -579,14 +586,9 @@ export default function CalculadoraPage() {
             <div style={{ marginTop: 12 }}>
               <Button onClick={addContract}>+ Agregar contrato</Button>
             </div>
-
-            <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-              Tip empresa: si falta “cuerpo base”, agrega 30h / 36h / 42h como opciones.
-            </div>
           </Card>
         </div>
 
-        {/* Paso 2 */}
         <div style={{ marginTop: 16 }}>
           <Card title="Paso 2 — Preferencias" right="Criterios del mix">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -607,7 +609,7 @@ export default function CalculadoraPage() {
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <Tooltip label="PT estricto Sáb+Dom" text="Lógica silenciosa: PT 20h/16h se asume fijo Sáb+Dom." />
+                <Tooltip label="PT estricto Sáb+Dom" text="PT 20h/16h fijo Sáb+Dom (lógica silenciosa)." />
                 <Select
                   value={preferences.pt_weekend_strict ? "yes" : "no"}
                   onChange={(e) => setPreferences((p) => ({ ...p, pt_weekend_strict: e.target.value === "yes" }))}
@@ -638,14 +640,9 @@ export default function CalculadoraPage() {
                 </div>
               </div>
             </div>
-
-            <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-              Estas preferencias guían el motor para proponer mixes más realistas.
-            </div>
           </Card>
         </div>
 
-        {/* Paso 4: Semana */}
         <div style={{ marginTop: 16 }}>
           <Card title="Paso 4 — Semana (Lun a Dom)" right="Qué necesitas cada día">
             <div style={{ overflowX: "auto" }}>
@@ -699,41 +696,24 @@ export default function CalculadoraPage() {
               </table>
             </div>
 
-            <Button
-              variant="primary"
-              onClick={onCalculateClick}
-              disabled={loading}
-              style={{ marginTop: 12, width: "100%", height: 48, fontSize: 16 }}
-            >
+            <Button variant="primary" onClick={onCalculateClick} disabled={loading} style={{ marginTop: 12, width: "100%", height: 48, fontSize: 16 }}>
               {loading ? "CALCULANDO..." : "CALCULAR"}
             </Button>
 
-            {leadStatus ? (
-              <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)" }}>{leadStatus}</div>
-            ) : null}
+            {leadStatus ? <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)" }}>{leadStatus}</div> : null}
           </Card>
         </div>
 
-        {/* Paso 5: Resultados */}
         <div style={{ marginTop: 16 }}>
           <Card title="Paso 5 — Resultados" right="Resumen + mixes sugeridos">
             {!resp && (
               <p style={{ margin: 0, color: "var(--muted)" }}>
-                Presiona <b>CALCULAR</b> para ver resultados (te pediremos email para enviarte el reporte).
+                Presiona <b>CALCULAR</b> para ver resultados (primero pedimos datos del reporte).
               </p>
             )}
 
             {resp && !resp.ok && (
-              <div
-                style={{
-                  marginTop: 10,
-                  padding: 12,
-                  borderRadius: 14,
-                  border: "1px solid rgba(239,68,68,0.5)",
-                  background: "rgba(239,68,68,0.08)",
-                  color: "var(--text)",
-                }}
-              >
+              <div style={{ marginTop: 10, padding: 12, borderRadius: 14, border: "1px solid rgba(239,68,68,0.5)", background: "rgba(239,68,68,0.08)", color: "var(--text)" }}>
                 <b>Error:</b> {resp.error}
               </div>
             )}
@@ -745,15 +725,9 @@ export default function CalculadoraPage() {
                     Estimación: {Number(result.fte).toFixed(2)} FTE (equivalentes full).
                   </div>
                   <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
-                    <div>
-                      <b>Horas requeridas (semana):</b> {result.requiredHours}
-                    </div>
-                    <div>
-                      <b>Brecha colación vs traslape:</b> {result.gapHours}
-                    </div>
-                    <div>
-                      <b>Domingo requerido (personas):</b> {result.sundayReq}
-                    </div>
+                    <div><b>Horas requeridas (semana):</b> {result.requiredHours}</div>
+                    <div><b>Brecha colación vs traslape:</b> {result.gapHours}</div>
+                    <div><b>Domingo requerido (personas):</b> {result.sundayReq}</div>
                   </div>
                 </div>
 
@@ -764,15 +738,9 @@ export default function CalculadoraPage() {
                         {m.title} — {m.sundayOk ? "✅ domingo OK" : "❌ domingo NO"}
                       </div>
                       <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
-                        <div>
-                          <b>Total personas:</b> {m.headcount}
-                        </div>
-                        <div>
-                          <b>Horas totales:</b> {m.hoursTotal} (holgura {m.slackHours} / {Math.round(m.slackPct * 100)}%)
-                        </div>
-                        <div>
-                          <b>Domingo:</b> capacidad {m.sundayCap} / requerido {m.sundayReq}
-                        </div>
+                        <div><b>Total personas:</b> {m.headcount}</div>
+                        <div><b>Horas totales:</b> {m.hoursTotal} (holgura {m.slackHours} / {Math.round(m.slackPct * 100)}%)</div>
+                        <div><b>Domingo:</b> capacidad {m.sundayCap} / requerido {m.sundayReq}</div>
                       </div>
                       <div style={{ marginTop: 8, fontWeight: 900, color: "var(--text)" }}>Composición</div>
                       <ul style={{ marginTop: 6, marginBottom: 0, color: "var(--muted)", fontSize: 13 }}>
@@ -796,51 +764,62 @@ export default function CalculadoraPage() {
         </div>
       </div>
 
-      {/* MODAL EMAIL */}
-      <Modal
-        open={emailModalOpen}
-        title="Recibir reporte por correo"
-        onClose={() => {
-          setEmailModalOpen(false);
-          setPendingCalc(false);
-        }}
-      >
+      <Modal open={leadModalOpen} title="Recibir reporte por correo" onClose={() => setLeadModalOpen(false)}>
         <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
-          Para ver resultados y enviarte el reporte (y comparar mixes), necesitamos tu correo.
+          Completa estos datos para enviarte el reporte y mejorar la herramienta.
         </div>
 
-        <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+        <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontWeight: 900, color: "var(--text)" }}>Nombre</span>
+              <Input value={leadName} onChange={(e) => setLeadName(e.target.value)} placeholder="Juan Pérez" />
+            </label>
+
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontWeight: 900, color: "var(--text)" }}>Cargo</span>
+              <Input value={leadRole} onChange={(e) => setLeadRole(e.target.value)} placeholder="Jefe de tienda / RRHH / Operaciones" />
+            </label>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontWeight: 900, color: "var(--text)" }}>Industria</span>
+              <Select value={leadIndustry} onChange={(e) => setLeadIndustry(e.target.value)}>
+                <option value="">Selecciona…</option>
+                <option value="Retail">Retail</option>
+                <option value="Comida rápida">Comida rápida</option>
+                <option value="Restaurantes">Restaurantes</option>
+                <option value="Supermercados">Supermercados</option>
+                <option value="Farmacias">Farmacias</option>
+                <option value="Otro">Otro</option>
+              </Select>
+            </label>
+
+            <label style={{ display: "grid", gap: 6 }}>
+              <span style={{ fontWeight: 900, color: "var(--text)" }}>Cantidad de empleados</span>
+              <Input type="number" value={leadEmployees} onChange={(e) => setLeadEmployees(e.target.value)} placeholder="Ej: 120" />
+            </label>
+          </div>
+
           <label style={{ display: "grid", gap: 6 }}>
             <span style={{ fontWeight: 900, color: "var(--text)" }}>Email</span>
-            <Input
-              type="email"
-              placeholder="nombre@dominio.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+            <Input type="email" value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} placeholder="nombre@dominio.com" />
           </label>
 
-          {emailError ? (
-            <div style={{ color: "#ef4444", fontWeight: 900, fontSize: 13 }}>{emailError}</div>
-          ) : null}
+          {leadError ? <div style={{ color: "#ef4444", fontWeight: 900, fontSize: 13 }}>{leadError}</div> : null}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 6 }}>
-            <Button
-              onClick={() => {
-                setEmailModalOpen(false);
-                setPendingCalc(false);
-              }}
-              variant="secondary"
-            >
+            <Button onClick={() => setLeadModalOpen(false)} variant="secondary">
               Cancelar
             </Button>
-            <Button onClick={onSubmitEmail} variant="primary" disabled={!pendingCalc && !email}>
+            <Button onClick={onSubmitLead} variant="primary">
               Enviar y calcular
             </Button>
           </div>
 
           <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-            No cobramos. Esto nos ayuda a mejorar la herramienta y enviarte tu reporte.
+            No cobramos. Estos datos nos ayudan a mejorar el modelo y generar reportes comparables por industria.
           </div>
         </div>
       </Modal>

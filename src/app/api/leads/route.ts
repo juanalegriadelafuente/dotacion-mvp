@@ -13,7 +13,7 @@ function json(data: any, status = 200) {
 }
 
 function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
 }
 
 function normalizeEmail(raw: string) {
@@ -24,12 +24,24 @@ function normalizeEmail(raw: string) {
   return isValidEmail(email) ? email : "";
 }
 
+function safeStr(x: any, max = 120) {
+  const s = String(x ?? "").trim();
+  return s ? s.slice(0, max) : null;
+}
+
+function safeInt(x: any) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.floor(n);
+  if (i <= 0) return null;
+  return i;
+}
+
 function getSupabaseAdmin() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url) throw new Error("Missing env SUPABASE_URL");
   if (!key) throw new Error("Missing env SUPABASE_SERVICE_ROLE_KEY");
-
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
@@ -40,14 +52,21 @@ export async function POST(req: Request) {
     const email = normalizeEmail(body?.email ?? "");
     if (!email) return json({ ok: false, error: "Email inválido." }, 400);
 
-    const role = body?.role ? String(body.role).slice(0, 120) : null;
-    const company_size = body?.company_size ? String(body.company_size).slice(0, 120) : null;
-    const city = body?.city ? String(body.city).slice(0, 120) : null;
-    const source = body?.source ? String(body.source).slice(0, 120) : "dotaciones.cl";
+    // ✅ nuevos campos
+    const full_name = safeStr(body?.full_name ?? body?.name, 120);
+    const role = safeStr(body?.role, 120);
+    const industry = safeStr(body?.industry, 120);
+    const employees = safeInt(body?.employees);
+
+    // ✅ campos antiguos (compatibilidad)
+    const company_size = safeStr(body?.company_size, 120);
+    const city = safeStr(body?.city, 120);
+    const source = safeStr(body?.source, 120) ?? "dotaciones.cl";
 
     const calc_input = body?.calc_input ?? null;
     const calc_result = body?.calc_result ?? null;
 
+    // Seguridad mínima: evitar payload gigante
     const inputSize = calc_input ? JSON.stringify(calc_input).length : 0;
     const resultSize = calc_result ? JSON.stringify(calc_result).length : 0;
     if (inputSize > 200_000 || resultSize > 200_000) {
@@ -58,7 +77,18 @@ export async function POST(req: Request) {
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase
       .from("leads")
-      .insert({ email, role, company_size, city, source, calc_input, calc_result })
+      .insert({
+        email,
+        full_name,
+        role,
+        industry,
+        employees,
+        company_size,
+        city,
+        source,
+        calc_input,
+        calc_result,
+      })
       .select("id")
       .single();
 
@@ -78,7 +108,7 @@ export async function POST(req: Request) {
         id,
         reportUrl,
         emailSent: false,
-        warning: "RESEND_API_KEY no configurada en este ambiente (Vercel Production).",
+        warning: "RESEND_API_KEY no configurada en este ambiente.",
       });
     }
 
@@ -93,7 +123,9 @@ export async function POST(req: Request) {
         <p style="margin:0 0 18px 0;">
           <a href="${reportUrl}" target="_blank" rel="noopener noreferrer">${reportUrl}</a>
         </p>
-        <p style="margin:0;color:#555;font-size:12px;">Dotaciones.cl — herramienta gratuita.</p>
+        <p style="margin:0;color:#555;font-size:12px;">
+          Dotaciones.cl — herramienta gratuita.
+        </p>
       </div>
     `;
 
