@@ -45,6 +45,10 @@ type CalcInput = {
 
 type CalcResponse = { ok: true; result: any } | { ok: false; error: string };
 
+type LeadResponse =
+  | { ok: true; id: string; reportUrl?: string; emailSent?: boolean; warning?: string; resendError?: any }
+  | { ok: false; error: string };
+
 const DAY_LABEL: Record<DayKey, string> = {
   mon: "Lun",
   tue: "Mar",
@@ -69,6 +73,10 @@ function defaultDays(): Record<DayKey, DayInput> {
   const days = Object.fromEntries(DAY_ORDER.map((d) => [d, { ...base }])) as Record<DayKey, DayInput>;
   days.sun = { ...base, hoursOpen: 8, requiredPeople: 1 };
   return days;
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
 }
 
 function Tooltip({ label, text }: { label: string; text: string }) {
@@ -119,12 +127,6 @@ function Card({ title, right, children }: { title: string; right?: string; child
   );
 }
 
-/**
- * INPUT PRO: evita “globos”/artefactos en dark mode
- * - alto fijo
- * - backgroundClip + boxSizing
- * - appearance tipado (sin MozAppearance -> era el error TS)
- */
 function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   const isNumber = props.type === "number";
 
@@ -143,26 +145,11 @@ function Input(props: InputHTMLAttributes<HTMLInputElement>) {
     lineHeight: "20px",
   };
 
-  // ✅ Sin MozAppearance (rompía TS)
   const appearanceStyle: CSSProperties = isNumber
-    ? {
-        WebkitAppearance: "none",
-        appearance: "textfield",
-      }
-    : {
-        appearance: "auto",
-      };
+    ? { WebkitAppearance: "none", appearance: "textfield" }
+    : { appearance: "auto" };
 
-  return (
-    <input
-      {...props}
-      style={{
-        ...baseStyle,
-        ...appearanceStyle,
-        ...(props.style ?? {}),
-      }}
-    />
-  );
+  return <input {...props} style={{ ...baseStyle, ...appearanceStyle, ...(props.style ?? {}) }} />;
 }
 
 function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
@@ -193,12 +180,14 @@ function Button({
   variant = "secondary",
   disabled,
   style,
+  type = "button",
 }: {
   children: ReactNode;
   onClick?: () => void;
   variant?: "primary" | "secondary" | "danger";
   disabled?: boolean;
   style?: CSSProperties;
+  type?: "button" | "submit";
 }) {
   const base: CSSProperties = {
     height: 42,
@@ -216,22 +205,76 @@ function Button({
 
   const variants: Record<string, CSSProperties> = {
     secondary: {},
-    primary: {
-      background: "var(--primary)",
-      border: "1px solid rgba(0,0,0,0.08)",
-      color: "white",
-    },
-    danger: {
-      background: "transparent",
-      border: "1px solid rgba(239,68,68,0.55)",
-      color: "var(--text)",
-    },
+    primary: { background: "var(--primary)", border: "1px solid rgba(0,0,0,0.08)", color: "white" },
+    danger: { background: "transparent", border: "1px solid rgba(239,68,68,0.55)", color: "var(--text)" },
   };
 
   return (
-    <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...style }}>
+    <button type={type} onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...style }}>
       {children}
     </button>
+  );
+}
+
+function Modal({
+  open,
+  title,
+  children,
+  onClose,
+}: {
+  open: boolean;
+  title: string;
+  children: ReactNode;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 18,
+        zIndex: 50,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          width: "min(560px, 100%)",
+          borderRadius: 16,
+          border: "1px solid var(--border)",
+          background: "var(--panel)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+          padding: 16,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div style={{ fontWeight: 950, fontSize: 16, color: "var(--text)" }}>{title}</div>
+          <button
+            onClick={onClose}
+            style={{
+              border: "1px solid var(--border)",
+              background: "transparent",
+              color: "var(--text)",
+              borderRadius: 10,
+              padding: "6px 10px",
+              cursor: "pointer",
+              fontWeight: 900,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+        <div style={{ marginTop: 12 }}>{children}</div>
+      </div>
+    </div>
   );
 }
 
@@ -263,6 +306,13 @@ export default function CalculadoraPage() {
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<CalcResponse | null>(null);
 
+  // ✅ Lead capture
+  const [email, setEmail] = useState("");
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [leadStatus, setLeadStatus] = useState<string | null>(null);
+  const [pendingCalc, setPendingCalc] = useState(false);
+
   const input: CalcInput = useMemo(
     () => ({
       fullHoursPerWeek,
@@ -285,42 +335,8 @@ export default function CalculadoraPage() {
     ]
   );
 
-  async function onCalculate() {
-    setLoading(true);
-    setResp(null);
-
-    track("calculate_clicked", {
-      fullHoursPerWeek,
-      threshold: fullTimeThresholdHours,
-      strategy: preferences.strategy,
-    });
-
-    try {
-      const r = await fetch("/api/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-        cache: "no-store",
-        body: JSON.stringify(input),
-      });
-      const data = await r.json();
-      setResp(data);
-    } catch (e: any) {
-      setResp({ ok: false, error: e?.message ?? "Error" });
-    } finally {
-      setLoading(false);
-    }
-  }
-
   function updateDay(d: DayKey, patch: Partial<DayInput>) {
     setDays((prev) => ({ ...prev, [d]: { ...prev[d], ...patch } }));
-  }
-
-  function applyToAll(patch: Partial<DayInput>) {
-    setDays((prev) => {
-      const out = { ...prev };
-      for (const d of DAY_ORDER) out[d] = { ...out[d], ...patch };
-      return out;
-    });
   }
 
   function updateContract(i: number, patch: Partial<ContractType>) {
@@ -376,51 +392,116 @@ export default function CalculadoraPage() {
     setResp(null);
   }
 
+  async function runCalculateAndCaptureLead(finalEmail: string) {
+    setLoading(true);
+    setResp(null);
+    setLeadStatus(null);
+
+    track("calculate_clicked", {
+      fullHoursPerWeek,
+      threshold: fullTimeThresholdHours,
+      strategy: preferences.strategy,
+    });
+
+    try {
+      // 1) Calculate
+      const r = await fetch("/api/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+        cache: "no-store",
+        body: JSON.stringify(input),
+      });
+      const data = (await r.json()) as CalcResponse;
+
+      if (!data || data.ok !== true) {
+        setResp(data);
+        setLeadStatus("No se pudo calcular. Revisa parámetros.");
+        return;
+      }
+
+      // 2) Save lead + send email
+      const leadPayload = {
+        email: finalEmail,
+        role: "calculadora",
+        company_size: "na",
+        city: "na",
+        source: "dotaciones.cl/calculadora",
+        calc_input: input,
+        calc_result: (data as any).result,
+      };
+
+      const lr = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+        cache: "no-store",
+        body: JSON.stringify(leadPayload),
+      });
+
+      const leadData = (await lr.json()) as LeadResponse;
+
+      // mostramos resultados igual (aunque email falle)
+      setResp(data);
+
+      if (leadData && (leadData as any).ok === true) {
+        const sent = (leadData as any).emailSent;
+        const reportUrl = (leadData as any).reportUrl;
+        if (sent) {
+          setLeadStatus(`✅ Reporte enviado a ${finalEmail}${reportUrl ? ` · Link: ${reportUrl}` : ""}`);
+        } else {
+          setLeadStatus(`⚠️ Lead guardado, pero no se pudo enviar correo. ${reportUrl ? `Link: ${reportUrl}` : ""}`);
+        }
+      } else {
+        setLeadStatus("⚠️ No se pudo guardar el lead / enviar correo.");
+      }
+    } catch (e: any) {
+      setResp({ ok: false, error: e?.message ?? "Error" });
+      setLeadStatus("Error ejecutando el cálculo.");
+    } finally {
+      setLoading(false);
+      setPendingCalc(false);
+    }
+  }
+
+  async function onCalculateClick() {
+    // ✅ Si no hay email, pedimos antes de mostrar resultados (lead-first)
+    if (!email.trim()) {
+      setEmailError(null);
+      setLeadStatus(null);
+      setPendingCalc(true);
+      setEmailModalOpen(true);
+      return;
+    }
+    if (!isValidEmail(email)) {
+      setEmailError("Email inválido.");
+      setLeadStatus(null);
+      setPendingCalc(true);
+      setEmailModalOpen(true);
+      return;
+    }
+    await runCalculateAndCaptureLead(email.trim());
+  }
+
+  async function onSubmitEmail() {
+    const e = email.trim();
+    if (!isValidEmail(e)) {
+      setEmailError("Escribe un email válido (ej: nombre@dominio.com).");
+      return;
+    }
+    setEmailError(null);
+    setEmailModalOpen(false);
+    await runCalculateAndCaptureLead(e);
+  }
+
   const result = resp && resp.ok ? resp.result : null;
 
   return (
     <>
-      <style jsx global>{`
-        :root {
-          --bg: #f6f7fb;
-          --panel: #ffffff;
-          --text: #0f172a;
-          --muted: rgba(15, 23, 42, 0.64);
-          --border: rgba(15, 23, 42, 0.12);
-          --input-bg: rgba(15, 23, 42, 0.04);
-          --btn: rgba(15, 23, 42, 0.04);
-          --primary: #1f3a8a;
-        }
-        @media (prefers-color-scheme: dark) {
-          :root {
-            --bg: #0b1220;
-            --panel: rgba(255, 255, 255, 0.06);
-            --text: rgba(255, 255, 255, 0.92);
-            --muted: rgba(255, 255, 255, 0.62);
-            --border: rgba(255, 255, 255, 0.14);
-            --input-bg: rgba(255, 255, 255, 0.08);
-            --btn: rgba(255, 255, 255, 0.08);
-            --primary: #2563eb;
-          }
-        }
-        body {
-          background: var(--bg);
-        }
-
-        /* Quita spinners en number inputs (Chrome/Safari/Edge) */
-        input[type="number"]::-webkit-outer-spin-button,
-        input[type="number"]::-webkit-inner-spin-button {
-          -webkit-appearance: none;
-          margin: 0;
-        }
-      `}</style>
-
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24, fontFamily: "system-ui" }}>
         <h1 style={{ margin: 0, fontSize: 30, fontWeight: 950, color: "var(--text)" }}>
           Calculadora de Dotación Retail
         </h1>
         <p style={{ marginTop: 10, color: "var(--muted)" }}>
-          Rellena tu semana y presiona <b>CALCULAR</b>. Te entregará un estimado de FTE y mixes sugeridos.
+          Rellena tu semana y presiona <b>CALCULAR</b>. Te enviamos un reporte por correo (para descargar y comparar mixes).
         </p>
 
         <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -447,61 +528,38 @@ export default function CalculadoraPage() {
           </a>
         </div>
 
-        {/* Bloque superior: Paso 1 y Paso 3 */}
+        {/* Paso 1 + Paso 3 */}
         <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <Card title="Paso 1 — Parámetros" right="Reglas base">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontWeight: 800, color: "var(--text)" }}>Full (h/sem)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Horas semanales de un contrato full típico (ej: 42).
-                </span>
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>Horas semanales de un contrato full típico (ej: 42).</span>
                 <Input type="number" value={fullHoursPerWeek} onChange={(e) => setFullHoursPerWeek(Number(e.target.value))} />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontWeight: 800, color: "var(--text)" }}>Umbral full-time (h)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Desde cuántas horas se considera “full” (ej: 30).
-                </span>
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>Desde cuántas horas se considera “full” (ej: 30).</span>
                 <Input type="number" value={fullTimeThresholdHours} onChange={(e) => setFullTimeThresholdHours(Number(e.target.value))} />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontWeight: 800, color: "var(--text)" }}>Domingo full (&gt; umbral)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Ej: 0.5 = “rinden la mitad” los domingos.
-                </span>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={fullTimeSundayAvailability}
-                  onChange={(e) => setFullTimeSundayAvailability(Number(e.target.value))}
-                />
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>Ej: 0.5 = “rinden la mitad” los domingos.</span>
+                <Input type="number" step="0.1" value={fullTimeSundayAvailability} onChange={(e) => setFullTimeSundayAvailability(Number(e.target.value))} />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontWeight: 800, color: "var(--text)" }}>Domingo PT (≤ umbral)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Ej: 1.0 = sin castigo (trabajan todos).
-                </span>
-                <Input
-                  type="number"
-                  step="0.1"
-                  value={partTimeSundayAvailability}
-                  onChange={(e) => setPartTimeSundayAvailability(Number(e.target.value))}
-                />
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>Ej: 1.0 = sin castigo (trabajan todos).</span>
+                <Input type="number" step="0.1" value={partTimeSundayAvailability} onChange={(e) => setPartTimeSundayAvailability(Number(e.target.value))} />
               </label>
             </div>
 
-            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Button onClick={() => applyToAll({ shiftsPerDay: 2 })}>2 cambios de turno/día (semana completa)</Button>
-              <Button onClick={() => applyToAll({ overlapMinutes: 30 })}>Traslape 30 min (semana completa)</Button>
-              <Button onClick={() => applyToAll({ breakMinutes: 60 })}>Colación 60 min (semana completa)</Button>
-            </div>
-
+            {/* ✅ Sacamos los 3 botones que no aportaban */}
             <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-              <b>Tip:</b> Traslape = cruce de turnos (colación/cambio).
+              Tip: Ajusta “Cambios de turno”, “Traslape” y “Colación no imputable” por día en la tabla de la semana.
             </div>
           </Card>
 
@@ -528,30 +586,21 @@ export default function CalculadoraPage() {
           </Card>
         </div>
 
-        {/* Paso 2 visible y separado */}
+        {/* Paso 2 */}
         <div style={{ marginTop: 16 }}>
           <Card title="Paso 2 — Preferencias" right="Criterios del mix">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <label style={{ display: "grid", gap: 6 }}>
-                <Tooltip
-                  label="Estrategia"
-                  text="Balanceado = cuerpo base full + PT para ajustar. Menos personas = compacta headcount."
-                />
-                <Select
-                  value={preferences.strategy}
-                  onChange={(e) => setPreferences((p) => ({ ...p, strategy: e.target.value as Preferences["strategy"] }))}
-                >
+                <Tooltip label="Estrategia" text="Balanceado = cuerpo base full + PT para ajustar. Menos personas = compacta headcount." />
+                <Select value={preferences.strategy} onChange={(e) => setPreferences((p) => ({ ...p, strategy: e.target.value as Preferences["strategy"] }))}>
                   <option value="balanced">Balanceado (recomendado)</option>
                   <option value="min_people">Menos personas</option>
                 </Select>
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <Tooltip label="PT fin de semana" text="Si está activado: se consideran PT para cubrir sáb+dom." />
-                <Select
-                  value={preferences.allow_pt_weekend ? "yes" : "no"}
-                  onChange={(e) => setPreferences((p) => ({ ...p, allow_pt_weekend: e.target.value === "yes" }))}
-                >
+                <Tooltip label="PT fin de semana" text="Si está desactivado: el motor no propondrá contratos de 20h/16h." />
+                <Select value={preferences.allow_pt_weekend ? "yes" : "no"} onChange={(e) => setPreferences((p) => ({ ...p, allow_pt_weekend: e.target.value === "yes" }))}>
                   <option value="yes">Permitido</option>
                   <option value="no">No permitido</option>
                 </Select>
@@ -570,36 +619,18 @@ export default function CalculadoraPage() {
               </label>
 
               <div style={{ display: "grid", gap: 6 }}>
-                <Tooltip
-                  label="Jornadas full permitidas"
-                  text="Activa/desactiva las jornadas que tu empresa permite usar."
-                />
+                <Tooltip label="Jornadas full permitidas" text="Activa/desactiva las jornadas que tu empresa permite usar." />
                 <div style={{ display: "flex", gap: 14, flexWrap: "wrap", paddingTop: 6 }}>
                   {[
                     { key: "allow_6x1", label: "6x1" },
                     { key: "allow_5x2", label: "5x2" },
                     { key: "allow_4x3", label: "4x3" },
                   ].map((x) => (
-                    <label
-                      key={x.key}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        cursor: "pointer",
-                        color: "var(--text)",
-                        fontWeight: 800,
-                      }}
-                    >
+                    <label key={x.key} style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--text)", fontWeight: 800 }}>
                       <input
                         type="checkbox"
                         checked={preferences[x.key as keyof Preferences] as boolean}
-                        onChange={(e) =>
-                          setPreferences((p) => ({
-                            ...p,
-                            [x.key]: e.target.checked,
-                          }))
-                        }
+                        onChange={(e) => setPreferences((p) => ({ ...p, [x.key]: e.target.checked } as Preferences))}
                       />
                       {x.label}
                     </label>
@@ -636,10 +667,7 @@ export default function CalculadoraPage() {
                       <Tooltip label="Traslape (min)" text="Minutos que se cruzan turnos (colación/cambio). Si no aplica, 0." />
                     </th>
                     <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip
-                        label="Colación no imputable (min)"
-                        text="Minutos de colación que no cuentan como jornada (presencia adicional). Si no aplica, 0."
-                      />
+                      <Tooltip label="Colación no imputable (min)" text="Minutos de colación que no cuentan como jornada (presencia adicional). Si no aplica, 0." />
                     </th>
                   </tr>
                 </thead>
@@ -671,13 +699,18 @@ export default function CalculadoraPage() {
               </table>
             </div>
 
-            <Button variant="primary" onClick={onCalculate} disabled={loading} style={{ marginTop: 12, width: "100%", height: 48, fontSize: 16 }}>
+            <Button
+              variant="primary"
+              onClick={onCalculateClick}
+              disabled={loading}
+              style={{ marginTop: 12, width: "100%", height: 48, fontSize: 16 }}
+            >
               {loading ? "CALCULANDO..." : "CALCULAR"}
             </Button>
 
-            <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-              Si aparece “brecha por colación”, normalmente se resuelve subiendo el traslape o ajustando cambios de turno.
-            </div>
+            {leadStatus ? (
+              <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)" }}>{leadStatus}</div>
+            ) : null}
           </Card>
         </div>
 
@@ -686,7 +719,7 @@ export default function CalculadoraPage() {
           <Card title="Paso 5 — Resultados" right="Resumen + mixes sugeridos">
             {!resp && (
               <p style={{ margin: 0, color: "var(--muted)" }}>
-                Presiona <b>CALCULAR</b> para ver resultados.
+                Presiona <b>CALCULAR</b> para ver resultados (te pediremos email para enviarte el reporte).
               </p>
             )}
 
@@ -762,6 +795,55 @@ export default function CalculadoraPage() {
           </Card>
         </div>
       </div>
+
+      {/* MODAL EMAIL */}
+      <Modal
+        open={emailModalOpen}
+        title="Recibir reporte por correo"
+        onClose={() => {
+          setEmailModalOpen(false);
+          setPendingCalc(false);
+        }}
+      >
+        <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
+          Para ver resultados y enviarte el reporte (y comparar mixes), necesitamos tu correo.
+        </div>
+
+        <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+          <label style={{ display: "grid", gap: 6 }}>
+            <span style={{ fontWeight: 900, color: "var(--text)" }}>Email</span>
+            <Input
+              type="email"
+              placeholder="nombre@dominio.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </label>
+
+          {emailError ? (
+            <div style={{ color: "#ef4444", fontWeight: 900, fontSize: 13 }}>{emailError}</div>
+          ) : null}
+
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 6 }}>
+            <Button
+              onClick={() => {
+                setEmailModalOpen(false);
+                setPendingCalc(false);
+              }}
+              variant="secondary"
+            >
+              Cancelar
+            </Button>
+            <Button onClick={onSubmitEmail} variant="primary" disabled={!pendingCalc && !email}>
+              Enviar y calcular
+            </Button>
+          </div>
+
+          <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
+            No cobramos. Esto nos ayuda a mejorar la herramienta y enviarte tu reporte.
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }
