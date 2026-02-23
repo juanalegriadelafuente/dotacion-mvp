@@ -3,7 +3,6 @@
 
 import { track } from "@vercel/analytics";
 import {
-  useMemo,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -12,15 +11,26 @@ import {
 } from "react";
 
 type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+type DayInputDraft = {
+  open: boolean;
+  hoursOpen: string; // string para permitir vacío
+  requiredPeople: string; // string para permitir vacío
+  shiftsPerDay: string; // string para permitir vacío
+  overlapMinutes: string; // string para permitir vacío
+  breakMinutes: string; // string para permitir vacío
+};
+
 type DayInput = {
   open: boolean;
   hoursOpen: number;
-  requiredPeople: number; // Personas simultáneas
-  shiftsPerDay: number; // Cambios de turno/día
-  overlapMinutes: number; // Traslape
-  breakMinutes: number; // Colación no imputable
+  requiredPeople: number;
+  shiftsPerDay: number;
+  overlapMinutes: number;
+  breakMinutes: number;
 };
 
+type ContractDraft = { name: string; hoursPerWeek: string };
 type ContractType = { name: string; hoursPerWeek: number };
 
 type Preferences = {
@@ -46,7 +56,14 @@ type CalcInput = {
 type CalcResponse = { ok: true; result: any } | { ok: false; error: string };
 
 type LeadResponse =
-  | { ok: true; id: string; reportUrl?: string; emailSent?: boolean; warning?: string; resendError?: any }
+  | {
+      ok: true;
+      id: string;
+      reportUrl?: string;
+      emailSent?: boolean;
+      warning?: string;
+      resendError?: any;
+    }
   | { ok: false; error: string };
 
 const DAY_LABEL: Record<DayKey, string> = {
@@ -60,22 +77,40 @@ const DAY_LABEL: Record<DayKey, string> = {
 };
 const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
-function defaultDays(): Record<DayKey, DayInput> {
-  const base: DayInput = {
+function defaultDays(): Record<DayKey, DayInputDraft> {
+  const base: DayInputDraft = {
     open: true,
-    hoursOpen: 12,
-    requiredPeople: 2,
-    shiftsPerDay: 2,
-    overlapMinutes: 30,
-    breakMinutes: 60,
+    hoursOpen: "12",
+    requiredPeople: "2",
+    shiftsPerDay: "2",
+    overlapMinutes: "30",
+    breakMinutes: "60",
   };
-  const days = Object.fromEntries(DAY_ORDER.map((d) => [d, { ...base }])) as Record<DayKey, DayInput>;
-  days.sun = { ...base, hoursOpen: 8, requiredPeople: 1 };
+  const days = Object.fromEntries(DAY_ORDER.map((d) => [d, { ...base }])) as Record<
+    DayKey,
+    DayInputDraft
+  >;
+  days.sun = { ...base, hoursOpen: "8", requiredPeople: "1" };
   return days;
 }
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+}
+
+function parseNumberLoose(raw: string): number | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  // soporta coma decimal
+  const norm = s.replace(",", ".");
+  const n = Number(norm);
+  return Number.isFinite(n) ? n : null;
+}
+
+function parseIntLoose(raw: string): number | null {
+  const n = parseNumberLoose(raw);
+  if (n === null) return null;
+  return Math.trunc(n);
 }
 
 function Tooltip({ label, text }: { label: string; text: string }) {
@@ -127,25 +162,26 @@ function Card({ title, right, children }: { title: string; right?: string; child
 }
 
 function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  const isNumber = props.type === "number";
-  const baseStyle: CSSProperties = {
-    width: "100%",
-    height: 42,
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid var(--border)",
-    background: "var(--input-bg)",
-    color: "var(--text)",
-    outline: "none",
-    boxSizing: "border-box",
-    backgroundClip: "padding-box",
-    fontSize: 14,
-    lineHeight: "20px",
-  };
-  const appearanceStyle: CSSProperties = isNumber
-    ? { WebkitAppearance: "none", appearance: "textfield" }
-    : { appearance: "auto" };
-  return <input {...props} style={{ ...baseStyle, ...appearanceStyle, ...(props.style ?? {}) }} />;
+  return (
+    <input
+      {...props}
+      style={{
+        width: "100%",
+        height: 42,
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: "1px solid var(--border)",
+        background: "var(--input-bg)",
+        color: "var(--text)",
+        outline: "none",
+        boxSizing: "border-box",
+        backgroundClip: "padding-box",
+        fontSize: 14,
+        lineHeight: "20px",
+        ...(props.style ?? {}),
+      }}
+    />
+  );
 }
 
 function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
@@ -248,7 +284,7 @@ function Modal({
           width: "min(640px, 100%)",
           borderRadius: 18,
           border: "1px solid var(--modal-border)",
-          background: "var(--modal-panel)", // ✅ sólido (no transparente)
+          background: "var(--modal-panel)",
           boxShadow: "var(--modal-shadow)",
           padding: 18,
         }}
@@ -280,19 +316,20 @@ function Modal({
 }
 
 export default function CalculadoraPage() {
-  const [fullHoursPerWeek, setFullHoursPerWeek] = useState(42);
-  const [fullTimeThresholdHours, setFullTimeThresholdHours] = useState(30);
-  const [fullTimeSundayAvailability, setFullTimeSundayAvailability] = useState(0.5);
-  const [partTimeSundayAvailability, setPartTimeSundayAvailability] = useState(1.0);
+  // ✅ ahora son strings (para permitir vacío sin forzar 0)
+  const [fullHoursPerWeek, setFullHoursPerWeek] = useState("42");
+  const [fullTimeThresholdHours, setFullTimeThresholdHours] = useState("30");
+  const [fullTimeSundayAvailability, setFullTimeSundayAvailability] = useState("0.5");
+  const [partTimeSundayAvailability, setPartTimeSundayAvailability] = useState("1.0");
 
-  const [days, setDays] = useState<Record<DayKey, DayInput>>(defaultDays());
+  const [days, setDays] = useState<Record<DayKey, DayInputDraft>>(defaultDays());
 
-  const [contracts, setContracts] = useState<ContractType[]>([
-    { name: "42h", hoursPerWeek: 42 },
-    { name: "36h", hoursPerWeek: 36 },
-    { name: "30h", hoursPerWeek: 30 },
-    { name: "20h", hoursPerWeek: 20 },
-    { name: "16h", hoursPerWeek: 16 },
+  const [contracts, setContracts] = useState<ContractDraft[]>([
+    { name: "42h", hoursPerWeek: "42" },
+    { name: "36h", hoursPerWeek: "36" },
+    { name: "30h", hoursPerWeek: "30" },
+    { name: "20h", hoursPerWeek: "20" },
+    { name: "16h", hoursPerWeek: "16" },
   ]);
 
   const [preferences, setPreferences] = useState<Preferences>({
@@ -318,30 +355,19 @@ export default function CalculadoraPage() {
   const [leadError, setLeadError] = useState<string | null>(null);
   const [leadStatus, setLeadStatus] = useState<string | null>(null);
 
-  const input: CalcInput = useMemo(
-    () => ({
-      fullHoursPerWeek,
-      fullTimeThresholdHours,
-      fullTimeSundayAvailability,
-      partTimeSundayAvailability,
-      days,
-      contracts,
-      preferences,
-      debugNonce: Date.now(),
-    }),
-    [fullHoursPerWeek, fullTimeThresholdHours, fullTimeSundayAvailability, partTimeSundayAvailability, days, contracts, preferences]
-  );
+  // ✅ error de formulario (antes de capturar lead)
+  const [formError, setFormError] = useState<string | null>(null);
 
-  function updateDay(d: DayKey, patch: Partial<DayInput>) {
+  function updateDay(d: DayKey, patch: Partial<DayInputDraft>) {
     setDays((prev) => ({ ...prev, [d]: { ...prev[d], ...patch } }));
   }
 
-  function updateContract(i: number, patch: Partial<ContractType>) {
+  function updateContract(i: number, patch: Partial<ContractDraft>) {
     setContracts((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
   }
 
   function addContract() {
-    setContracts((prev) => [...prev, { name: "Nuevo", hoursPerWeek: 10 }]);
+    setContracts((prev) => [...prev, { name: "Nuevo", hoursPerWeek: "" }]);
   }
 
   function removeContract(i: number) {
@@ -349,10 +375,10 @@ export default function CalculadoraPage() {
   }
 
   function loadRetailExample() {
-    setFullHoursPerWeek(42);
-    setFullTimeThresholdHours(30);
-    setFullTimeSundayAvailability(0.5);
-    setPartTimeSundayAvailability(1.0);
+    setFullHoursPerWeek("42");
+    setFullTimeThresholdHours("30");
+    setFullTimeSundayAvailability("0.5");
+    setPartTimeSundayAvailability("1.0");
 
     setPreferences({
       strategy: "balanced",
@@ -364,29 +390,33 @@ export default function CalculadoraPage() {
     });
 
     setDays(() => {
-      const base: DayInput = {
+      const base: DayInputDraft = {
         open: true,
-        hoursOpen: 12,
-        requiredPeople: 2,
-        shiftsPerDay: 2,
-        overlapMinutes: 30,
-        breakMinutes: 60,
+        hoursOpen: "12",
+        requiredPeople: "2",
+        shiftsPerDay: "2",
+        overlapMinutes: "30",
+        breakMinutes: "60",
       };
-      const out = Object.fromEntries(DAY_ORDER.map((d) => [d, { ...base }])) as Record<DayKey, DayInput>;
-      out.fri = { ...base, hoursOpen: 13, requiredPeople: 3 };
-      out.sun = { ...base, hoursOpen: 8, requiredPeople: 1 };
+      const out = Object.fromEntries(DAY_ORDER.map((d) => [d, { ...base }])) as Record<
+        DayKey,
+        DayInputDraft
+      >;
+      out.fri = { ...base, hoursOpen: "13", requiredPeople: "3" };
+      out.sun = { ...base, hoursOpen: "8", requiredPeople: "1" };
       return out;
     });
 
     setContracts([
-      { name: "42h", hoursPerWeek: 42 },
-      { name: "36h", hoursPerWeek: 36 },
-      { name: "30h", hoursPerWeek: 30 },
-      { name: "20h", hoursPerWeek: 20 },
-      { name: "16h", hoursPerWeek: 16 },
+      { name: "42h", hoursPerWeek: "42" },
+      { name: "36h", hoursPerWeek: "36" },
+      { name: "30h", hoursPerWeek: "30" },
+      { name: "20h", hoursPerWeek: "20" },
+      { name: "16h", hoursPerWeek: "16" },
     ]);
 
     setResp(null);
+    setFormError(null);
   }
 
   function profileComplete() {
@@ -394,23 +424,98 @@ export default function CalculadoraPage() {
     const n = leadName.trim();
     const r = leadRole.trim();
     const i = leadIndustry.trim();
-    const emp = Number(leadEmployees);
+    const emp = parseIntLoose(leadEmployees);
     if (!isValidEmail(e)) return false;
     if (!n) return false;
     if (!r) return false;
     if (!i) return false;
-    if (!Number.isFinite(emp) || emp <= 0) return false;
+    if (!Number.isFinite(emp ?? NaN) || (emp ?? 0) <= 0) return false;
     return true;
   }
 
-  async function runCalculateAndLead() {
+  // ✅ construye CalcInput REAL (numbers) y valida
+  function buildCalcInput(): CalcInput | null {
+    setFormError(null);
+
+    const fullH = parseIntLoose(fullHoursPerWeek);
+    const thr = parseIntLoose(fullTimeThresholdHours);
+    const domFull = parseNumberLoose(fullTimeSundayAvailability);
+    const domPt = parseNumberLoose(partTimeSundayAvailability);
+
+    if (fullH === null || fullH <= 0) return setFormError("Full (h/sem) debe ser un número mayor a 0."), null;
+    if (thr === null || thr < 0) return setFormError("Umbral full-time (h) inválido."), null;
+    if (domFull === null || domFull < 0 || domFull > 1) return setFormError("Domingo full debe estar entre 0 y 1."), null;
+    if (domPt === null || domPt < 0 || domPt > 1) return setFormError("Domingo PT debe estar entre 0 y 1."), null;
+
+    // Contratos
+    const parsedContracts: ContractType[] = [];
+    for (const c of contracts) {
+      const h = parseIntLoose(c.hoursPerWeek);
+      if (!c.name?.trim()) return setFormError("Todos los contratos deben tener nombre."), null;
+      if (h === null || h <= 0) return setFormError(`Horas/sem inválidas en contrato "${c.name}".`), null;
+      parsedContracts.push({ name: c.name.trim(), hoursPerWeek: h });
+    }
+
+    // Días
+    const parsedDays = {} as Record<DayKey, DayInput>;
+    for (const d of DAY_ORDER) {
+      const dd = days[d];
+
+      // si está cerrado, lo dejamos como 0 sin exigir campos
+      if (!dd.open) {
+        parsedDays[d] = {
+          open: false,
+          hoursOpen: 0,
+          requiredPeople: 0,
+          shiftsPerDay: 0,
+          overlapMinutes: 0,
+          breakMinutes: 0,
+        };
+        continue;
+      }
+
+      const hoursOpen = parseIntLoose(dd.hoursOpen);
+      const requiredPeople = parseIntLoose(dd.requiredPeople);
+      const shiftsPerDay = parseIntLoose(dd.shiftsPerDay);
+      const overlapMinutes = parseIntLoose(dd.overlapMinutes);
+      const breakMinutes = parseIntLoose(dd.breakMinutes);
+
+      if (hoursOpen === null || hoursOpen <= 0) return setFormError(`Horas abierto inválidas en ${DAY_LABEL[d]}.`), null;
+      if (requiredPeople === null || requiredPeople < 0) return setFormError(`Personas simultáneas inválidas en ${DAY_LABEL[d]}.`), null;
+      if (shiftsPerDay === null || shiftsPerDay <= 0) return setFormError(`Cambios de turno/día inválidos en ${DAY_LABEL[d]}.`), null;
+      if (overlapMinutes === null || overlapMinutes < 0) return setFormError(`Traslape inválido en ${DAY_LABEL[d]}.`), null;
+      if (breakMinutes === null || breakMinutes < 0) return setFormError(`Colación no imputable inválida en ${DAY_LABEL[d]}.`), null;
+
+      parsedDays[d] = {
+        open: true,
+        hoursOpen,
+        requiredPeople,
+        shiftsPerDay,
+        overlapMinutes,
+        breakMinutes,
+      };
+    }
+
+    return {
+      fullHoursPerWeek: fullH,
+      fullTimeThresholdHours: thr,
+      fullTimeSundayAvailability: domFull,
+      partTimeSundayAvailability: domPt,
+      days: parsedDays,
+      contracts: parsedContracts,
+      preferences,
+      debugNonce: Date.now(),
+    };
+  }
+
+  async function runCalculateAndLead(calcInput: CalcInput) {
     setLoading(true);
     setResp(null);
     setLeadStatus(null);
 
     track("calculate_clicked", {
-      fullHoursPerWeek,
-      threshold: fullTimeThresholdHours,
+      fullHoursPerWeek: calcInput.fullHoursPerWeek,
+      threshold: calcInput.fullTimeThresholdHours,
       strategy: preferences.strategy,
     });
 
@@ -420,7 +525,7 @@ export default function CalculadoraPage() {
         method: "POST",
         headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
         cache: "no-store",
-        body: JSON.stringify(input),
+        body: JSON.stringify(calcInput),
       });
 
       const data = (await r.json()) as CalcResponse;
@@ -437,9 +542,9 @@ export default function CalculadoraPage() {
         full_name: leadName.trim(),
         role: leadRole.trim(),
         industry: leadIndustry.trim(),
-        employees: Number(leadEmployees),
+        employees: parseIntLoose(leadEmployees),
         source: "dotaciones.cl/calculadora",
-        calc_input: input,
+        calc_input: calcInput,
         calc_result: (data as any).result,
       };
 
@@ -474,31 +579,43 @@ export default function CalculadoraPage() {
   }
 
   async function onCalculateClick() {
+    const calcInput = buildCalcInput();
+    if (!calcInput) return;
+
+    // recién aquí pedimos lead
     if (!profileComplete()) {
       setLeadError(null);
       setLeadStatus(null);
       setLeadModalOpen(true);
       return;
     }
-    await runCalculateAndLead();
+
+    await runCalculateAndLead(calcInput);
   }
 
   async function onSubmitLead() {
     setLeadError(null);
+
     const e = leadEmail.trim();
     const n = leadName.trim();
     const r = leadRole.trim();
     const i = leadIndustry.trim();
-    const emp = Number(leadEmployees);
+    const emp = parseIntLoose(leadEmployees);
 
     if (!isValidEmail(e)) return setLeadError("Email inválido.");
     if (!n) return setLeadError("Nombre es obligatorio.");
     if (!r) return setLeadError("Cargo es obligatorio.");
     if (!i) return setLeadError("Industria es obligatoria.");
-    if (!Number.isFinite(emp) || emp <= 0) return setLeadError("Cantidad de empleados inválida.");
+    if (!Number.isFinite(emp ?? NaN) || (emp ?? 0) <= 0) return setLeadError("Cantidad de empleados inválida.");
+
+    const calcInput = buildCalcInput();
+    if (!calcInput) {
+      setLeadModalOpen(false);
+      return;
+    }
 
     setLeadModalOpen(false);
-    await runCalculateAndLead();
+    await runCalculateAndLead(calcInput);
   }
 
   const result = resp && resp.ok ? resp.result : null;
@@ -506,13 +623,17 @@ export default function CalculadoraPage() {
   return (
     <>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24, fontFamily: "system-ui" }}>
-        <h1 style={{ margin: 0, fontSize: 30, fontWeight: 950, color: "var(--text)" }}>Calculadora de Dotación Retail</h1>
+        <h1 style={{ margin: 0, fontSize: 30, fontWeight: 950, color: "var(--text)" }}>
+          Calculadora de Dotación Retail
+        </h1>
         <p style={{ marginTop: 10, color: "var(--muted)" }}>
           Rellena tu semana y presiona <b>CALCULAR</b>. Te enviamos un reporte por correo.
         </p>
 
         <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button onClick={loadRetailExample} variant="secondary">Cargar ejemplo retail típico</Button>
+          <Button onClick={loadRetailExample} variant="secondary">
+            Cargar ejemplo retail típico
+          </Button>
           <a
             href="/"
             style={{
@@ -538,26 +659,58 @@ export default function CalculadoraPage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontWeight: 800, color: "var(--text)" }}>Full (h/sem)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>Horas semanales de un contrato full típico (ej: 42).</span>
-                <Input type="number" value={fullHoursPerWeek} onChange={(e) => setFullHoursPerWeek(Number(e.target.value))} />
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                  Horas semanales de un contrato full típico (ej: 42).
+                </span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={fullHoursPerWeek}
+                  onChange={(e) => setFullHoursPerWeek(e.target.value)}
+                  placeholder="42"
+                />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontWeight: 800, color: "var(--text)" }}>Umbral full-time (h)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>Desde cuántas horas se considera “full” (ej: 30).</span>
-                <Input type="number" value={fullTimeThresholdHours} onChange={(e) => setFullTimeThresholdHours(Number(e.target.value))} />
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                  Desde cuántas horas se considera “full” (ej: 30).
+                </span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  value={fullTimeThresholdHours}
+                  onChange={(e) => setFullTimeThresholdHours(e.target.value)}
+                  placeholder="30"
+                />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontWeight: 800, color: "var(--text)" }}>Domingo full (&gt; umbral)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>Ej: 0.5 = “rinden la mitad” los domingos.</span>
-                <Input type="number" step="0.1" value={fullTimeSundayAvailability} onChange={(e) => setFullTimeSundayAvailability(Number(e.target.value))} />
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                  Ej: 0.5 = “rinden la mitad” los domingos.
+                </span>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={fullTimeSundayAvailability}
+                  onChange={(e) => setFullTimeSundayAvailability(e.target.value)}
+                  placeholder="0.5"
+                />
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
                 <span style={{ fontWeight: 800, color: "var(--text)" }}>Domingo PT (≤ umbral)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>Ej: 1.0 = sin castigo (trabajan todos).</span>
-                <Input type="number" step="0.1" value={partTimeSundayAvailability} onChange={(e) => setPartTimeSundayAvailability(Number(e.target.value))} />
+                <span style={{ fontSize: 12, color: "var(--muted)" }}>
+                  Ej: 1.0 = sin castigo (trabajan todos).
+                </span>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={partTimeSundayAvailability}
+                  onChange={(e) => setPartTimeSundayAvailability(e.target.value)}
+                  placeholder="1.0"
+                />
               </label>
             </div>
           </Card>
@@ -567,8 +720,16 @@ export default function CalculadoraPage() {
               {contracts.map((c, i) => (
                 <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 140px 110px", gap: 10 }}>
                   <Input value={c.name} onChange={(e) => updateContract(i, { name: e.target.value })} />
-                  <Input type="number" value={c.hoursPerWeek} onChange={(e) => updateContract(i, { hoursPerWeek: Number(e.target.value) })} />
-                  <Button variant="danger" onClick={() => removeContract(i)}>Eliminar</Button>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={c.hoursPerWeek}
+                    onChange={(e) => updateContract(i, { hoursPerWeek: e.target.value })}
+                    placeholder="42"
+                  />
+                  <Button variant="danger" onClick={() => removeContract(i)}>
+                    Eliminar
+                  </Button>
                 </div>
               ))}
             </div>
@@ -583,16 +744,27 @@ export default function CalculadoraPage() {
           <Card title="Paso 2 — Preferencias" right="Criterios del mix">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <label style={{ display: "grid", gap: 6 }}>
-                <Tooltip label="Estrategia" text="Balanceado = cuerpo base full + PT para ajustar. Menos personas = compacta headcount." />
-                <Select value={preferences.strategy} onChange={(e) => setPreferences((p) => ({ ...p, strategy: e.target.value as Preferences["strategy"] }))}>
+                <Tooltip
+                  label="Estrategia"
+                  text="Balanceado = cuerpo base full + PT para ajustar. Menos personas = compacta headcount."
+                />
+                <Select
+                  value={preferences.strategy}
+                  onChange={(e) =>
+                    setPreferences((p) => ({ ...p, strategy: e.target.value as Preferences["strategy"] }))
+                  }
+                >
                   <option value="balanced">Balanceado (recomendado)</option>
                   <option value="min_people">Menos personas</option>
                 </Select>
               </label>
 
               <label style={{ display: "grid", gap: 6 }}>
-                <Tooltip label="PT fin de semana" text="Si está desactivado: el motor no propondrá contratos de 20h/16h." />
-                <Select value={preferences.allow_pt_weekend ? "yes" : "no"} onChange={(e) => setPreferences((p) => ({ ...p, allow_pt_weekend: e.target.value === "yes" }))}>
+                <Tooltip label="PT fin de semana" text="Si está desactivado: no propondrá PT 20h/16h." />
+                <Select
+                  value={preferences.allow_pt_weekend ? "yes" : "no"}
+                  onChange={(e) => setPreferences((p) => ({ ...p, allow_pt_weekend: e.target.value === "yes" }))}
+                >
                   <option value="yes">Permitido</option>
                   <option value="no">No permitido</option>
                 </Select>
@@ -620,7 +792,14 @@ export default function CalculadoraPage() {
                   ].map((x) => (
                     <label
                       key={x.key}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--text)", fontWeight: 800 }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 8,
+                        cursor: "pointer",
+                        color: "var(--text)",
+                        fontWeight: 800,
+                      }}
                     >
                       <input
                         type="checkbox"
@@ -644,11 +823,24 @@ export default function CalculadoraPage() {
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <th style={{ textAlign: "left", padding: 8, color: "var(--muted)" }}>Día</th>
                     <th style={{ padding: 8, color: "var(--muted)" }}>Abierto</th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Horas abierto" text="Cuántas horas está abierto el local ese día." /></th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Personas simultáneas" text="Cuántas personas necesitas AL MISMO TIEMPO." /></th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Cambios de turno/día" text="Cuántos equipos se alternan en el día. Ej: 2 = AM/PM." /></th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Traslape (min)" text="Minutos que se cruzan turnos (colación/cambio). Si no aplica, 0." /></th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Colación no imputable (min)" text="Minutos de colación que no cuentan como jornada (presencia adicional). Si no aplica, 0." /></th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}>
+                      <Tooltip label="Horas abierto" text="Cuántas horas está abierto el local ese día." />
+                    </th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}>
+                      <Tooltip label="Personas simultáneas" text="Cuántas personas necesitas AL MISMO TIEMPO." />
+                    </th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}>
+                      <Tooltip label="Cambios de turno/día" text="Cuántos equipos se alternan en el día. Ej: 2 = AM/PM." />
+                    </th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}>
+                      <Tooltip label="Traslape (min)" text="Minutos que se cruzan turnos (colación/cambio). Si no aplica, 0." />
+                    </th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}>
+                      <Tooltip
+                        label="Colación no imputable (min)"
+                        text="Minutos de colación que no cuentan como jornada (presencia adicional). Si no aplica, 0."
+                      />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -656,22 +848,61 @@ export default function CalculadoraPage() {
                     <tr key={d} style={{ borderTop: "1px solid var(--border)" }}>
                       <td style={{ padding: 8, fontWeight: 900, color: "var(--text)" }}>{DAY_LABEL[d]}</td>
                       <td style={{ padding: 8, textAlign: "center" }}>
-                        <input type="checkbox" checked={days[d].open} onChange={(e) => updateDay(d, { open: e.target.checked })} />
+                        <input
+                          type="checkbox"
+                          checked={days[d].open}
+                          onChange={(e) => updateDay(d, { open: e.target.checked })}
+                        />
                       </td>
                       <td style={{ padding: 8 }}>
-                        <Input type="number" value={days[d].hoursOpen} onChange={(e) => updateDay(d, { hoursOpen: Number(e.target.value) })} style={{ width: 120 }} />
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={days[d].hoursOpen}
+                          onChange={(e) => updateDay(d, { hoursOpen: e.target.value })}
+                          placeholder="12"
+                          style={{ width: 120 }}
+                        />
                       </td>
                       <td style={{ padding: 8 }}>
-                        <Input type="number" value={days[d].requiredPeople} onChange={(e) => updateDay(d, { requiredPeople: Number(e.target.value) })} style={{ width: 150 }} />
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={days[d].requiredPeople}
+                          onChange={(e) => updateDay(d, { requiredPeople: e.target.value })}
+                          placeholder="2"
+                          style={{ width: 150 }}
+                        />
                       </td>
                       <td style={{ padding: 8 }}>
-                        <Input type="number" value={days[d].shiftsPerDay} onChange={(e) => updateDay(d, { shiftsPerDay: Number(e.target.value) })} style={{ width: 150 }} />
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={days[d].shiftsPerDay}
+                          onChange={(e) => updateDay(d, { shiftsPerDay: e.target.value })}
+                          placeholder="2"
+                          style={{ width: 150 }}
+                        />
                       </td>
                       <td style={{ padding: 8 }}>
-                        <Input type="number" value={days[d].overlapMinutes} onChange={(e) => updateDay(d, { overlapMinutes: Number(e.target.value) })} style={{ width: 150 }} />
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={days[d].overlapMinutes}
+                          onChange={(e) => updateDay(d, { overlapMinutes: e.target.value })}
+                          placeholder="30"
+                          style={{ width: 150 }}
+                        />
                       </td>
                       <td style={{ padding: 8 }}>
-                        <Input type="number" value={days[d].breakMinutes} onChange={(e) => updateDay(d, { breakMinutes: Number(e.target.value) })} style={{ width: 190 }} />
+                        <Input
+                          type="text"
+                          inputMode="numeric"
+                          value={days[d].breakMinutes}
+                          onChange={(e) => updateDay(d, { breakMinutes: e.target.value })}
+                          placeholder="60"
+                          style={{ width: 190 }}
+                        />
                       </td>
                     </tr>
                   ))}
@@ -679,9 +910,18 @@ export default function CalculadoraPage() {
               </table>
             </div>
 
-            <Button variant="primary" onClick={onCalculateClick} disabled={loading} style={{ marginTop: 12, width: "100%", height: 48, fontSize: 16 }}>
+            <Button
+              variant="primary"
+              onClick={onCalculateClick}
+              disabled={loading}
+              style={{ marginTop: 12, width: "100%", height: 48, fontSize: 16 }}
+            >
               {loading ? "CALCULANDO..." : "CALCULAR"}
             </Button>
+
+            {formError ? (
+              <div style={{ marginTop: 10, fontSize: 13, fontWeight: 900, color: "#ef4444" }}>{formError}</div>
+            ) : null}
 
             {leadStatus ? <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)" }}>{leadStatus}</div> : null}
           </Card>
@@ -689,16 +929,33 @@ export default function CalculadoraPage() {
 
         <div style={{ marginTop: 16 }}>
           <Card title="Paso 5 — Resultados" right="Resumen + mixes sugeridos">
-            {!resp && <p style={{ margin: 0, color: "var(--muted)" }}>Presiona <b>CALCULAR</b> para ver resultados.</p>}
+            {!resp && (
+              <p style={{ margin: 0, color: "var(--muted)" }}>
+                Presiona <b>CALCULAR</b> para ver resultados.
+              </p>
+            )}
+
             {resp && !resp.ok && (
-              <div style={{ marginTop: 10, padding: 12, borderRadius: 14, border: "1px solid rgba(239,68,68,0.5)", background: "rgba(239,68,68,0.08)", color: "var(--text)" }}>
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: 12,
+                  borderRadius: 14,
+                  border: "1px solid rgba(239,68,68,0.5)",
+                  background: "rgba(239,68,68,0.08)",
+                  color: "var(--text)",
+                }}
+              >
                 <b>Error:</b> {resp.error}
               </div>
             )}
+
             {result && (
               <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
                 <div style={{ padding: 12, borderRadius: 14, border: "1px solid var(--border)", background: "var(--input-bg)" }}>
-                  <div style={{ fontWeight: 950, color: "var(--text)" }}>Estimación: {Number(result.fte).toFixed(2)} FTE (equivalentes full).</div>
+                  <div style={{ fontWeight: 950, color: "var(--text)" }}>
+                    Estimación: {Number(result.fte).toFixed(2)} FTE (equivalentes full).
+                  </div>
                   <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
                     <div><b>Horas requeridas (semana):</b> {result.requiredHours}</div>
                     <div><b>Brecha colación vs traslape:</b> {result.gapHours}</div>
@@ -709,7 +966,9 @@ export default function CalculadoraPage() {
                 <div style={{ display: "grid", gap: 12 }}>
                   {result.mixes?.map((m: any, idx: number) => (
                     <div key={idx} style={{ padding: 12, borderRadius: 14, border: "1px solid var(--border)", background: "var(--panel)" }}>
-                      <div style={{ fontWeight: 950, color: "var(--text)" }}>{m.title} — {m.sundayOk ? "✅ domingo OK" : "❌ domingo NO"}</div>
+                      <div style={{ fontWeight: 950, color: "var(--text)" }}>
+                        {m.title} — {m.sundayOk ? "✅ domingo OK" : "❌ domingo NO"}
+                      </div>
                       <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
                         <div><b>Total personas:</b> {m.headcount}</div>
                         <div><b>Horas totales:</b> {m.hoursTotal} (holgura {m.slackHours} / {Math.round(m.slackPct * 100)}%)</div>
@@ -774,7 +1033,13 @@ export default function CalculadoraPage() {
 
             <label style={{ display: "grid", gap: 6 }}>
               <span style={{ fontWeight: 900, color: "var(--text)" }}>Cantidad de empleados</span>
-              <Input type="number" value={leadEmployees} onChange={(e) => setLeadEmployees(e.target.value)} placeholder="Ej: 120" />
+              <Input
+                type="text"
+                inputMode="numeric"
+                value={leadEmployees}
+                onChange={(e) => setLeadEmployees(e.target.value)}
+                placeholder="Ej: 120"
+              />
             </label>
           </div>
 
@@ -786,87 +1051,10 @@ export default function CalculadoraPage() {
           {leadError ? <div style={{ color: "#ef4444", fontWeight: 900, fontSize: 13 }}>{leadError}</div> : null}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 6 }}>
-            <Button onClick={() => setLeadModalOpen(false)} variant="secondary">Cancelar</Button>
-            <Button
-              onClick={async () => {
-                setLeadError(null);
-                const e = leadEmail.trim();
-                const n = leadName.trim();
-                const r = leadRole.trim();
-                const i = leadIndustry.trim();
-                const emp = Number(leadEmployees);
-                if (!isValidEmail(e)) return setLeadError("Email inválido.");
-                if (!n) return setLeadError("Nombre es obligatorio.");
-                if (!r) return setLeadError("Cargo es obligatorio.");
-                if (!i) return setLeadError("Industria es obligatoria.");
-                if (!Number.isFinite(emp) || emp <= 0) return setLeadError("Cantidad de empleados inválida.");
-
-                setLeadModalOpen(false);
-
-                // run calculate+lead
-                setLoading(true);
-                setResp(null);
-                setLeadStatus(null);
-
-                track("calculate_clicked", {
-                  fullHoursPerWeek,
-                  threshold: fullTimeThresholdHours,
-                  strategy: preferences.strategy,
-                });
-
-                try {
-                  const r1 = await fetch("/api/calculate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-                    cache: "no-store",
-                    body: JSON.stringify(input),
-                  });
-
-                  const data = (await r1.json()) as CalcResponse;
-                  if (!data || data.ok !== true) {
-                    setResp(data);
-                    setLeadStatus("No se pudo calcular. Revisa parámetros.");
-                    return;
-                  }
-
-                  const leadPayload = {
-                    email: leadEmail.trim(),
-                    full_name: leadName.trim(),
-                    role: leadRole.trim(),
-                    industry: leadIndustry.trim(),
-                    employees: Number(leadEmployees),
-                    source: "dotaciones.cl/calculadora",
-                    calc_input: input,
-                    calc_result: (data as any).result,
-                  };
-
-                  const lr = await fetch("/api/leads", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-                    cache: "no-store",
-                    body: JSON.stringify(leadPayload),
-                  });
-
-                  const leadData = (await lr.json()) as LeadResponse;
-                  setResp(data);
-
-                  if (leadData && (leadData as any).ok === true) {
-                    const sent = (leadData as any).emailSent;
-                    const reportUrl = (leadData as any).reportUrl;
-                    if (sent) setLeadStatus(`✅ Reporte enviado a ${leadEmail.trim()}${reportUrl ? ` · Link: ${reportUrl}` : ""}`);
-                    else setLeadStatus(`⚠️ Lead guardado, pero no se pudo enviar correo. ${reportUrl ? `Link: ${reportUrl}` : ""}`);
-                  } else {
-                    setLeadStatus("⚠️ No se pudo guardar el lead / enviar correo.");
-                  }
-                } catch (err: any) {
-                  setResp({ ok: false, error: err?.message ?? "Error" });
-                  setLeadStatus("Error ejecutando el cálculo.");
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              variant="primary"
-            >
+            <Button onClick={() => setLeadModalOpen(false)} variant="secondary">
+              Cancelar
+            </Button>
+            <Button onClick={onSubmitLead} variant="primary">
               Enviar y calcular
             </Button>
           </div>
