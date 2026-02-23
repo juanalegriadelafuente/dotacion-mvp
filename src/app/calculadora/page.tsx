@@ -15,10 +15,10 @@ type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 type DayInput = {
   open: boolean;
   hoursOpen: number;
-  requiredPeople: number;
-  shiftsPerDay: number;
-  overlapMinutes: number;
-  breakMinutes: number;
+  requiredPeople: number; // Personas simultáneas
+  shiftsPerDay: number; // Cambios de turno/día
+  overlapMinutes: number; // Traslape
+  breakMinutes: number; // Colación no imputable
 };
 
 type ContractType = { name: string; hoursPerWeek: number };
@@ -58,7 +58,6 @@ const DAY_LABEL: Record<DayKey, string> = {
   sat: "Sáb",
   sun: "Dom",
 };
-
 const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 function defaultDays(): Record<DayKey, DayInput> {
@@ -129,7 +128,6 @@ function Card({ title, right, children }: { title: string; right?: string; child
 
 function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   const isNumber = props.type === "number";
-
   const baseStyle: CSSProperties = {
     width: "100%",
     height: 42,
@@ -144,11 +142,9 @@ function Input(props: InputHTMLAttributes<HTMLInputElement>) {
     fontSize: 14,
     lineHeight: "20px",
   };
-
   const appearanceStyle: CSSProperties = isNumber
     ? { WebkitAppearance: "none", appearance: "textfield" }
     : { appearance: "auto" };
-
   return <input {...props} style={{ ...baseStyle, ...appearanceStyle, ...(props.style ?? {}) }} />;
 }
 
@@ -180,12 +176,14 @@ function Button({
   variant = "secondary",
   disabled,
   style,
+  type = "button",
 }: {
   children: ReactNode;
   onClick?: () => void;
   variant?: "primary" | "secondary" | "danger";
   disabled?: boolean;
   style?: CSSProperties;
+  type?: "button" | "submit";
 }) {
   const base: CSSProperties = {
     height: 42,
@@ -208,7 +206,7 @@ function Button({
   };
 
   return (
-    <button onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...style }}>
+    <button type={type} onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...style }}>
       {children}
     </button>
   );
@@ -226,6 +224,7 @@ function Modal({
   onClose: () => void;
 }) {
   if (!open) return null;
+
   return (
     <div
       role="dialog"
@@ -233,28 +232,30 @@ function Modal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.45)",
+        background: "var(--modal-overlay)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         padding: 18,
-        zIndex: 50,
+        zIndex: 999,
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
       }}
       onClick={onClose}
     >
       <div
         style={{
-          width: "min(620px, 100%)",
-          borderRadius: 16,
-          border: "1px solid var(--border)",
-          background: "var(--panel)",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
-          padding: 16,
+          width: "min(640px, 100%)",
+          borderRadius: 18,
+          border: "1px solid var(--modal-border)",
+          background: "var(--modal-panel)", // ✅ sólido (no transparente)
+          boxShadow: "var(--modal-shadow)",
+          padding: 18,
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <div style={{ fontWeight: 950, fontSize: 16, color: "var(--text)" }}>{title}</div>
+          <div style={{ fontWeight: 1000, fontSize: 16, color: "var(--text)" }}>{title}</div>
           <button
             onClick={onClose}
             style={{
@@ -266,10 +267,12 @@ function Modal({
               cursor: "pointer",
               fontWeight: 900,
             }}
+            aria-label="Cerrar"
           >
             ✕
           </button>
         </div>
+
         <div style={{ marginTop: 12 }}>{children}</div>
       </div>
     </div>
@@ -304,7 +307,7 @@ export default function CalculadoraPage() {
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<CalcResponse | null>(null);
 
-  // ✅ Lead fields
+  // Lead fields
   const [leadEmail, setLeadEmail] = useState("");
   const [leadName, setLeadName] = useState("");
   const [leadRole, setLeadRole] = useState("");
@@ -326,15 +329,7 @@ export default function CalculadoraPage() {
       preferences,
       debugNonce: Date.now(),
     }),
-    [
-      fullHoursPerWeek,
-      fullTimeThresholdHours,
-      fullTimeSundayAvailability,
-      partTimeSundayAvailability,
-      days,
-      contracts,
-      preferences,
-    ]
+    [fullHoursPerWeek, fullTimeThresholdHours, fullTimeSundayAvailability, partTimeSundayAvailability, days, contracts, preferences]
   );
 
   function updateDay(d: DayKey, patch: Partial<DayInput>) {
@@ -427,6 +422,7 @@ export default function CalculadoraPage() {
         cache: "no-store",
         body: JSON.stringify(input),
       });
+
       const data = (await r.json()) as CalcResponse;
 
       if (!data || data.ok !== true) {
@@ -478,7 +474,6 @@ export default function CalculadoraPage() {
   }
 
   async function onCalculateClick() {
-    // Si no está completo, pedimos modal
     if (!profileComplete()) {
       setLeadError(null);
       setLeadStatus(null);
@@ -490,7 +485,6 @@ export default function CalculadoraPage() {
 
   async function onSubmitLead() {
     setLeadError(null);
-
     const e = leadEmail.trim();
     const n = leadName.trim();
     const r = leadRole.trim();
@@ -512,17 +506,13 @@ export default function CalculadoraPage() {
   return (
     <>
       <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24, fontFamily: "system-ui" }}>
-        <h1 style={{ margin: 0, fontSize: 30, fontWeight: 950, color: "var(--text)" }}>
-          Calculadora de Dotación Retail
-        </h1>
+        <h1 style={{ margin: 0, fontSize: 30, fontWeight: 950, color: "var(--text)" }}>Calculadora de Dotación Retail</h1>
         <p style={{ marginTop: 10, color: "var(--muted)" }}>
           Rellena tu semana y presiona <b>CALCULAR</b>. Te enviamos un reporte por correo.
         </p>
 
         <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button onClick={loadRetailExample} variant="secondary">
-            Cargar ejemplo retail típico
-          </Button>
+          <Button onClick={loadRetailExample} variant="secondary">Cargar ejemplo retail típico</Button>
           <a
             href="/"
             style={{
@@ -628,7 +618,10 @@ export default function CalculadoraPage() {
                     { key: "allow_5x2", label: "5x2" },
                     { key: "allow_4x3", label: "4x3" },
                   ].map((x) => (
-                    <label key={x.key} style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--text)", fontWeight: 800 }}>
+                    <label
+                      key={x.key}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--text)", fontWeight: 800 }}
+                    >
                       <input
                         type="checkbox"
                         checked={preferences[x.key as keyof Preferences] as boolean}
@@ -651,21 +644,11 @@ export default function CalculadoraPage() {
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <th style={{ textAlign: "left", padding: 8, color: "var(--muted)" }}>Día</th>
                     <th style={{ padding: 8, color: "var(--muted)" }}>Abierto</th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip label="Horas abierto" text="Cuántas horas está abierto el local ese día." />
-                    </th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip label="Personas simultáneas" text="Cuántas personas necesitas AL MISMO TIEMPO." />
-                    </th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip label="Cambios de turno/día" text="Cuántos equipos se alternan en el día. Ej: 2 = AM/PM." />
-                    </th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip label="Traslape (min)" text="Minutos que se cruzan turnos (colación/cambio). Si no aplica, 0." />
-                    </th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip label="Colación no imputable (min)" text="Minutos de colación que no cuentan como jornada (presencia adicional). Si no aplica, 0." />
-                    </th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Horas abierto" text="Cuántas horas está abierto el local ese día." /></th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Personas simultáneas" text="Cuántas personas necesitas AL MISMO TIEMPO." /></th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Cambios de turno/día" text="Cuántos equipos se alternan en el día. Ej: 2 = AM/PM." /></th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Traslape (min)" text="Minutos que se cruzan turnos (colación/cambio). Si no aplica, 0." /></th>
+                    <th style={{ padding: 8, color: "var(--muted)" }}><Tooltip label="Colación no imputable (min)" text="Minutos de colación que no cuentan como jornada (presencia adicional). Si no aplica, 0." /></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -706,24 +689,16 @@ export default function CalculadoraPage() {
 
         <div style={{ marginTop: 16 }}>
           <Card title="Paso 5 — Resultados" right="Resumen + mixes sugeridos">
-            {!resp && (
-              <p style={{ margin: 0, color: "var(--muted)" }}>
-                Presiona <b>CALCULAR</b> para ver resultados (primero pedimos datos del reporte).
-              </p>
-            )}
-
+            {!resp && <p style={{ margin: 0, color: "var(--muted)" }}>Presiona <b>CALCULAR</b> para ver resultados.</p>}
             {resp && !resp.ok && (
               <div style={{ marginTop: 10, padding: 12, borderRadius: 14, border: "1px solid rgba(239,68,68,0.5)", background: "rgba(239,68,68,0.08)", color: "var(--text)" }}>
                 <b>Error:</b> {resp.error}
               </div>
             )}
-
             {result && (
               <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
                 <div style={{ padding: 12, borderRadius: 14, border: "1px solid var(--border)", background: "var(--input-bg)" }}>
-                  <div style={{ fontWeight: 950, color: "var(--text)" }}>
-                    Estimación: {Number(result.fte).toFixed(2)} FTE (equivalentes full).
-                  </div>
+                  <div style={{ fontWeight: 950, color: "var(--text)" }}>Estimación: {Number(result.fte).toFixed(2)} FTE (equivalentes full).</div>
                   <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
                     <div><b>Horas requeridas (semana):</b> {result.requiredHours}</div>
                     <div><b>Brecha colación vs traslape:</b> {result.gapHours}</div>
@@ -734,9 +709,7 @@ export default function CalculadoraPage() {
                 <div style={{ display: "grid", gap: 12 }}>
                   {result.mixes?.map((m: any, idx: number) => (
                     <div key={idx} style={{ padding: 12, borderRadius: 14, border: "1px solid var(--border)", background: "var(--panel)" }}>
-                      <div style={{ fontWeight: 950, color: "var(--text)" }}>
-                        {m.title} — {m.sundayOk ? "✅ domingo OK" : "❌ domingo NO"}
-                      </div>
+                      <div style={{ fontWeight: 950, color: "var(--text)" }}>{m.title} — {m.sundayOk ? "✅ domingo OK" : "❌ domingo NO"}</div>
                       <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
                         <div><b>Total personas:</b> {m.headcount}</div>
                         <div><b>Horas totales:</b> {m.hoursTotal} (holgura {m.slackHours} / {Math.round(m.slackPct * 100)}%)</div>
@@ -759,11 +732,15 @@ export default function CalculadoraPage() {
               </div>
             )}
 
-            <div style={{ marginTop: 14, fontSize: 12, color: "var(--muted)" }}>Dotaciones.cl — MVP v0.1</div>
+            <div style={{ marginTop: 14, fontSize: 12, color: "var(--muted)", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              <span>Dotaciones.cl — MVP v0.1</span>
+              <a href="/contacto" style={{ color: "var(--primary2)" }}>Contacto / sugerencias</a>
+            </div>
           </Card>
         </div>
       </div>
 
+      {/* Modal Lead */}
       <Modal open={leadModalOpen} title="Recibir reporte por correo" onClose={() => setLeadModalOpen(false)}>
         <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
           Completa estos datos para enviarte el reporte y mejorar la herramienta.
@@ -775,7 +752,6 @@ export default function CalculadoraPage() {
               <span style={{ fontWeight: 900, color: "var(--text)" }}>Nombre</span>
               <Input value={leadName} onChange={(e) => setLeadName(e.target.value)} placeholder="Juan Pérez" />
             </label>
-
             <label style={{ display: "grid", gap: 6 }}>
               <span style={{ fontWeight: 900, color: "var(--text)" }}>Cargo</span>
               <Input value={leadRole} onChange={(e) => setLeadRole(e.target.value)} placeholder="Jefe de tienda / RRHH / Operaciones" />
@@ -810,16 +786,93 @@ export default function CalculadoraPage() {
           {leadError ? <div style={{ color: "#ef4444", fontWeight: 900, fontSize: 13 }}>{leadError}</div> : null}
 
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 6 }}>
-            <Button onClick={() => setLeadModalOpen(false)} variant="secondary">
-              Cancelar
-            </Button>
-            <Button onClick={onSubmitLead} variant="primary">
+            <Button onClick={() => setLeadModalOpen(false)} variant="secondary">Cancelar</Button>
+            <Button
+              onClick={async () => {
+                setLeadError(null);
+                const e = leadEmail.trim();
+                const n = leadName.trim();
+                const r = leadRole.trim();
+                const i = leadIndustry.trim();
+                const emp = Number(leadEmployees);
+                if (!isValidEmail(e)) return setLeadError("Email inválido.");
+                if (!n) return setLeadError("Nombre es obligatorio.");
+                if (!r) return setLeadError("Cargo es obligatorio.");
+                if (!i) return setLeadError("Industria es obligatoria.");
+                if (!Number.isFinite(emp) || emp <= 0) return setLeadError("Cantidad de empleados inválida.");
+
+                setLeadModalOpen(false);
+
+                // run calculate+lead
+                setLoading(true);
+                setResp(null);
+                setLeadStatus(null);
+
+                track("calculate_clicked", {
+                  fullHoursPerWeek,
+                  threshold: fullTimeThresholdHours,
+                  strategy: preferences.strategy,
+                });
+
+                try {
+                  const r1 = await fetch("/api/calculate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+                    cache: "no-store",
+                    body: JSON.stringify(input),
+                  });
+
+                  const data = (await r1.json()) as CalcResponse;
+                  if (!data || data.ok !== true) {
+                    setResp(data);
+                    setLeadStatus("No se pudo calcular. Revisa parámetros.");
+                    return;
+                  }
+
+                  const leadPayload = {
+                    email: leadEmail.trim(),
+                    full_name: leadName.trim(),
+                    role: leadRole.trim(),
+                    industry: leadIndustry.trim(),
+                    employees: Number(leadEmployees),
+                    source: "dotaciones.cl/calculadora",
+                    calc_input: input,
+                    calc_result: (data as any).result,
+                  };
+
+                  const lr = await fetch("/api/leads", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+                    cache: "no-store",
+                    body: JSON.stringify(leadPayload),
+                  });
+
+                  const leadData = (await lr.json()) as LeadResponse;
+                  setResp(data);
+
+                  if (leadData && (leadData as any).ok === true) {
+                    const sent = (leadData as any).emailSent;
+                    const reportUrl = (leadData as any).reportUrl;
+                    if (sent) setLeadStatus(`✅ Reporte enviado a ${leadEmail.trim()}${reportUrl ? ` · Link: ${reportUrl}` : ""}`);
+                    else setLeadStatus(`⚠️ Lead guardado, pero no se pudo enviar correo. ${reportUrl ? `Link: ${reportUrl}` : ""}`);
+                  } else {
+                    setLeadStatus("⚠️ No se pudo guardar el lead / enviar correo.");
+                  }
+                } catch (err: any) {
+                  setResp({ ok: false, error: err?.message ?? "Error" });
+                  setLeadStatus("Error ejecutando el cálculo.");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              variant="primary"
+            >
               Enviar y calcular
             </Button>
           </div>
 
           <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-            No cobramos. Estos datos nos ayudan a mejorar el modelo y generar reportes comparables por industria.
+            No cobramos. Estos datos ayudan a mejorar el modelo y reportes comparables por industria.
           </div>
         </div>
       </Modal>
