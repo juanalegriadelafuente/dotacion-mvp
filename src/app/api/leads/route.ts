@@ -1,7 +1,8 @@
 // src/app/api/leads/route.ts
+
+import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
@@ -93,11 +94,16 @@ export async function POST(req: Request) {
       .single();
 
     if (error || !data?.id) {
-      return json({ ok: false, error: error?.message ?? "Error guardando lead." }, 500);
+      return json(
+        { ok: false, error: error?.message ?? "Error guardando lead." },
+        500,
+      );
     }
 
     const id = String(data.id);
-    const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://dotaciones.cl").replace(/\/$/, "");
+    const siteUrl = (
+      process.env.NEXT_PUBLIC_SITE_URL || "https://dotaciones.cl"
+    ).replace(/\/$/, "");
     const reportUrl = `${siteUrl}/reporte/${id}`;
 
     // 2) Enviar email
@@ -112,7 +118,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const from = process.env.RESEND_FROM || "Dotaciones <no-reply@dotaciones.cl>";
+    const from =
+      process.env.RESEND_FROM || "Dotaciones <no-reply@dotaciones.cl>";
     const resend = new Resend(resendKey);
 
     const subject = "Tu reporte de dotación (Dotaciones.cl)";
@@ -129,7 +136,12 @@ export async function POST(req: Request) {
       </div>
     `;
 
-    const sendResp = await resend.emails.send({ from, to: email, subject, html });
+    const sendResp = await resend.emails.send({
+      from,
+      to: email,
+      subject,
+      html,
+    });
 
     if ((sendResp as any)?.error) {
       return json({

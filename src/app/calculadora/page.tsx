@@ -1,15 +1,23 @@
 // src/app/calculadora/page.tsx
 "use client";
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { track } from "@vercel/analytics";
 import Image from "next/image";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-const DAY_LABEL: Record<DayKey, string> = { mon: "Lun", tue: "Mar", wed: "Mié", thu: "Jue", fri: "Vie", sat: "Sáb", sun: "Dom" };
+const DAY_LABEL: Record<DayKey, string> = {
+  mon: "Lun",
+  tue: "Mar",
+  wed: "Mié",
+  thu: "Jue",
+  fri: "Vie",
+  sat: "Sáb",
+  sun: "Dom",
+};
 
 type Preferences = {
   strategy: "balanced" | "min_people" | "stable";
@@ -98,7 +106,12 @@ function freshSlots() {
   return Array.from({ length: SLOT_COUNT }, () => 0);
 }
 
-function rangeFill(arr: number[], startSlot: number, endSlot: number, value: number) {
+function rangeFill(
+  arr: number[],
+  startSlot: number,
+  endSlot: number,
+  value: number,
+) {
   const out = arr.slice();
   if (endSlot === startSlot) return out;
 
@@ -154,9 +167,17 @@ function Button({
   className = "",
   variant = "secondary",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" | "ghost" }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "secondary" | "danger" | "ghost";
+}) {
   const v =
-    variant === "primary" ? "btn btnPrimary" : variant === "danger" ? "btn btnDanger" : variant === "ghost" ? "btn btnGhost" : "btn";
+    variant === "primary"
+      ? "btn btnPrimary"
+      : variant === "danger"
+        ? "btn btnDanger"
+        : variant === "ghost"
+          ? "btn btnGhost"
+          : "btn";
   return (
     <button {...props} className={`${v} ${className}`.trim()}>
       {children}
@@ -177,14 +198,20 @@ function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="modalOverlay" role="dialog" aria-modal="true" aria-label={title}>
+    <div
+      className="modalOverlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+    >
       <div className="modal">
         <div className="modalPad">
           <div className="modalHead">
             <div>
               <div className="h2">{title}</div>
               <div className="small" style={{ marginTop: 4 }}>
-                Te enviamos un link al reporte (y te avisamos cuando haya mejoras).
+                Te enviamos un link al reporte (y te avisamos cuando haya
+                mejoras).
               </div>
             </div>
             <button className="iconBtn" onClick={onClose} aria-label="Cerrar">
@@ -285,19 +312,31 @@ export default function CalculadoraPage() {
 
   // Lead modal
   const [leadOpen, setLeadOpen] = useState(false);
-  const [lead, setLead] = useState<LeadForm>({ name: "", role: "", industry: "", company_size: "", email: "" });
+  const [lead, setLead] = useState<LeadForm>({
+    name: "",
+    role: "",
+    industry: "",
+    company_size: "",
+    email: "",
+  });
   const [leadError, setLeadError] = useState<string | null>(null);
 
   useEffect(() => {
     const ex = params?.get("example");
     if (ex === "1") loadExample();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadExample, params?.get]);
 
   const selectedSlots = demand30[selectedDay];
-  const dayBaseHours = useMemo(() => slotsBaseHours(selectedSlots), [selectedSlots]);
+  const dayBaseHours = useMemo(
+    () => slotsBaseHours(selectedSlots),
+    [selectedSlots],
+  );
   const dayPeak = useMemo(() => slotsPeak(selectedSlots), [selectedSlots]);
-  const daySegments = useMemo(() => slotsToSegments(selectedSlots), [selectedSlots]);
+  const daySegments = useMemo(
+    () => slotsToSegments(selectedSlots),
+    [selectedSlots],
+  );
 
   const weekBaseHours = useMemo(() => {
     let sum = 0;
@@ -320,7 +359,10 @@ export default function CalculadoraPage() {
     const e = timeToSlot(rangeEnd);
     const v = clamp(Number(rangeValue || 0), 0, 99);
 
-    setDemand30((prev) => ({ ...prev, [selectedDay]: rangeFill(prev[selectedDay], s, e, v) }));
+    setDemand30((prev) => ({
+      ...prev,
+      [selectedDay]: rangeFill(prev[selectedDay], s, e, v),
+    }));
 
     if (!dayOpen[selectedDay] && v > 0) toggleOpenDay(selectedDay, true);
   }
@@ -352,7 +394,15 @@ export default function CalculadoraPage() {
       for (const d of DAY_ORDER) out[d] = src.slice();
       return out;
     });
-    setDayOpen({ mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true });
+    setDayOpen({
+      mon: true,
+      tue: true,
+      wed: true,
+      thu: true,
+      fri: true,
+      sat: true,
+      sun: true,
+    });
   }
 
   function loadExample() {
@@ -381,7 +431,15 @@ export default function CalculadoraPage() {
     fill("sun", "11:00", "17:00", 2);
 
     setDemand30(week);
-    setDayOpen({ mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true });
+    setDayOpen({
+      mon: true,
+      tue: true,
+      wed: true,
+      thu: true,
+      fri: true,
+      sat: true,
+      sun: true,
+    });
     setSelectedDay("mon");
     setShowGrid(false);
 
@@ -452,7 +510,8 @@ export default function CalculadoraPage() {
       });
 
       const json = (await resp.json()) as CalcResponse;
-      if (!resp.ok || !json.ok) throw new Error((json as any)?.error || "Error calculando.");
+      if (!resp.ok || !json.ok)
+        throw new Error((json as any)?.error || "Error calculando.");
 
       setResult(json.result);
       track("dot_calculadora_calculate", { version: "step4" });
@@ -464,7 +523,10 @@ export default function CalculadoraPage() {
         company_size: lead.company_size.trim(),
         city: "",
         source: "dotaciones",
-        calc_input: { ...calcInput, meta: { name: lead.name.trim(), industry: lead.industry.trim() } },
+        calc_input: {
+          ...calcInput,
+          meta: { name: lead.name.trim(), industry: lead.industry.trim() },
+        },
         calc_result: json.result,
       };
 
@@ -477,7 +539,8 @@ export default function CalculadoraPage() {
       const leadJson: any = await leadResp.json().catch(() => null);
 
       if (leadResp.ok) {
-        const id = leadJson?.id || leadJson?.leadId || leadJson?.data?.id || null;
+        const id =
+          leadJson?.id || leadJson?.leadId || leadJson?.data?.id || null;
         if (id) setReportId(String(id));
       }
     } catch (e: any) {
@@ -492,9 +555,14 @@ export default function CalculadoraPage() {
 
     if (!lead.name.trim()) return setLeadError("Pon tu nombre (o alias).");
     if (!lead.role.trim()) return setLeadError("¿Tu cargo?");
-    if (!lead.industry.trim()) return setLeadError("¿Industria? (retail / hospital / alimentación / logística)");
-    if (!lead.company_size.trim()) return setLeadError("¿Cantidad aprox. de empleados?");
-    if (!emailLooksOk(lead.email)) return setLeadError("Ese email se ve inválido (ej: nombre@dominio.com).");
+    if (!lead.industry.trim())
+      return setLeadError(
+        "¿Industria? (retail / hospital / alimentación / logística)",
+      );
+    if (!lead.company_size.trim())
+      return setLeadError("¿Cantidad aprox. de empleados?");
+    if (!emailLooksOk(lead.email))
+      return setLeadError("Ese email se ve inválido (ej: nombre@dominio.com).");
 
     setLeadOpen(false);
     await runCalculateAndLeadSave();
@@ -505,12 +573,21 @@ export default function CalculadoraPage() {
       {/* Top */}
       <div className="topbar">
         <div className="brand">
-  <Link href="/" className="brandMark" aria-label="Ir al inicio">
-    <Image src="/logo.svg" alt="Dotaciones.cl" width={34} height={34} className="logo" priority />
-    <span className="brandName">Dotaciones.cl</span>
-  </Link>
-  <div className="brandSub">Paso 4: Necesidad operativa por tramos (30 min) + mix sugerido</div>
-</div>
+          <Link href="/" className="brandMark" aria-label="Ir al inicio">
+            <Image
+              src="/logo.svg"
+              alt="Dotaciones.cl"
+              width={34}
+              height={34}
+              className="logo"
+              priority
+            />
+            <span className="brandName">Dotaciones.cl</span>
+          </Link>
+          <div className="brandSub">
+            Paso 4: Necesidad operativa por tramos (30 min) + mix sugerido
+          </div>
+        </div>
 
         <div className="actions">
           <Link className="btn" href="/contacto">
@@ -531,16 +608,29 @@ export default function CalculadoraPage() {
           <div className="cardPad">
             <h1 className="h1">Calculadora de Dotación por Tramos (30 min)</h1>
             <p className="p">
-              Cargas cuánta gente necesitas cada 30 minutos (día por día). Luego te devolvemos <b>horas-persona</b>, <b>FTE</b> y{" "}
+              Cargas cuánta gente necesitas cada 30 minutos (día por día). Luego
+              te devolvemos <b>horas-persona</b>, <b>FTE</b> y{" "}
               <b>alternativas de mix</b>.
             </p>
 
-            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Button variant="primary" onClick={onClickCalculate} disabled={isLoading}>
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <Button
+                variant="primary"
+                onClick={onClickCalculate}
+                disabled={isLoading}
+              >
                 {isLoading ? "Calculando…" : "Calcular"}
               </Button>
               <span className="small">
-                Tip: usa <span className="kbd">Rellenar rango</span> y deja la grilla para ajustes finos.
+                Tip: usa <span className="kbd">Rellenar rango</span> y deja la
+                grilla para ajustes finos.
               </span>
             </div>
           </div>
@@ -577,12 +667,20 @@ export default function CalculadoraPage() {
             <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
               <div className="field">
                 <div className="label">Horas full para 1 FTE (ej: 42)</div>
-                <input className="input" value={fullHoursPerWeek} onChange={(e) => setFullHoursPerWeek(e.target.value)} />
+                <input
+                  className="input"
+                  value={fullHoursPerWeek}
+                  onChange={(e) => setFullHoursPerWeek(e.target.value)}
+                />
               </div>
 
               <div className="field">
                 <div className="label">Umbral FT/PT (ej: 30)</div>
-                <input className="input" value={fullTimeThresholdHours} onChange={(e) => setFullTimeThresholdHours(e.target.value)} />
+                <input
+                  className="input"
+                  value={fullTimeThresholdHours}
+                  onChange={(e) => setFullTimeThresholdHours(e.target.value)}
+                />
               </div>
             </div>
 
@@ -602,7 +700,15 @@ export default function CalculadoraPage() {
 
             <div style={{ display: "grid", gap: 10 }}>
               {contracts.map((c, idx) => (
-                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr auto", gap: 10, alignItems: "center" }}>
+                <div
+                  key={idx}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1.2fr 0.8fr auto",
+                    gap: 10,
+                    alignItems: "center",
+                  }}
+                >
                   <input
                     className="input"
                     placeholder="Nombre (ej: 42h)"
@@ -622,14 +728,19 @@ export default function CalculadoraPage() {
                     onChange={(e) =>
                       setContracts((p) => {
                         const out = p.slice();
-                        out[idx] = { ...out[idx], hoursPerWeek: e.target.value };
+                        out[idx] = {
+                          ...out[idx],
+                          hoursPerWeek: e.target.value,
+                        };
                         return out;
                       })
                     }
                   />
                   <Button
                     variant="ghost"
-                    onClick={() => setContracts((p) => p.filter((_, i) => i !== idx))}
+                    onClick={() =>
+                      setContracts((p) => p.filter((_, i) => i !== idx))
+                    }
                     disabled={contracts.length <= 1}
                   >
                     Quitar
@@ -638,8 +749,22 @@ export default function CalculadoraPage() {
               ))}
             </div>
 
-            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Button onClick={() => setContracts((p) => [...p, { name: `Nuevo`, hoursPerWeek: "30" }])}>
+            <div
+              style={{
+                marginTop: 10,
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <Button
+                onClick={() =>
+                  setContracts((p) => [
+                    ...p,
+                    { name: `Nuevo`, hoursPerWeek: "30" },
+                  ])
+                }
+              >
                 + Agregar contrato
               </Button>
             </div>
@@ -663,7 +788,9 @@ export default function CalculadoraPage() {
                 <select
                   className="select"
                   value={prefs.strategy}
-                  onChange={(e) => setPrefs((p) => ({ ...p, strategy: e.target.value as any }))}
+                  onChange={(e) =>
+                    setPrefs((p) => ({ ...p, strategy: e.target.value as any }))
+                  }
                 >
                   <option value="balanced">Balanceado</option>
                   <option value="min_people">Menos personas</option>
@@ -679,24 +806,62 @@ export default function CalculadoraPage() {
               </div>
             </div>
 
-            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className={`toggle ${prefs.allow_6x1 ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, allow_6x1: !p.allow_6x1 }))}>
+            <div
+              style={{
+                marginTop: 12,
+                display: "flex",
+                gap: 10,
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                className={`toggle ${prefs.allow_6x1 ? "toggleOn" : ""}`}
+                onClick={() =>
+                  setPrefs((p) => ({ ...p, allow_6x1: !p.allow_6x1 }))
+                }
+              >
                 <span className="dot" /> Permitir 6x1
               </button>
 
-              <button className={`toggle ${prefs.allow_5x2 ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, allow_5x2: !p.allow_5x2 }))}>
+              <button
+                className={`toggle ${prefs.allow_5x2 ? "toggleOn" : ""}`}
+                onClick={() =>
+                  setPrefs((p) => ({ ...p, allow_5x2: !p.allow_5x2 }))
+                }
+              >
                 <span className="dot" /> Permitir 5x2
               </button>
 
-              <button className={`toggle ${prefs.allow_4x3 ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, allow_4x3: !p.allow_4x3 }))}>
+              <button
+                className={`toggle ${prefs.allow_4x3 ? "toggleOn" : ""}`}
+                onClick={() =>
+                  setPrefs((p) => ({ ...p, allow_4x3: !p.allow_4x3 }))
+                }
+              >
                 <span className="dot" /> Permitir 4x3 (40h)
               </button>
 
-              <button className={`toggle ${prefs.allow_pt_weekend ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, allow_pt_weekend: !p.allow_pt_weekend }))}>
+              <button
+                className={`toggle ${prefs.allow_pt_weekend ? "toggleOn" : ""}`}
+                onClick={() =>
+                  setPrefs((p) => ({
+                    ...p,
+                    allow_pt_weekend: !p.allow_pt_weekend,
+                  }))
+                }
+              >
                 <span className="dot" /> Permitir PT fin de semana
               </button>
 
-              <button className={`toggle ${prefs.pt_weekend_strict ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, pt_weekend_strict: !p.pt_weekend_strict }))}>
+              <button
+                className={`toggle ${prefs.pt_weekend_strict ? "toggleOn" : ""}`}
+                onClick={() =>
+                  setPrefs((p) => ({
+                    ...p,
+                    pt_weekend_strict: !p.pt_weekend_strict,
+                  }))
+                }
+              >
                 <span className="dot" /> PT estricto
               </button>
             </div>
@@ -712,24 +877,39 @@ export default function CalculadoraPage() {
             <div className="hr" />
             <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
               <div className="field">
-                <div className="label">Traslape (min) — {DAY_LABEL[selectedDay]}</div>
+                <div className="label">
+                  Traslape (min) — {DAY_LABEL[selectedDay]}
+                </div>
                 <input
                   className="input"
                   value={overlapByDay[selectedDay]}
-                  onChange={(e) => setOverlapByDay((p) => ({ ...p, [selectedDay]: e.target.value }))}
+                  onChange={(e) =>
+                    setOverlapByDay((p) => ({
+                      ...p,
+                      [selectedDay]: e.target.value,
+                    }))
+                  }
                 />
               </div>
               <div className="field">
-                <div className="label">Colación no imputable (min) — {DAY_LABEL[selectedDay]}</div>
+                <div className="label">
+                  Colación no imputable (min) — {DAY_LABEL[selectedDay]}
+                </div>
                 <input
                   className="input"
                   value={breakByDay[selectedDay]}
-                  onChange={(e) => setBreakByDay((p) => ({ ...p, [selectedDay]: e.target.value }))}
+                  onChange={(e) =>
+                    setBreakByDay((p) => ({
+                      ...p,
+                      [selectedDay]: e.target.value,
+                    }))
+                  }
                 />
               </div>
             </div>
             <div style={{ marginTop: 8 }} className="small">
-              Si colación &gt; traslape, se suman horas-persona extra usando el peak del día.
+              Si colación &gt; traslape, se suman horas-persona extra usando el
+              peak del día.
             </div>
           </div>
         </div>
@@ -739,7 +919,9 @@ export default function CalculadoraPage() {
       <div style={{ marginTop: 14 }} className="card">
         <div className="cardPad">
           <div className="cardHead">
-            <h2 className="h2">Paso 4 — Necesidad operativa por tramos (30 min)</h2>
+            <h2 className="h2">
+              Paso 4 — Necesidad operativa por tramos (30 min)
+            </h2>
             <span className="small">día por día</span>
           </div>
           <div className="hr" />
@@ -757,50 +939,103 @@ export default function CalculadoraPage() {
             ))}
           </div>
 
-          <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-            <button className={`toggle ${dayOpen[selectedDay] ? "toggleOn" : ""}`} onClick={() => toggleOpenDay(selectedDay, !dayOpen[selectedDay])}>
+          <div
+            style={{
+              marginTop: 12,
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <button
+              className={`toggle ${dayOpen[selectedDay] ? "toggleOn" : ""}`}
+              onClick={() => toggleOpenDay(selectedDay, !dayOpen[selectedDay])}
+            >
               <span className="dot" /> Día abierto
             </button>
 
             <span className="small">
-              Base: <b>{dayBaseHours}</b> hrs-persona · Peak: <b>{dayPeak}</b> pers.
+              Base: <b>{dayBaseHours}</b> hrs-persona · Peak: <b>{dayPeak}</b>{" "}
+              pers.
             </span>
           </div>
 
           <div style={{ marginTop: 12 }} className="grid2">
-            <div className="card" style={{ background: "var(--panel2)" as any }}>
+            <div
+              className="card"
+              style={{ background: "var(--panel2)" as any }}
+            >
               <div className="cardPad">
                 <div className="h2">Rellenar rango (rápido)</div>
                 <div className="small" style={{ marginTop: 4 }}>
                   Ej: 12:00 a 16:00 = 3 personas
                 </div>
 
-                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr auto",
+                    gap: 10,
+                    alignItems: "end",
+                  }}
+                >
                   <div className="field">
                     <div className="label">Inicio</div>
-                    <input className="input" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} placeholder="08:00" />
+                    <input
+                      className="input"
+                      value={rangeStart}
+                      onChange={(e) => setRangeStart(e.target.value)}
+                      placeholder="08:00"
+                    />
                   </div>
                   <div className="field">
                     <div className="label">Fin</div>
-                    <input className="input" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} placeholder="18:00" />
+                    <input
+                      className="input"
+                      value={rangeEnd}
+                      onChange={(e) => setRangeEnd(e.target.value)}
+                      placeholder="18:00"
+                    />
                   </div>
                   <div className="field">
                     <div className="label">Personas</div>
-                    <input className="input" value={rangeValue} onChange={(e) => setRangeValue(e.target.value)} placeholder="2" />
+                    <input
+                      className="input"
+                      value={rangeValue}
+                      onChange={(e) => setRangeValue(e.target.value)}
+                      placeholder="2"
+                    />
                   </div>
-                  <Button variant="primary" onClick={applyRangeFill} disabled={!dayOpen[selectedDay]}>
+                  <Button
+                    variant="primary"
+                    onClick={applyRangeFill}
+                    disabled={!dayOpen[selectedDay]}
+                  >
                     Aplicar
                   </Button>
                 </div>
 
-                <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: "flex",
+                    gap: 10,
+                    flexWrap: "wrap",
+                  }}
+                >
                   <Button onClick={clearDay} disabled={!dayOpen[selectedDay]}>
                     Limpiar día
                   </Button>
 
                   <div className="field" style={{ minWidth: 160 }}>
                     <div className="label">Copiar a…</div>
-                    <select className="select" value={copyTarget} onChange={(e) => setCopyTarget(e.target.value as DayKey)}>
+                    <select
+                      className="select"
+                      value={copyTarget}
+                      onChange={(e) => setCopyTarget(e.target.value as DayKey)}
+                    >
                       {DAY_ORDER.filter((d) => d !== selectedDay).map((d) => (
                         <option key={d} value={d}>
                           {DAY_LABEL[d]}
@@ -809,25 +1044,40 @@ export default function CalculadoraPage() {
                     </select>
                   </div>
 
-                  <Button onClick={() => copyDay(selectedDay, copyTarget)} disabled={!dayOpen[selectedDay]}>
+                  <Button
+                    onClick={() => copyDay(selectedDay, copyTarget)}
+                    disabled={!dayOpen[selectedDay]}
+                  >
                     Copiar día
                   </Button>
 
-                  <Button onClick={() => copyDayToAll(selectedDay)} disabled={!dayOpen[selectedDay]}>
+                  <Button
+                    onClick={() => copyDayToAll(selectedDay)}
+                    disabled={!dayOpen[selectedDay]}
+                  >
                     Copiar a toda la semana
                   </Button>
                 </div>
               </div>
             </div>
 
-            <div className="card" style={{ background: "var(--panel2)" as any }}>
+            <div
+              className="card"
+              style={{ background: "var(--panel2)" as any }}
+            >
               <div className="cardPad">
                 <div className="cardHead">
                   <div>
                     <div className="h2">Resumen del día</div>
-                    <div className="small">segmentos detectados (solo valores ≠ 0)</div>
+                    <div className="small">
+                      segmentos detectados (solo valores ≠ 0)
+                    </div>
                   </div>
-                  <Button variant="ghost" onClick={() => setShowGrid((v) => !v)} disabled={!dayOpen[selectedDay]}>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowGrid((v) => !v)}
+                    disabled={!dayOpen[selectedDay]}
+                  >
                     {showGrid ? "Ocultar grilla" : "Ver grilla"}
                   </Button>
                 </div>
@@ -835,12 +1085,21 @@ export default function CalculadoraPage() {
                 <div className="hr" />
 
                 {daySegments.length === 0 ? (
-                  <div className="small">Aún no hay tramos (o el día está en 0). Usa “Rellenar rango”.</div>
+                  <div className="small">
+                    Aún no hay tramos (o el día está en 0). Usa “Rellenar
+                    rango”.
+                  </div>
                 ) : (
                   <div style={{ display: "grid", gap: 8 }}>
                     {daySegments.slice(0, 10).map((s, idx) => (
                       <div key={idx} className="alert">
-                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 10,
+                          }}
+                        >
                           <span>
                             {slotLabel(s.start)}–{slotLabel(s.end)}
                           </span>
@@ -848,7 +1107,11 @@ export default function CalculadoraPage() {
                         </div>
                       </div>
                     ))}
-                    {daySegments.length > 10 ? <div className="small">…y {daySegments.length - 10} tramos más</div> : null}
+                    {daySegments.length > 10 ? (
+                      <div className="small">
+                        …y {daySegments.length - 10} tramos más
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -887,7 +1150,8 @@ export default function CalculadoraPage() {
           ) : null}
 
           <div style={{ marginTop: 12 }} className="small">
-            Consejo: si tu operación es estable, usa pocos tramos grandes. Si tiene “puntas”, marca solo esos cambios.
+            Consejo: si tu operación es estable, usa pocos tramos grandes. Si
+            tiene “puntas”, marca solo esos cambios.
           </div>
 
           {/* ✅ Botón grande debajo del Paso 4 */}
@@ -918,7 +1182,10 @@ export default function CalculadoraPage() {
                 </div>
                 <div className="hr" />
 
-                <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                <div
+                  className="grid2"
+                  style={{ gridTemplateColumns: "1fr 1fr" }}
+                >
                   <div className="alert statCard">
                     <div className="statLabel">Horas requeridas</div>
                     <div className="statValue">{result.requiredHours}</div>
@@ -932,13 +1199,17 @@ export default function CalculadoraPage() {
                 {reportId ? (
                   <div style={{ marginTop: 10 }} className="alert alertOk">
                     ✅ Reporte generado:{" "}
-                    <Link href={`/reporte/${reportId}`} style={{ fontWeight: 950, textDecoration: "underline" }}>
+                    <Link
+                      href={`/reporte/${reportId}`}
+                      style={{ fontWeight: 950, textDecoration: "underline" }}
+                    >
                       /reporte/{reportId}
                     </Link>
                   </div>
                 ) : (
                   <div style={{ marginTop: 10 }} className="small">
-                    Si tu /api/leads devuelve un id, acá mostramos el link al reporte automáticamente.
+                    Si tu /api/leads devuelve un id, acá mostramos el link al
+                    reporte automáticamente.
                   </div>
                 )}
 
@@ -969,7 +1240,9 @@ export default function CalculadoraPage() {
                         {result.demandByDay.map((d, idx) => (
                           <tr key={idx}>
                             <td>{d.day}</td>
-                            <td className="num"><b>{d.hours}</b></td>
+                            <td className="num">
+                              <b>{d.hours}</b>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -979,30 +1252,50 @@ export default function CalculadoraPage() {
 
                 <div style={{ marginTop: 12 }}>
                   <div className="h2">Mix sugeridos</div>
-                  <div className="small">Te mostramos alternativas: balanceado, menos personas, menos PT, etc.</div>
+                  <div className="small">
+                    Te mostramos alternativas: balanceado, menos personas, menos
+                    PT, etc.
+                  </div>
 
                   <div style={{ marginTop: 10, display: "grid", gap: 12 }}>
                     {result.mixes.map((m, idx) => (
-                      <div key={idx} className="card" style={{ background: "var(--panel2)" as any }}>
+                      <div
+                        key={idx}
+                        className="card"
+                        style={{ background: "var(--panel2)" as any }}
+                      >
                         <div className="cardPad">
                           <div className="cardHead">
                             <div>
-                              <div style={{ fontWeight: 950, fontSize: 16 }}>{m.title}</div>
+                              <div style={{ fontWeight: 950, fontSize: 16 }}>
+                                {m.title}
+                              </div>
                               <div className="small">
-                                Headcount: <b>{m.headcount}</b> · Horas: <b>{m.hoursTotal}</b> · Holgura: <b>{m.slackHours}</b>{" "}
-                                ({Math.round(m.slackPct * 100)}%) · PT: <b>{Math.round(m.ptShare * 100)}%</b>
+                                Headcount: <b>{m.headcount}</b> · Horas:{" "}
+                                <b>{m.hoursTotal}</b> · Holgura:{" "}
+                                <b>{m.slackHours}</b> (
+                                {Math.round(m.slackPct * 100)}%) · PT:{" "}
+                                <b>{Math.round(m.ptShare * 100)}%</b>
                               </div>
                             </div>
-                            <div className={`alert ${m.sundayOk ? "alertOk" : "alertError"}`} style={{ padding: "8px 10px" }}>
+                            <div
+                              className={`alert ${m.sundayOk ? "alertOk" : "alertError"}`}
+                              style={{ padding: "8px 10px" }}
+                            >
                               <div className="small">Domingo</div>
-                              <div style={{ fontWeight: 950 }}>{m.sundayOk ? "OK" : "Revisar"}</div>
+                              <div style={{ fontWeight: 950 }}>
+                                {m.sundayOk ? "OK" : "Revisar"}
+                              </div>
                             </div>
                           </div>
 
                           <div className="hr" />
 
                           <div className="tableWrap">
-                            <table className="gridTable" style={{ minWidth: 760 }}>
+                            <table
+                              className="gridTable"
+                              style={{ minWidth: 760 }}
+                            >
                               <thead>
                                 <tr>
                                   <th>Jornada</th>
@@ -1018,8 +1311,12 @@ export default function CalculadoraPage() {
                                     <td>{it.jornadaLabel}</td>
                                     <td>{it.contractName}</td>
                                     <td className="num">{it.hoursPerWeek}</td>
-                                    <td className="num"><b>{it.count}</b></td>
-                                    <td className="num">{it.isPt ? "PT" : "Full"}</td>
+                                    <td className="num">
+                                      <b>{it.count}</b>
+                                    </td>
+                                    <td className="num">
+                                      {it.isPt ? "PT" : "Full"}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -1027,7 +1324,9 @@ export default function CalculadoraPage() {
                           </div>
 
                           <div style={{ marginTop: 10 }} className="small">
-                            Consejo: si ves mucha holgura, prueba agregando un contrato intermedio (ej 36h/30h/16h) o ajusta demanda.
+                            Consejo: si ves mucha holgura, prueba agregando un
+                            contrato intermedio (ej 36h/30h/16h) o ajusta
+                            demanda.
                           </div>
                         </div>
                       </div>
@@ -1035,10 +1334,20 @@ export default function CalculadoraPage() {
                   </div>
 
                   <details style={{ marginTop: 12 }}>
-                    <summary className="small" style={{ cursor: "pointer", fontWeight: 950 }}>
+                    <summary
+                      className="small"
+                      style={{ cursor: "pointer", fontWeight: 950 }}
+                    >
                       Ver JSON completo (debug)
                     </summary>
-                    <pre style={{ whiteSpace: "pre-wrap", marginTop: 10, fontSize: 12 }} className="alert">
+                    <pre
+                      style={{
+                        whiteSpace: "pre-wrap",
+                        marginTop: 10,
+                        fontSize: 12,
+                      }}
+                      className="alert"
+                    >
                       {JSON.stringify(result, null, 2)}
                     </pre>
                   </details>
@@ -1050,16 +1359,30 @@ export default function CalculadoraPage() {
       </div>
 
       {/* Modal lead */}
-      <Modal open={leadOpen} title="Antes de calcular (para enviarte el reporte)" onClose={() => setLeadOpen(false)}>
+      <Modal
+        open={leadOpen}
+        title="Antes de calcular (para enviarte el reporte)"
+        onClose={() => setLeadOpen(false)}
+      >
         <div className="modalGrid">
           <div className="field">
             <div className="label">Nombre</div>
-            <input className="input" value={lead.name} onChange={(e) => setLead((p) => ({ ...p, name: e.target.value }))} placeholder="Juan" />
+            <input
+              className="input"
+              value={lead.name}
+              onChange={(e) => setLead((p) => ({ ...p, name: e.target.value }))}
+              placeholder="Juan"
+            />
           </div>
 
           <div className="field">
             <div className="label">Cargo</div>
-            <input className="input" value={lead.role} onChange={(e) => setLead((p) => ({ ...p, role: e.target.value }))} placeholder="Jefe de Operaciones" />
+            <input
+              className="input"
+              value={lead.role}
+              onChange={(e) => setLead((p) => ({ ...p, role: e.target.value }))}
+              placeholder="Jefe de Operaciones"
+            />
           </div>
 
           <div className="field">
@@ -1067,7 +1390,9 @@ export default function CalculadoraPage() {
             <input
               className="input"
               value={lead.industry}
-              onChange={(e) => setLead((p) => ({ ...p, industry: e.target.value }))}
+              onChange={(e) =>
+                setLead((p) => ({ ...p, industry: e.target.value }))
+              }
               placeholder="Retail / Hospital / Alimentación"
             />
           </div>
@@ -1077,7 +1402,9 @@ export default function CalculadoraPage() {
             <input
               className="input"
               value={lead.company_size}
-              onChange={(e) => setLead((p) => ({ ...p, company_size: e.target.value }))}
+              onChange={(e) =>
+                setLead((p) => ({ ...p, company_size: e.target.value }))
+              }
               placeholder="120"
             />
           </div>
@@ -1087,20 +1414,29 @@ export default function CalculadoraPage() {
             <input
               className="input"
               value={lead.email}
-              onChange={(e) => setLead((p) => ({ ...p, email: e.target.value }))}
+              onChange={(e) =>
+                setLead((p) => ({ ...p, email: e.target.value }))
+              }
               placeholder="nombre@dominio.com"
             />
             <div className="small" style={{ marginTop: 4 }}>
-              Evita emails “de ejemplo”. Usa un correo real para recibir el reporte.
+              Evita emails “de ejemplo”. Usa un correo real para recibir el
+              reporte.
             </div>
           </div>
         </div>
 
-        {leadError ? <div style={{ marginTop: 10 }} className="alert alertError">❌ {leadError}</div> : null}
+        {leadError ? (
+          <div style={{ marginTop: 10 }} className="alert alertError">
+            ❌ {leadError}
+          </div>
+        ) : null}
 
         <div className="modalActions">
           <Button onClick={() => setLeadOpen(false)}>Cancelar</Button>
-          <Button variant="primary" onClick={onSubmitLead}>Continuar y calcular</Button>
+          <Button variant="primary" onClick={onSubmitLead}>
+            Continuar y calcular
+          </Button>
         </div>
       </Modal>
     </main>

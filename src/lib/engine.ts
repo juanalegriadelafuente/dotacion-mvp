@@ -79,8 +79,20 @@ type Jornada = {
 const JORNADAS: Jornada[] = [
   { id: "J_6X1", name: "6x1 (rotativo)", daysWorked: 6, sundayFactor: 0.55 },
   { id: "J_5X2", name: "5x2", daysWorked: 5, sundayFactor: 0.5 },
-  { id: "J_4X3", name: "4x3 (ley 40h)", daysWorked: 4, sundayFactor: 0.45, maxHours: 40 },
-  { id: "J_PT_WEEKEND", name: "PT fin de semana (Sáb+Dom)", daysWorked: 2, sundayFactor: 1.0, weekendOnly: true },
+  {
+    id: "J_4X3",
+    name: "4x3 (ley 40h)",
+    daysWorked: 4,
+    sundayFactor: 0.45,
+    maxHours: 40,
+  },
+  {
+    id: "J_PT_WEEKEND",
+    name: "PT fin de semana (Sáb+Dom)",
+    daysWorked: 2,
+    sundayFactor: 1.0,
+    weekendOnly: true,
+  },
 ];
 
 function getJornada(id: string) {
@@ -172,7 +184,7 @@ function buildMix(
     jornadaName: string;
     sundayFactor: number;
   }>,
-  counts: number[]
+  counts: number[],
 ): Mix {
   const items: MixItem[] = [];
   let hoursTotal = 0;
@@ -188,7 +200,8 @@ function buildMix(
     hoursTotal += n * c.hoursPerWeek;
 
     // Capacidad dominical relativa (equivalentes)
-    const sundayEquivPerPerson = (c.hoursPerWeek / fullHoursPerWeek) * c.sundayFactor;
+    const sundayEquivPerPerson =
+      (c.hoursPerWeek / fullHoursPerWeek) * c.sundayFactor;
     sundayCapEquiv += n * sundayEquivPerPerson;
 
     items.push({
@@ -202,7 +215,8 @@ function buildMix(
   }
 
   const slackHours = hoursTotal - effectiveRequiredHours;
-  const slackPct = effectiveRequiredHours > 0 ? slackHours / effectiveRequiredHours : 0;
+  const slackPct =
+    effectiveRequiredHours > 0 ? slackHours / effectiveRequiredHours : 0;
 
   // Requerimiento domingo en equivalentes (si fullHours=42, baseDay=6h)
   const baseDayHours = fullHoursPerWeek / 7;
@@ -225,7 +239,9 @@ function buildMix(
 
 function scoreMix(m: Mix) {
   // Penaliza fuerte si no cumple domingo
-  const sundayPenalty = m.sundayOk ? 0 : 1000 + Math.max(0, m.sundayReq - m.sundayCap) * 100;
+  const sundayPenalty = m.sundayOk
+    ? 0
+    : 1000 + Math.max(0, m.sundayReq - m.sundayCap) * 100;
 
   // Penaliza demasiada holgura (pero no mata el mix)
   const slackPenalty = Math.max(0, m.slackHours) * 0.3;
@@ -253,13 +269,21 @@ export function calculate(input: CalcInput): CalcResult {
   const { requiredHours, sundayReqHours } = computeRequiredHours(input.days);
 
   // Colación vs traslape
-  const { breakHours, overlapHours, gapHours } = computeBreakOverlapGap(input.days);
+  const { breakHours, overlapHours, gapHours } = computeBreakOverlapGap(
+    input.days,
+  );
 
   // “Horas efectivas” a cubrir: demanda + brecha
   const effectiveRequiredHours = requiredHours + gapHours;
 
-  if (gapHours > 0) warnings.push("⚠️ Brecha por colación vs traslape: sube traslape o ajusta turnos.");
-  if (sundayReqHours === 0) warnings.push("ℹ️ Domingo cerrado o sin demanda: el cuello dominical no influye.");
+  if (gapHours > 0)
+    warnings.push(
+      "⚠️ Brecha por colación vs traslape: sube traslape o ajusta turnos.",
+    );
+  if (sundayReqHours === 0)
+    warnings.push(
+      "ℹ️ Domingo cerrado o sin demanda: el cuello dominical no influye.",
+    );
 
   // Expandir contratos en (contrato + jornada)
   const expanded = input.contracts.flatMap((c) => {
@@ -289,13 +313,19 @@ export function calculate(input: CalcInput): CalcResult {
   const limits = CAND.map((c) => maxCountByHours(c.hoursPerWeek));
   const steps = CAND.map((c) => (c.hoursPerWeek >= 30 ? 1 : 2));
 
-  for (let a = 0; a <= (limits[0] ?? 0); a += (steps[0] ?? 1)) {
-    for (let b = 0; b <= (limits[1] ?? 0); b += (steps[1] ?? 1)) {
-      for (let c = 0; c <= (limits[2] ?? 0); c += (steps[2] ?? 1)) {
-        for (let d = 0; d <= (limits[3] ?? 0); d += (steps[3] ?? 1)) {
+  for (let a = 0; a <= (limits[0] ?? 0); a += steps[0] ?? 1) {
+    for (let b = 0; b <= (limits[1] ?? 0); b += steps[1] ?? 1) {
+      for (let c = 0; c <= (limits[2] ?? 0); c += steps[2] ?? 1) {
+        for (let d = 0; d <= (limits[3] ?? 0); d += steps[3] ?? 1) {
           const counts = [a, b, c, d, 0, 0];
 
-          const m = buildMix(fullHoursPerWeek, effectiveRequiredHours, sundayReqHours, CAND, counts);
+          const m = buildMix(
+            fullHoursPerWeek,
+            effectiveRequiredHours,
+            sundayReqHours,
+            CAND,
+            counts,
+          );
 
           // Reglas básicas de filtro
           if (m.hoursTotal < effectiveRequiredHours) continue;
@@ -320,7 +350,7 @@ export function calculate(input: CalcInput): CalcResult {
       effectiveRequiredHours,
       sundayReqHours,
       [fb],
-      [needed]
+      [needed],
     );
     fallback.title = "Fallback — revisa parámetros";
     mixesAll.push(fallback);
@@ -333,19 +363,30 @@ export function calculate(input: CalcInput): CalcResult {
   const picked: Mix[] = [];
   for (const m of mixesAll) {
     const sig = `${m.headcount}-${m.sundayOk}-${Math.round(m.slackHours)}`;
-    if (picked.some((p) => `${p.headcount}-${p.sundayOk}-${Math.round(p.slackHours)}` === sig)) continue;
+    if (
+      picked.some(
+        (p) =>
+          `${p.headcount}-${p.sundayOk}-${Math.round(p.slackHours)}` === sig,
+      )
+    )
+      continue;
     picked.push(m);
     if (picked.length >= 3) break;
   }
 
   picked.forEach((m, idx) => {
     const base =
-      idx === 0 ? "Mix recomendado (balance)" : idx === 1 ? "Alternativa (menos personas)" : "Alternativa (mejor domingo)";
+      idx === 0
+        ? "Mix recomendado (balance)"
+        : idx === 1
+          ? "Alternativa (menos personas)"
+          : "Alternativa (mejor domingo)";
     const tag = m.sundayOk ? "✅ domingo OK" : "⚠️ domingo justo";
     m.title = `${base} — ${tag}`;
   });
 
-  const fte = fullHoursPerWeek > 0 ? effectiveRequiredHours / fullHoursPerWeek : 0;
+  const fte =
+    fullHoursPerWeek > 0 ? effectiveRequiredHours / fullHoursPerWeek : 0;
 
   return {
     covHours: picked[0]?.hoursTotal ?? 0,

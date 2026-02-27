@@ -224,15 +224,30 @@ function buildOptions(params: {
  *
  * Nota: si demand30 viene (tipo Excel), se usa para baseHoursByDay
  */
-function computeDemand(params: { days: Record<DayKey, DayInput>; demand30?: CalcInput["demand30"] }) {
+function computeDemand(params: {
+  days: Record<DayKey, DayInput>;
+  demand30?: CalcInput["demand30"];
+}) {
   const { days, demand30 } = params;
 
   const demandHoursByDay: Record<DayKey, number> = {
-    mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0,
+    mon: 0,
+    tue: 0,
+    wed: 0,
+    thu: 0,
+    fri: 0,
+    sat: 0,
+    sun: 0,
   };
 
   const peakPeopleByDay: Record<DayKey, number> = {
-    mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0,
+    mon: 0,
+    tue: 0,
+    wed: 0,
+    thu: 0,
+    fri: 0,
+    sat: 0,
+    sun: 0,
   };
 
   // 1) demanda base (si viene demand30)
@@ -305,7 +320,13 @@ function allocateOption(params: {
 
   // tracking de cuántos worker-days ya le asignamos a cada día para esta opción
   const usedAssignments: Record<DayKey, number> = {
-    mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0,
+    mon: 0,
+    tue: 0,
+    wed: 0,
+    thu: 0,
+    fri: 0,
+    sat: 0,
+    sun: 0,
   };
 
   // PT fin de semana: primero cubrir sáb/dom
@@ -354,7 +375,15 @@ function evaluateMix(params: {
   const { options, counts, demandHoursByDay, requiredHours, strategy } = params;
 
   const remaining: Record<DayKey, number> = { ...demandHoursByDay };
-  const supply: Record<DayKey, number> = { mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0 };
+  const supply: Record<DayKey, number> = {
+    mon: 0,
+    tue: 0,
+    wed: 0,
+    thu: 0,
+    fri: 0,
+    sat: 0,
+    sun: 0,
+  };
 
   let totalHours = 0;
   let headcount = 0;
@@ -376,10 +405,20 @@ function evaluateMix(params: {
   const ptOpts = options.filter((o) => o.isPt);
 
   for (const opt of fullOpts) {
-    allocateOption({ option: opt, count: counts[opt.optionId] ?? 0, remaining, supply });
+    allocateOption({
+      option: opt,
+      count: counts[opt.optionId] ?? 0,
+      remaining,
+      supply,
+    });
   }
   for (const opt of ptOpts) {
-    allocateOption({ option: opt, count: counts[opt.optionId] ?? 0, remaining, supply });
+    allocateOption({
+      option: opt,
+      count: counts[opt.optionId] ?? 0,
+      remaining,
+      supply,
+    });
   }
 
   // Cobertura ok si no queda demanda pendiente en ningún día
@@ -454,11 +493,18 @@ function generateCandidates(params: {
 
   // límites
   const minHours = Math.min(...options.map((o) => o.hoursPerWeek));
-  const maxHeadcount = Math.min(50, Math.max(8, Math.ceil(requiredHours / Math.max(1, minHours)) + 10));
+  const maxHeadcount = Math.min(
+    50,
+    Math.max(8, Math.ceil(requiredHours / Math.max(1, minHours)) + 10),
+  );
 
   // holgura máxima “aceptable” para no botar resultados ridículos
   const maxHours =
-    strategy === "stable" ? requiredHours * 1.45 : strategy === "balanced" ? requiredHours * 1.30 : requiredHours * 1.20;
+    strategy === "stable"
+      ? requiredHours * 1.45
+      : strategy === "balanced"
+        ? requiredHours * 1.3
+        : requiredHours * 1.2;
 
   // max por opción (acotado)
   const maxCounts = options.map((o) => {
@@ -503,8 +549,14 @@ function generateCandidates(params: {
 
   // orden por cercanía a requiredHours (reduce búsqueda al evaluar)
   results.sort((a, b) => {
-    const ha = options.reduce((s, o) => s + (a[o.optionId] ?? 0) * o.hoursPerWeek, 0);
-    const hb = options.reduce((s, o) => s + (b[o.optionId] ?? 0) * o.hoursPerWeek, 0);
+    const ha = options.reduce(
+      (s, o) => s + (a[o.optionId] ?? 0) * o.hoursPerWeek,
+      0,
+    );
+    const hb = options.reduce(
+      (s, o) => s + (b[o.optionId] ?? 0) * o.hoursPerWeek,
+      0,
+    );
     return Math.abs(ha - requiredHours) - Math.abs(hb - requiredHours);
   });
 
@@ -512,9 +564,21 @@ function generateCandidates(params: {
   return results.slice(0, 1200);
 }
 
-function groupComposition(options: Option[], counts: Record<string, number>, threshold: number) {
+function groupComposition(
+  options: Option[],
+  counts: Record<string, number>,
+  threshold: number,
+) {
   // agrupa por (jornada + contrato)
-  const map = new Map<string, { jornada: Jornada; contractHours: number; contractName: string; count: number }>();
+  const map = new Map<
+    string,
+    {
+      jornada: Jornada;
+      contractHours: number;
+      contractName: string;
+      count: number;
+    }
+  >();
 
   for (const opt of options) {
     const c = Math.max(0, safeNum(counts[opt.optionId], 0));
@@ -539,8 +603,14 @@ function groupComposition(options: Option[], counts: Record<string, number>, thr
     const bf = b.contractHours >= threshold ? 0 : 1;
     if (af !== bf) return af - bf;
     // jornada “full” primero
-    const order: Record<Jornada, number> = { "6x1": 0, "5x2": 1, "4x3": 2, "PT_WE": 3 };
-    if (order[a.jornada] !== order[b.jornada]) return order[a.jornada] - order[b.jornada];
+    const order: Record<Jornada, number> = {
+      "6x1": 0,
+      "5x2": 1,
+      "4x3": 2,
+      PT_WE: 3,
+    };
+    if (order[a.jornada] !== order[b.jornada])
+      return order[a.jornada] - order[b.jornada];
     return b.contractHours - a.contractHours;
   });
 
@@ -555,29 +625,47 @@ function groupComposition(options: Option[], counts: Record<string, number>, thr
   }));
 }
 
-function pickTopScenarios(scored: any[], options: Option[], threshold: number) {
+function pickTopScenarios(
+  scored: any[],
+  _options: Option[],
+  _threshold: number,
+) {
   // scored viene ordenado por score asc
   const picks: any[] = [];
 
   // 1) mejor general
-  if (scored[0]) picks.push({ ...scored[0], title: "Mix recomendado (balanceado)" });
+  if (scored[0])
+    picks.push({ ...scored[0], title: "Mix recomendado (balanceado)" });
 
   // 2) menos personas
-  const minHead = [...scored].sort((a, b) => a.headcount - b.headcount || a.score - b.score)[0];
-  if (minHead) picks.push({ ...minHead, title: "Alternativa (menos personas)" });
+  const minHead = [...scored].sort(
+    (a, b) => a.headcount - b.headcount || a.score - b.score,
+  )[0];
+  if (minHead)
+    picks.push({ ...minHead, title: "Alternativa (menos personas)" });
 
   // 3) menos PT
-  const minPt = [...scored].sort((a, b) => a.ptShare - b.ptShare || a.score - b.score)[0];
+  const minPt = [...scored].sort(
+    (a, b) => a.ptShare - b.ptShare || a.score - b.score,
+  )[0];
   if (minPt) picks.push({ ...minPt, title: "Alternativa (menos PT)" });
 
   // 4) con 4x3 si existe
-  const with4x3 = scored.find((m) => m.items.some((it: any) => it.jornada === "4x3"));
+  const with4x3 = scored.find((m) =>
+    m.items.some((it: any) => it.jornada === "4x3"),
+  );
   if (with4x3) picks.push({ ...with4x3, title: "Alternativa (con 4x3)" });
 
   // 5) con más 6x1 si existe
   const more6x1 = [...scored].sort((a, b) => {
-    const a6 = a.items.reduce((s: number, it: any) => s + (it.jornada === "6x1" ? it.count : 0), 0);
-    const b6 = b.items.reduce((s: number, it: any) => s + (it.jornada === "6x1" ? it.count : 0), 0);
+    const a6 = a.items.reduce(
+      (s: number, it: any) => s + (it.jornada === "6x1" ? it.count : 0),
+      0,
+    );
+    const b6 = b.items.reduce(
+      (s: number, it: any) => s + (it.jornada === "6x1" ? it.count : 0),
+      0,
+    );
     return b6 - a6 || a.score - b.score;
   })[0];
   if (more6x1) picks.push({ ...more6x1, title: "Alternativa (más 6x1)" });
@@ -588,7 +676,11 @@ function pickTopScenarios(scored: any[], options: Option[], threshold: number) {
   for (const m of picks) {
     const sig = m.items
       .slice()
-      .sort((a: any, b: any) => String(a.jornada).localeCompare(String(b.jornada)) || a.hoursPerWeek - b.hoursPerWeek)
+      .sort(
+        (a: any, b: any) =>
+          String(a.jornada).localeCompare(String(b.jornada)) ||
+          a.hoursPerWeek - b.hoursPerWeek,
+      )
       .map((it: any) => `${it.jornada}:${it.hoursPerWeek}:${it.count}`)
       .join("|");
     if (seen.has(sig)) continue;
@@ -603,20 +695,32 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
   // Rate limit
   const rl = rateLimit(req, 80, 60_000);
   if (!rl.ok) {
-    return NextResponse.json({ ok: false, error: "Demasiadas solicitudes. Intenta nuevamente en 1 minuto." }, { status: 429 });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Demasiadas solicitudes. Intenta nuevamente en 1 minuto.",
+      },
+      { status: 429 },
+    );
   }
 
   let input: CalcInput;
   try {
     input = (await req.json()) as CalcInput;
   } catch {
-    return NextResponse.json({ ok: false, error: "JSON inválido." }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "JSON inválido." },
+      { status: 400 },
+    );
   }
 
   // Validación mínima de payload (evita basura gigante)
   const rawSize = JSON.stringify(input ?? {}).length;
   if (rawSize > 250_000) {
-    return NextResponse.json({ ok: false, error: "Payload demasiado grande." }, { status: 413 });
+    return NextResponse.json(
+      { ok: false, error: "Payload demasiado grande." },
+      { status: 413 },
+    );
   }
 
   const fullHoursPerWeek = Math.max(1, safeNum(input.fullHoursPerWeek, 42));
@@ -625,10 +729,16 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
   const days = input.days as any;
   const contracts = Array.isArray(input.contracts) ? input.contracts : [];
   if (!days || typeof days !== "object") {
-    return NextResponse.json({ ok: false, error: "Falta days." }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Falta days." },
+      { status: 400 },
+    );
   }
   if (contracts.length === 0) {
-    return NextResponse.json({ ok: false, error: "Debes definir al menos 1 contrato." }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Debes definir al menos 1 contrato." },
+      { status: 400 },
+    );
   }
 
   const prefsIn = input.preferences ?? {};
@@ -643,23 +753,34 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
 
   const strategy = prefs.strategy;
 
-  const { demandHoursByDay, requiredHours } = computeDemand({ days, demand30: input.demand30 });
+  const { demandHoursByDay, requiredHours } = computeDemand({
+    days,
+    demand30: input.demand30,
+  });
 
   const warnings: string[] = [];
   if (requiredHours <= 0.01) {
-    warnings.push("No hay horas requeridas (revisa días abiertos y personas simultáneas).");
+    warnings.push(
+      "No hay horas requeridas (revisa días abiertos y personas simultáneas).",
+    );
   }
 
   const { options, has40 } = buildOptions({ contracts, threshold, prefs });
 
   if (prefs.allow_4x3 && !has40) {
-    warnings.push("4x3 está activado, pero no existe contrato 40h en tu set. Agrega 40h si quieres 4x3.");
+    warnings.push(
+      "4x3 está activado, pero no existe contrato 40h en tu set. Agrega 40h si quieres 4x3.",
+    );
   }
 
   if (options.length === 0) {
     return NextResponse.json(
-      { ok: false, error: "No hay jornadas posibles con tu configuración. Revisa jornadas permitidas y contratos." },
-      { status: 400 }
+      {
+        ok: false,
+        error:
+          "No hay jornadas posibles con tu configuración. Revisa jornadas permitidas y contratos.",
+      },
+      { status: 400 },
     );
   }
 
@@ -668,7 +789,13 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
 
   const evaluated = candidates
     .map((counts) => {
-      const ev = evaluateMix({ options, counts, demandHoursByDay, requiredHours, strategy });
+      const ev = evaluateMix({
+        options,
+        counts,
+        demandHoursByDay,
+        requiredHours,
+        strategy,
+      });
       const items = groupComposition(options, counts, threshold);
 
       // “domingo” como chequeo en horas-persona del día domingo (no slots)
@@ -692,7 +819,9 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
     .sort((a, b) => a.score - b.score);
 
   // Filtra los realmente decentes primero
-  const decent = evaluated.filter((m) => m.uncovered <= 1e-6 && m.slackHours >= -1e-6);
+  const decent = evaluated.filter(
+    (m) => m.uncovered <= 1e-6 && m.slackHours >= -1e-6,
+  );
 
   // si no hay decentes, igual devolvemos los mejores (para debug)
   const pool = decent.length > 0 ? decent : evaluated.slice(0, 50);
@@ -700,22 +829,35 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
   const mixes = pickTopScenarios(pool, options, threshold);
 
   if (mixes.length === 0) {
-    return NextResponse.json({ ok: false, error: "No se encontraron mixes razonables con tu set actual." }, { status: 400 });
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "No se encontraron mixes razonables con tu set actual.",
+      },
+      { status: 400 },
+    );
   }
 
   // Warnings útiles
   const best = mixes[0];
   if (best && best.slackPct > 0.25) {
-    warnings.push("Hay holgura relevante. Tip: agrega un contrato intermedio (ej 36h/30h/16h) o ajusta demanda.");
+    warnings.push(
+      "Hay holgura relevante. Tip: agrega un contrato intermedio (ej 36h/30h/16h) o ajusta demanda.",
+    );
   }
   if (best && best.ptShare > 0.6) {
-    warnings.push("El mix usa muchos PT. Si tu operación requiere ‘cuerpo base’, agrega más opciones full (36/42).");
+    warnings.push(
+      "El mix usa muchos PT. Si tu operación requiere ‘cuerpo base’, agrega más opciones full (36/42).",
+    );
   }
 
   const result = {
     requiredHours: Math.round(requiredHours * 10) / 10,
     fte: Math.round((requiredHours / fullHoursPerWeek) * 100) / 100,
-    demandByDay: DAY_ORDER.map((d) => ({ day: dayLabel(d), hours: Math.round(demandHoursByDay[d] * 10) / 10 })),
+    demandByDay: DAY_ORDER.map((d) => ({
+      day: dayLabel(d),
+      hours: Math.round(demandHoursByDay[d] * 10) / 10,
+    })),
     warnings,
     mixes,
   };
