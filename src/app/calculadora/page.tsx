@@ -4,8 +4,7 @@
 import { track } from "@vercel/analytics";
 import Image from "next/image";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -226,7 +225,7 @@ function Modal({
 }
 
 export default function CalculadoraPage() {
-  const params = useSearchParams();
+  
 
   // Base
   const [fullHoursPerWeek, setFullHoursPerWeek] = useState("42");
@@ -321,11 +320,51 @@ export default function CalculadoraPage() {
   });
   const [leadError, setLeadError] = useState<string | null>(null);
 
+  const loadExample = useCallback(() => {
+    const week: Record<DayKey, number[]> = {
+      mon: freshSlots(),
+      tue: freshSlots(),
+      wed: freshSlots(),
+      thu: freshSlots(),
+      fri: freshSlots(),
+      sat: freshSlots(),
+      sun: freshSlots(),
+    };
+
+    const fill = (day: DayKey, start: string, end: string, v: number) => {
+      const s = timeToSlot(start);
+      const e = timeToSlot(end);
+      week[day] = rangeFill(week[day], s, e, v);
+    };
+
+    for (const d of ["mon", "tue", "wed", "thu", "fri"] as DayKey[]) {
+      fill(d, "08:00", "12:00", 2);
+      fill(d, "12:00", "16:00", 3);
+      fill(d, "16:00", "20:00", 2);
+    }
+    fill("sat", "10:00", "18:00", 2);
+    fill("sun", "11:00", "17:00", 2);
+
+    setDemand30(week);
+    setDayOpen({
+      mon: true,
+      tue: true,
+      wed: true,
+      thu: true,
+      fri: true,
+      sat: true,
+      sun: true,
+    });
+    setSelectedDay("mon");
+    setShowGrid(false);
+
+    track("dot_calculadora_load_example", { version: "step4" });
+  }, []);
+
   useEffect(() => {
-    const ex = params?.get("example");
-    if (ex === "1") loadExample();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadExample, params?.get]);
+  const ex = new URLSearchParams(window.location.search).get("example");
+  if (ex === "1") loadExample();
+}, [loadExample]);
 
   const selectedSlots = demand30[selectedDay];
   const dayBaseHours = useMemo(
@@ -403,47 +442,6 @@ export default function CalculadoraPage() {
       sat: true,
       sun: true,
     });
-  }
-
-  function loadExample() {
-    const week: Record<DayKey, number[]> = {
-      mon: freshSlots(),
-      tue: freshSlots(),
-      wed: freshSlots(),
-      thu: freshSlots(),
-      fri: freshSlots(),
-      sat: freshSlots(),
-      sun: freshSlots(),
-    };
-
-    const fill = (day: DayKey, start: string, end: string, v: number) => {
-      const s = timeToSlot(start);
-      const e = timeToSlot(end);
-      week[day] = rangeFill(week[day], s, e, v);
-    };
-
-    for (const d of ["mon", "tue", "wed", "thu", "fri"] as DayKey[]) {
-      fill(d, "08:00", "12:00", 2);
-      fill(d, "12:00", "16:00", 3);
-      fill(d, "16:00", "20:00", 2);
-    }
-    fill("sat", "10:00", "18:00", 2);
-    fill("sun", "11:00", "17:00", 2);
-
-    setDemand30(week);
-    setDayOpen({
-      mon: true,
-      tue: true,
-      wed: true,
-      thu: true,
-      fri: true,
-      sat: true,
-      sun: true,
-    });
-    setSelectedDay("mon");
-    setShowGrid(false);
-
-    track("dot_calculadora_load_example", { version: "step4" });
   }
 
   function buildPayload() {
