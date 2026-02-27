@@ -1,40 +1,18 @@
 // src/app/calculadora/page.tsx
 "use client";
 
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { track } from "@vercel/analytics";
-import {
-  useState,
-  type CSSProperties,
-  type ReactNode,
-  type InputHTMLAttributes,
-  type SelectHTMLAttributes,
-} from "react";
+import Image from "next/image";
 
 type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-
-type DayInputDraft = {
-  open: boolean;
-  hoursOpen: string; // string para permitir vacío
-  requiredPeople: string; // string para permitir vacío
-  shiftsPerDay: string; // string para permitir vacío
-  overlapMinutes: string; // string para permitir vacío
-  breakMinutes: string; // string para permitir vacío
-};
-
-type DayInput = {
-  open: boolean;
-  hoursOpen: number;
-  requiredPeople: number;
-  shiftsPerDay: number;
-  overlapMinutes: number;
-  breakMinutes: number;
-};
-
-type ContractDraft = { name: string; hoursPerWeek: string };
-type ContractType = { name: string; hoursPerWeek: number };
+const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const DAY_LABEL: Record<DayKey, string> = { mon: "Lun", tue: "Mar", wed: "Mié", thu: "Jue", fri: "Vie", sat: "Sáb", sun: "Dom" };
 
 type Preferences = {
-  strategy: "balanced" | "min_people";
+  strategy: "balanced" | "min_people" | "stable";
   allow_6x1: boolean;
   allow_5x2: boolean;
   allow_4x3: boolean;
@@ -42,207 +20,145 @@ type Preferences = {
   pt_weekend_strict: boolean;
 };
 
-type CalcInput = {
-  fullHoursPerWeek: number;
-  fullTimeThresholdHours: number;
-  fullTimeSundayAvailability: number;
-  partTimeSundayAvailability: number;
-  days: Record<DayKey, DayInput>;
-  contracts: ContractType[];
-  preferences: Preferences;
-  debugNonce?: number;
+type ContractRow = { name: string; hoursPerWeek: string };
+
+type LeadForm = {
+  name: string;
+  role: string;
+  industry: string;
+  company_size: string;
+  email: string;
 };
 
-type CalcResponse = { ok: true; result: any } | { ok: false; error: string };
-
-type LeadResponse =
-  | {
-      ok: true;
-      id: string;
-      reportUrl?: string;
-      emailSent?: boolean;
-      warning?: string;
-      resendError?: any;
-    }
-  | { ok: false; error: string };
-
-const DAY_LABEL: Record<DayKey, string> = {
-  mon: "Lun",
-  tue: "Mar",
-  wed: "Mié",
-  thu: "Jue",
-  fri: "Vie",
-  sat: "Sáb",
-  sun: "Dom",
-};
-const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-
-function defaultDays(): Record<DayKey, DayInputDraft> {
-  const base: DayInputDraft = {
-    open: true,
-    hoursOpen: "12",
-    requiredPeople: "2",
-    shiftsPerDay: "2",
-    overlapMinutes: "30",
-    breakMinutes: "60",
+type CalcOk = {
+  ok: true;
+  result: {
+    requiredHours: number;
+    fte: number;
+    demandByDay: { day: string; hours: number }[];
+    warnings: string[];
+    mixes: Array<{
+      title: string;
+      headcount: number;
+      hoursTotal: number;
+      slackHours: number;
+      slackPct: number;
+      sundayReq: number;
+      sundayCap: number;
+      sundayOk: boolean;
+      ptShare: number;
+      uncovered: number;
+      items: Array<{
+        count: number;
+        jornada: string;
+        jornadaLabel: string;
+        contractName: string;
+        hoursPerWeek: number;
+        isFull: boolean;
+        isPt: boolean;
+      }>;
+    }>;
   };
-  const days = Object.fromEntries(DAY_ORDER.map((d) => [d, { ...base }])) as Record<
-    DayKey,
-    DayInputDraft
-  >;
-  days.sun = { ...base, hoursOpen: "8", requiredPeople: "1" };
-  return days;
+};
+type CalcErr = { ok: false; error: string };
+type CalcResponse = CalcOk | CalcErr;
+
+/** Grid 30 min
+ * Slot 0 = 07:00
+ * Slot 47 = 06:30 (día siguiente)
+ */
+const GRID_START_MIN = 7 * 60;
+const SLOT_MIN = 30;
+const SLOT_COUNT = 48;
+
+function slotLabel(i: number) {
+  const mins = GRID_START_MIN + i * SLOT_MIN;
+  const m = ((mins % (24 * 60)) + 24 * 60) % (24 * 60);
+  const hh = Math.floor(m / 60);
+  const mm = m % 60;
+  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
 
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim());
+function timeToSlot(hhmm: string) {
+  const [hStr, mStr] = hhmm.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
+  const mins = h * 60 + m;
+  const adj = mins < GRID_START_MIN ? mins + 24 * 60 : mins;
+  const idx = Math.round((adj - GRID_START_MIN) / SLOT_MIN);
+  return Math.max(0, Math.min(SLOT_COUNT - 1, idx));
 }
 
-function parseNumberLoose(raw: string): number | null {
-  const s = String(raw ?? "").trim();
-  if (!s) return null;
-  // soporta coma decimal
-  const norm = s.replace(",", ".");
-  const n = Number(norm);
-  return Number.isFinite(n) ? n : null;
+function clamp(n: number, lo: number, hi: number) {
+  return Math.max(lo, Math.min(hi, n));
 }
 
-function parseIntLoose(raw: string): number | null {
-  const n = parseNumberLoose(raw);
-  if (n === null) return null;
-  return Math.trunc(n);
+function freshSlots() {
+  return Array.from({ length: SLOT_COUNT }, () => 0);
 }
 
-function Tooltip({ label, text }: { label: string; text: string }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontWeight: 800 }}>
-      <span>{label}</span>
-      <span
-        title={text}
-        aria-label={text}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 18,
-          height: 18,
-          borderRadius: 999,
-          border: "1px solid var(--border)",
-          color: "var(--muted)",
-          fontSize: 12,
-          lineHeight: "18px",
-          cursor: "help",
-          userSelect: "none",
-        }}
-      >
-        ?
-      </span>
-    </span>
-  );
+function rangeFill(arr: number[], startSlot: number, endSlot: number, value: number) {
+  const out = arr.slice();
+  if (endSlot === startSlot) return out;
+
+  const fill = (a: number, b: number) => {
+    const lo = Math.max(0, Math.min(SLOT_COUNT, a));
+    const hi = Math.max(0, Math.min(SLOT_COUNT, b));
+    for (let i = lo; i < hi; i++) out[i] = value;
+  };
+
+  if (endSlot > startSlot) {
+    fill(startSlot, endSlot);
+  } else {
+    fill(startSlot, SLOT_COUNT);
+    fill(0, endSlot);
+  }
+  return out;
 }
 
-function Card({ title, right, children }: { title: string; right?: string; children: ReactNode }) {
-  return (
-    <div
-      style={{
-        border: "1px solid var(--border)",
-        background: "var(--panel)",
-        borderRadius: 16,
-        padding: 16,
-        boxShadow: "0 10px 30px rgba(0,0,0,0.06)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: "var(--text)" }}>{title}</h2>
-        {right ? <span style={{ fontSize: 12, color: "var(--muted)" }}>{right}</span> : null}
-      </div>
-      <div style={{ marginTop: 12 }}>{children}</div>
-    </div>
-  );
+function slotsBaseHours(slots: number[]) {
+  let sum = 0;
+  for (const v of slots) sum += Math.max(0, v) * 0.5;
+  return Math.round(sum * 10) / 10;
 }
 
-function Input(props: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      style={{
-        width: "100%",
-        height: 42,
-        padding: "10px 12px",
-        borderRadius: 12,
-        border: "1px solid var(--border)",
-        background: "var(--input-bg)",
-        color: "var(--text)",
-        outline: "none",
-        boxSizing: "border-box",
-        backgroundClip: "padding-box",
-        fontSize: 14,
-        lineHeight: "20px",
-        ...(props.style ?? {}),
-      }}
-    />
-  );
+function slotsPeak(slots: number[]) {
+  let peak = 0;
+  for (const v of slots) peak = Math.max(peak, Math.max(0, v));
+  return peak;
 }
 
-function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      {...props}
-      style={{
-        width: "100%",
-        height: 42,
-        padding: "10px 12px",
-        borderRadius: 12,
-        border: "1px solid var(--border)",
-        background: "var(--input-bg)",
-        color: "var(--text)",
-        outline: "none",
-        boxSizing: "border-box",
-        backgroundClip: "padding-box",
-        fontSize: 14,
-        ...(props.style ?? {}),
-      }}
-    />
-  );
+function slotsToSegments(slots: number[]) {
+  const segs: Array<{ start: number; end: number; value: number }> = [];
+  let curV = Math.max(0, slots[0] ?? 0);
+  let curS = 0;
+
+  for (let i = 1; i <= SLOT_COUNT; i++) {
+    const v = i === SLOT_COUNT ? NaN : Math.max(0, slots[i] ?? 0);
+    if (i === SLOT_COUNT || v !== curV) {
+      segs.push({ start: curS, end: i, value: curV });
+      curS = i;
+      curV = v as any;
+    }
+  }
+  return segs.filter((s) => s.value !== 0 && s.start !== s.end);
+}
+
+function emailLooksOk(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 function Button({
   children,
-  onClick,
+  className = "",
   variant = "secondary",
-  disabled,
-  style,
-  type = "button",
-}: {
-  children: ReactNode;
-  onClick?: () => void;
-  variant?: "primary" | "secondary" | "danger";
-  disabled?: boolean;
-  style?: CSSProperties;
-  type?: "button" | "submit";
-}) {
-  const base: CSSProperties = {
-    height: 42,
-    padding: "0 12px",
-    borderRadius: 12,
-    border: "1px solid var(--border)",
-    background: "var(--btn)",
-    color: "var(--text)",
-    cursor: disabled ? "not-allowed" : "pointer",
-    fontWeight: 900,
-    opacity: disabled ? 0.7 : 1,
-    boxSizing: "border-box",
-    backgroundClip: "padding-box",
-  };
-
-  const variants: Record<string, CSSProperties> = {
-    secondary: {},
-    primary: { background: "var(--primary)", border: "1px solid rgba(0,0,0,0.08)", color: "white" },
-    danger: { background: "transparent", border: "1px solid rgba(239,68,68,0.55)", color: "var(--text)" },
-  };
-
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "danger" | "ghost" }) {
+  const v =
+    variant === "primary" ? "btn btnPrimary" : variant === "danger" ? "btn btnDanger" : variant === "ghost" ? "btn btnGhost" : "btn";
   return (
-    <button type={type} onClick={onClick} disabled={disabled} style={{ ...base, ...variants[variant], ...style }}>
+    <button {...props} className={`${v} ${className}`.trim()}>
       {children}
     </button>
   );
@@ -251,88 +167,54 @@ function Button({
 function Modal({
   open,
   title,
-  children,
   onClose,
+  children,
 }: {
   open: boolean;
   title: string;
-  children: ReactNode;
   onClose: () => void;
+  children: React.ReactNode;
 }) {
   if (!open) return null;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "var(--modal-overlay)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 18,
-        zIndex: 999,
-        backdropFilter: "blur(6px)",
-        WebkitBackdropFilter: "blur(6px)",
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
-          width: "min(640px, 100%)",
-          borderRadius: 18,
-          border: "1px solid var(--modal-border)",
-          background: "var(--modal-panel)",
-          boxShadow: "var(--modal-shadow)",
-          padding: 18,
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-          <div style={{ fontWeight: 1000, fontSize: 16, color: "var(--text)" }}>{title}</div>
-          <button
-            onClick={onClose}
-            style={{
-              border: "1px solid var(--border)",
-              background: "transparent",
-              color: "var(--text)",
-              borderRadius: 10,
-              padding: "6px 10px",
-              cursor: "pointer",
-              fontWeight: 900,
-            }}
-            aria-label="Cerrar"
-          >
-            ✕
-          </button>
+    <div className="modalOverlay" role="dialog" aria-modal="true" aria-label={title}>
+      <div className="modal">
+        <div className="modalPad">
+          <div className="modalHead">
+            <div>
+              <div className="h2">{title}</div>
+              <div className="small" style={{ marginTop: 4 }}>
+                Te enviamos un link al reporte (y te avisamos cuando haya mejoras).
+              </div>
+            </div>
+            <button className="iconBtn" onClick={onClose} aria-label="Cerrar">
+              ✕
+            </button>
+          </div>
+          <div style={{ marginTop: 12 }}>{children}</div>
         </div>
-
-        <div style={{ marginTop: 12 }}>{children}</div>
       </div>
     </div>
   );
 }
 
 export default function CalculadoraPage() {
-  // ✅ ahora son strings (para permitir vacío sin forzar 0)
+  const params = useSearchParams();
+
+  // Base
   const [fullHoursPerWeek, setFullHoursPerWeek] = useState("42");
   const [fullTimeThresholdHours, setFullTimeThresholdHours] = useState("30");
-  const [fullTimeSundayAvailability, setFullTimeSundayAvailability] = useState("0.5");
-  const [partTimeSundayAvailability, setPartTimeSundayAvailability] = useState("1.0");
 
-  const [days, setDays] = useState<Record<DayKey, DayInputDraft>>(defaultDays());
-
-  const [contracts, setContracts] = useState<ContractDraft[]>([
+  // Contratos
+  const [contracts, setContracts] = useState<ContractRow[]>([
     { name: "42h", hoursPerWeek: "42" },
     { name: "36h", hoursPerWeek: "36" },
     { name: "30h", hoursPerWeek: "30" },
     { name: "20h", hoursPerWeek: "20" },
-    { name: "16h", hoursPerWeek: "16" },
   ]);
 
-  const [preferences, setPreferences] = useState<Preferences>({
+  // Preferencias
+  const [prefs, setPrefs] = useState<Preferences>({
     strategy: "balanced",
     allow_6x1: true,
     allow_5x2: true,
@@ -341,567 +223,660 @@ export default function CalculadoraPage() {
     pt_weekend_strict: true,
   });
 
-  const [loading, setLoading] = useState(false);
-  const [resp, setResp] = useState<CalcResponse | null>(null);
+  // Operación por día (gap colación/traslape)
+  const [overlapByDay, setOverlapByDay] = useState<Record<DayKey, string>>({
+    mon: "30",
+    tue: "30",
+    wed: "30",
+    thu: "30",
+    fri: "30",
+    sat: "30",
+    sun: "30",
+  });
+  const [breakByDay, setBreakByDay] = useState<Record<DayKey, string>>({
+    mon: "30",
+    tue: "30",
+    wed: "30",
+    thu: "30",
+    fri: "30",
+    sat: "30",
+    sun: "30",
+  });
 
-  // Lead fields
-  const [leadEmail, setLeadEmail] = useState("");
-  const [leadName, setLeadName] = useState("");
-  const [leadRole, setLeadRole] = useState("");
-  const [leadIndustry, setLeadIndustry] = useState("");
-  const [leadEmployees, setLeadEmployees] = useState<string>("");
+  // Día seleccionado
+  const [selectedDay, setSelectedDay] = useState<DayKey>("mon");
 
-  const [leadModalOpen, setLeadModalOpen] = useState(false);
+  // Demanda 30-min por día (slots)
+  const [demand30, setDemand30] = useState<Record<DayKey, number[]>>({
+    mon: freshSlots(),
+    tue: freshSlots(),
+    wed: freshSlots(),
+    thu: freshSlots(),
+    fri: freshSlots(),
+    sat: freshSlots(),
+    sun: freshSlots(),
+  });
+
+  // Abrir/cerrar días
+  const [dayOpen, setDayOpen] = useState<Record<DayKey, boolean>>({
+    mon: true,
+    tue: true,
+    wed: true,
+    thu: true,
+    fri: true,
+    sat: true,
+    sun: true,
+  });
+
+  // Rellenar rango
+  const [rangeStart, setRangeStart] = useState("08:00");
+  const [rangeEnd, setRangeEnd] = useState("18:00");
+  const [rangeValue, setRangeValue] = useState("2");
+  const [showGrid, setShowGrid] = useState(false);
+
+  // Copiar día
+  const [copyTarget, setCopyTarget] = useState<DayKey>("tue");
+
+  // Resultado
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<CalcOk["result"] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
+
+  // Lead modal
+  const [leadOpen, setLeadOpen] = useState(false);
+  const [lead, setLead] = useState<LeadForm>({ name: "", role: "", industry: "", company_size: "", email: "" });
   const [leadError, setLeadError] = useState<string | null>(null);
-  const [leadStatus, setLeadStatus] = useState<string | null>(null);
 
-  // ✅ error de formulario (antes de capturar lead)
-  const [formError, setFormError] = useState<string | null>(null);
+  useEffect(() => {
+    const ex = params?.get("example");
+    if (ex === "1") loadExample();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function updateDay(d: DayKey, patch: Partial<DayInputDraft>) {
-    setDays((prev) => ({ ...prev, [d]: { ...prev[d], ...patch } }));
+  const selectedSlots = demand30[selectedDay];
+  const dayBaseHours = useMemo(() => slotsBaseHours(selectedSlots), [selectedSlots]);
+  const dayPeak = useMemo(() => slotsPeak(selectedSlots), [selectedSlots]);
+  const daySegments = useMemo(() => slotsToSegments(selectedSlots), [selectedSlots]);
+
+  const weekBaseHours = useMemo(() => {
+    let sum = 0;
+    for (const d of DAY_ORDER) {
+      if (!dayOpen[d]) continue;
+      sum += slotsBaseHours(demand30[d]);
+    }
+    return Math.round(sum * 10) / 10;
+  }, [dayOpen, demand30]);
+
+  function toggleOpenDay(day: DayKey, open: boolean) {
+    setDayOpen((p) => ({ ...p, [day]: open }));
+    if (!open) {
+      setDemand30((p) => ({ ...p, [day]: freshSlots() }));
+    }
   }
 
-  function updateContract(i: number, patch: Partial<ContractDraft>) {
-    setContracts((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+  function applyRangeFill() {
+    const s = timeToSlot(rangeStart);
+    const e = timeToSlot(rangeEnd);
+    const v = clamp(Number(rangeValue || 0), 0, 99);
+
+    setDemand30((prev) => ({ ...prev, [selectedDay]: rangeFill(prev[selectedDay], s, e, v) }));
+
+    if (!dayOpen[selectedDay] && v > 0) toggleOpenDay(selectedDay, true);
   }
 
-  function addContract() {
-    setContracts((prev) => [...prev, { name: "Nuevo", hoursPerWeek: "" }]);
+  function clearDay() {
+    setDemand30((prev) => ({ ...prev, [selectedDay]: freshSlots() }));
   }
 
-  function removeContract(i: number) {
-    setContracts((prev) => prev.filter((_, idx) => idx !== i));
-  }
-
-  function loadRetailExample() {
-    setFullHoursPerWeek("42");
-    setFullTimeThresholdHours("30");
-    setFullTimeSundayAvailability("0.5");
-    setPartTimeSundayAvailability("1.0");
-
-    setPreferences({
-      strategy: "balanced",
-      allow_6x1: true,
-      allow_5x2: true,
-      allow_4x3: true,
-      allow_pt_weekend: true,
-      pt_weekend_strict: true,
+  function updateCell(i: number, value: string) {
+    const v = clamp(Number(value || 0), 0, 99);
+    setDemand30((prev) => {
+      const arr = prev[selectedDay].slice();
+      arr[i] = v;
+      return { ...prev, [selectedDay]: arr };
     });
+    if (!dayOpen[selectedDay] && v > 0) toggleOpenDay(selectedDay, true);
+  }
 
-    setDays(() => {
-      const base: DayInputDraft = {
-        open: true,
-        hoursOpen: "12",
-        requiredPeople: "2",
-        shiftsPerDay: "2",
-        overlapMinutes: "30",
-        breakMinutes: "60",
-      };
-      const out = Object.fromEntries(DAY_ORDER.map((d) => [d, { ...base }])) as Record<
-        DayKey,
-        DayInputDraft
-      >;
-      out.fri = { ...base, hoursOpen: "13", requiredPeople: "3" };
-      out.sun = { ...base, hoursOpen: "8", requiredPeople: "1" };
+  function copyDay(from: DayKey, to: DayKey) {
+    setDemand30((prev) => ({ ...prev, [to]: prev[from].slice() }));
+    if (!dayOpen[from]) toggleOpenDay(to, false);
+    else toggleOpenDay(to, true);
+  }
+
+  function copyDayToAll(from: DayKey) {
+    setDemand30((prev) => {
+      const src = prev[from].slice();
+      const out = { ...prev } as Record<DayKey, number[]>;
+      for (const d of DAY_ORDER) out[d] = src.slice();
       return out;
     });
-
-    setContracts([
-      { name: "42h", hoursPerWeek: "42" },
-      { name: "36h", hoursPerWeek: "36" },
-      { name: "30h", hoursPerWeek: "30" },
-      { name: "20h", hoursPerWeek: "20" },
-      { name: "16h", hoursPerWeek: "16" },
-    ]);
-
-    setResp(null);
-    setFormError(null);
+    setDayOpen({ mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true });
   }
 
-  function profileComplete() {
-    const e = leadEmail.trim();
-    const n = leadName.trim();
-    const r = leadRole.trim();
-    const i = leadIndustry.trim();
-    const emp = parseIntLoose(leadEmployees);
-    if (!isValidEmail(e)) return false;
-    if (!n) return false;
-    if (!r) return false;
-    if (!i) return false;
-    if (!Number.isFinite(emp ?? NaN) || (emp ?? 0) <= 0) return false;
-    return true;
-  }
+  function loadExample() {
+    const week: Record<DayKey, number[]> = {
+      mon: freshSlots(),
+      tue: freshSlots(),
+      wed: freshSlots(),
+      thu: freshSlots(),
+      fri: freshSlots(),
+      sat: freshSlots(),
+      sun: freshSlots(),
+    };
 
-  // ✅ construye CalcInput REAL (numbers) y valida
-  function buildCalcInput(): CalcInput | null {
-    setFormError(null);
+    const fill = (day: DayKey, start: string, end: string, v: number) => {
+      const s = timeToSlot(start);
+      const e = timeToSlot(end);
+      week[day] = rangeFill(week[day], s, e, v);
+    };
 
-    const fullH = parseIntLoose(fullHoursPerWeek);
-    const thr = parseIntLoose(fullTimeThresholdHours);
-    const domFull = parseNumberLoose(fullTimeSundayAvailability);
-    const domPt = parseNumberLoose(partTimeSundayAvailability);
-
-    if (fullH === null || fullH <= 0) return setFormError("Full (h/sem) debe ser un número mayor a 0."), null;
-    if (thr === null || thr < 0) return setFormError("Umbral full-time (h) inválido."), null;
-    if (domFull === null || domFull < 0 || domFull > 1) return setFormError("Domingo full debe estar entre 0 y 1."), null;
-    if (domPt === null || domPt < 0 || domPt > 1) return setFormError("Domingo PT debe estar entre 0 y 1."), null;
-
-    // Contratos
-    const parsedContracts: ContractType[] = [];
-    for (const c of contracts) {
-      const h = parseIntLoose(c.hoursPerWeek);
-      if (!c.name?.trim()) return setFormError("Todos los contratos deben tener nombre."), null;
-      if (h === null || h <= 0) return setFormError(`Horas/sem inválidas en contrato "${c.name}".`), null;
-      parsedContracts.push({ name: c.name.trim(), hoursPerWeek: h });
+    for (const d of ["mon", "tue", "wed", "thu", "fri"] as DayKey[]) {
+      fill(d, "08:00", "12:00", 2);
+      fill(d, "12:00", "16:00", 3);
+      fill(d, "16:00", "20:00", 2);
     }
+    fill("sat", "10:00", "18:00", 2);
+    fill("sun", "11:00", "17:00", 2);
 
-    // Días
-    const parsedDays = {} as Record<DayKey, DayInput>;
+    setDemand30(week);
+    setDayOpen({ mon: true, tue: true, wed: true, thu: true, fri: true, sat: true, sun: true });
+    setSelectedDay("mon");
+    setShowGrid(false);
+
+    track("dot_calculadora_load_example", { version: "step4" });
+  }
+
+  function buildPayload() {
+    const fteDen = clamp(Number(fullHoursPerWeek || 42), 1, 80);
+    const threshold = clamp(Number(fullTimeThresholdHours || 30), 1, 60);
+
+    const cleanContracts = contracts
+      .map((c) => ({
+        name: (c.name || "").trim(),
+        hoursPerWeek: clamp(Number(c.hoursPerWeek || 0), 1, 80),
+      }))
+      .filter((c) => c.name.length > 0 && c.hoursPerWeek > 0);
+
+    const demand30Payload: Partial<Record<DayKey, number[]>> = {};
+    const days: any = {};
+
     for (const d of DAY_ORDER) {
-      const dd = days[d];
+      const slots = demand30[d];
+      const base = slotsBaseHours(slots);
+      const peak = slotsPeak(slots);
+      const open = Boolean(dayOpen[d]) && base > 0.0001;
 
-      // si está cerrado, lo dejamos como 0 sin exigir campos
-      if (!dd.open) {
-        parsedDays[d] = {
-          open: false,
-          hoursOpen: 0,
-          requiredPeople: 0,
-          shiftsPerDay: 0,
-          overlapMinutes: 0,
-          breakMinutes: 0,
-        };
-        continue;
-      }
+      if (open) demand30Payload[d] = slots;
 
-      const hoursOpen = parseIntLoose(dd.hoursOpen);
-      const requiredPeople = parseIntLoose(dd.requiredPeople);
-      const shiftsPerDay = parseIntLoose(dd.shiftsPerDay);
-      const overlapMinutes = parseIntLoose(dd.overlapMinutes);
-      const breakMinutes = parseIntLoose(dd.breakMinutes);
-
-      if (hoursOpen === null || hoursOpen <= 0) return setFormError(`Horas abierto inválidas en ${DAY_LABEL[d]}.`), null;
-      if (requiredPeople === null || requiredPeople < 0) return setFormError(`Personas simultáneas inválidas en ${DAY_LABEL[d]}.`), null;
-      if (shiftsPerDay === null || shiftsPerDay <= 0) return setFormError(`Cambios de turno/día inválidos en ${DAY_LABEL[d]}.`), null;
-      if (overlapMinutes === null || overlapMinutes < 0) return setFormError(`Traslape inválido en ${DAY_LABEL[d]}.`), null;
-      if (breakMinutes === null || breakMinutes < 0) return setFormError(`Colación no imputable inválida en ${DAY_LABEL[d]}.`), null;
-
-      parsedDays[d] = {
-        open: true,
-        hoursOpen,
-        requiredPeople,
-        shiftsPerDay,
-        overlapMinutes,
-        breakMinutes,
+      days[d] = {
+        open,
+        hoursOpen: base,
+        requiredPeople: peak,
+        overlapMinutes: clamp(Number(overlapByDay[d] || 0), 0, 300),
+        breakMinutes: clamp(Number(breakByDay[d] || 0), 0, 300),
       };
     }
 
     return {
-      fullHoursPerWeek: fullH,
-      fullTimeThresholdHours: thr,
-      fullTimeSundayAvailability: domFull,
-      partTimeSundayAvailability: domPt,
-      days: parsedDays,
-      contracts: parsedContracts,
-      preferences,
+      fullHoursPerWeek: fteDen,
+      fullTimeThresholdHours: threshold,
+      days,
+      contracts: cleanContracts,
+      preferences: prefs,
+      demand30: demand30Payload,
       debugNonce: Date.now(),
     };
   }
 
-  async function runCalculateAndLead(calcInput: CalcInput) {
-    setLoading(true);
-    setResp(null);
-    setLeadStatus(null);
+  function onClickCalculate() {
+    setLeadError(null);
+    setLeadOpen(true);
+  }
 
-    track("calculate_clicked", {
-      fullHoursPerWeek: calcInput.fullHoursPerWeek,
-      threshold: calcInput.fullTimeThresholdHours,
-      strategy: preferences.strategy,
-    });
+  async function runCalculateAndLeadSave() {
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+    setReportId(null);
 
     try {
-      // 1) Calculate
-      const r = await fetch("/api/calculate", {
+      const calcInput = buildPayload();
+
+      // 1) Calcular
+      const resp = await fetch("/api/calculate", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(calcInput),
       });
 
-      const data = (await r.json()) as CalcResponse;
+      const json = (await resp.json()) as CalcResponse;
+      if (!resp.ok || !json.ok) throw new Error((json as any)?.error || "Error calculando.");
 
-      if (!data || data.ok !== true) {
-        setResp(data);
-        setLeadStatus("No se pudo calcular. Revisa parámetros.");
-        return;
-      }
+      setResult(json.result);
+      track("dot_calculadora_calculate", { version: "step4" });
 
-      // 2) Lead + email
-      const leadPayload = {
-        email: leadEmail.trim(),
-        full_name: leadName.trim(),
-        role: leadRole.trim(),
-        industry: leadIndustry.trim(),
-        employees: parseIntLoose(leadEmployees),
-        source: "dotaciones.cl/calculadora",
-        calc_input: calcInput,
-        calc_result: (data as any).result,
+      // 2) Guardar lead + enviar correo
+      const leadPayload: any = {
+        email: lead.email.trim(),
+        role: lead.role.trim(),
+        company_size: lead.company_size.trim(),
+        city: "",
+        source: "dotaciones",
+        calc_input: { ...calcInput, meta: { name: lead.name.trim(), industry: lead.industry.trim() } },
+        calc_result: json.result,
       };
 
-      const lr = await fetch("/api/leads", {
+      const leadResp = await fetch("/api/leads", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(leadPayload),
       });
 
-      const leadData = (await lr.json()) as LeadResponse;
+      const leadJson: any = await leadResp.json().catch(() => null);
 
-      setResp(data);
-
-      if (leadData && (leadData as any).ok === true) {
-        const sent = (leadData as any).emailSent;
-        const reportUrl = (leadData as any).reportUrl;
-        if (sent) {
-          setLeadStatus(`✅ Reporte enviado a ${leadEmail.trim()}${reportUrl ? ` · Link: ${reportUrl}` : ""}`);
-        } else {
-          setLeadStatus(`⚠️ Lead guardado, pero no se pudo enviar correo. ${reportUrl ? `Link: ${reportUrl}` : ""}`);
-        }
-      } else {
-        setLeadStatus("⚠️ No se pudo guardar el lead / enviar correo.");
+      if (leadResp.ok) {
+        const id = leadJson?.id || leadJson?.leadId || leadJson?.data?.id || null;
+        if (id) setReportId(String(id));
       }
     } catch (e: any) {
-      setResp({ ok: false, error: e?.message ?? "Error" });
-      setLeadStatus("Error ejecutando el cálculo.");
+      setError(e?.message || "Error inesperado.");
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }
-
-  async function onCalculateClick() {
-    const calcInput = buildCalcInput();
-    if (!calcInput) return;
-
-    // recién aquí pedimos lead
-    if (!profileComplete()) {
-      setLeadError(null);
-      setLeadStatus(null);
-      setLeadModalOpen(true);
-      return;
-    }
-
-    await runCalculateAndLead(calcInput);
   }
 
   async function onSubmitLead() {
     setLeadError(null);
 
-    const e = leadEmail.trim();
-    const n = leadName.trim();
-    const r = leadRole.trim();
-    const i = leadIndustry.trim();
-    const emp = parseIntLoose(leadEmployees);
+    if (!lead.name.trim()) return setLeadError("Pon tu nombre (o alias).");
+    if (!lead.role.trim()) return setLeadError("¿Tu cargo?");
+    if (!lead.industry.trim()) return setLeadError("¿Industria? (retail / hospital / alimentación / logística)");
+    if (!lead.company_size.trim()) return setLeadError("¿Cantidad aprox. de empleados?");
+    if (!emailLooksOk(lead.email)) return setLeadError("Ese email se ve inválido (ej: nombre@dominio.com).");
 
-    if (!isValidEmail(e)) return setLeadError("Email inválido.");
-    if (!n) return setLeadError("Nombre es obligatorio.");
-    if (!r) return setLeadError("Cargo es obligatorio.");
-    if (!i) return setLeadError("Industria es obligatoria.");
-    if (!Number.isFinite(emp ?? NaN) || (emp ?? 0) <= 0) return setLeadError("Cantidad de empleados inválida.");
-
-    const calcInput = buildCalcInput();
-    if (!calcInput) {
-      setLeadModalOpen(false);
-      return;
-    }
-
-    setLeadModalOpen(false);
-    await runCalculateAndLead(calcInput);
+    setLeadOpen(false);
+    await runCalculateAndLeadSave();
   }
 
-  const result = resp && resp.ok ? resp.result : null;
-
   return (
-    <>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: 24, fontFamily: "system-ui" }}>
-        <h1 style={{ margin: 0, fontSize: 30, fontWeight: 950, color: "var(--text)" }}>
-          Calculadora de Dotación Retail
-        </h1>
-        <p style={{ marginTop: 10, color: "var(--muted)" }}>
-          Rellena tu semana y presiona <b>CALCULAR</b>. Te enviamos un reporte por correo.
-        </p>
+    <main className="container">
+      {/* Top */}
+      <div className="topbar">
+        <div className="brand">
+  <Link href="/" className="brandMark" aria-label="Ir al inicio">
+    <Image src="/logo.svg" alt="Dotaciones.cl" width={34} height={34} className="logo" priority />
+    <span className="brandName">Dotaciones.cl</span>
+  </Link>
+  <div className="brandSub">Paso 4: Necesidad operativa por tramos (30 min) + mix sugerido</div>
+</div>
 
-        <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Button onClick={loadRetailExample} variant="secondary">
-            Cargar ejemplo retail típico
+        <div className="actions">
+          <Link className="btn" href="/contacto">
+            Sugerencias
+          </Link>
+          <Link className="btn" href="/">
+            Inicio
+          </Link>
+          <Button variant="ghost" onClick={loadExample} disabled={isLoading}>
+            Cargar ejemplo
           </Button>
-          <a
-            href="/"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "0 12px",
-              height: 42,
-              borderRadius: 12,
-              border: "1px solid var(--border)",
-              background: "var(--btn)",
-              color: "var(--text)",
-              textDecoration: "none",
-              fontWeight: 900,
-              boxSizing: "border-box",
-            }}
-          >
-            Volver al inicio
-          </a>
+        </div>
+      </div>
+
+      {/* Hero */}
+      <div style={{ marginTop: 16 }} className="gridMain">
+        <div className="card">
+          <div className="cardPad">
+            <h1 className="h1">Calculadora de Dotación por Tramos (30 min)</h1>
+            <p className="p">
+              Cargas cuánta gente necesitas cada 30 minutos (día por día). Luego te devolvemos <b>horas-persona</b>, <b>FTE</b> y{" "}
+              <b>alternativas de mix</b>.
+            </p>
+
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button variant="primary" onClick={onClickCalculate} disabled={isLoading}>
+                {isLoading ? "Calculando…" : "Calcular"}
+              </Button>
+              <span className="small">
+                Tip: usa <span className="kbd">Rellenar rango</span> y deja la grilla para ajustes finos.
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <Card title="Paso 1 — Parámetros" right="Reglas base">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontWeight: 800, color: "var(--text)" }}>Full (h/sem)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Horas semanales de un contrato full típico (ej: 42).
-                </span>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={fullHoursPerWeek}
-                  onChange={(e) => setFullHoursPerWeek(e.target.value)}
-                  placeholder="42"
-                />
-              </label>
-
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontWeight: 800, color: "var(--text)" }}>Umbral full-time (h)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Desde cuántas horas se considera “full” (ej: 30).
-                </span>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  value={fullTimeThresholdHours}
-                  onChange={(e) => setFullTimeThresholdHours(e.target.value)}
-                  placeholder="30"
-                />
-              </label>
-
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontWeight: 800, color: "var(--text)" }}>Domingo full (&gt; umbral)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Ej: 0.5 = “rinden la mitad” los domingos.
-                </span>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={fullTimeSundayAvailability}
-                  onChange={(e) => setFullTimeSundayAvailability(e.target.value)}
-                  placeholder="0.5"
-                />
-              </label>
-
-              <label style={{ display: "grid", gap: 6 }}>
-                <span style={{ fontWeight: 800, color: "var(--text)" }}>Domingo PT (≤ umbral)</span>
-                <span style={{ fontSize: 12, color: "var(--muted)" }}>
-                  Ej: 1.0 = sin castigo (trabajan todos).
-                </span>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={partTimeSundayAvailability}
-                  onChange={(e) => setPartTimeSundayAvailability(e.target.value)}
-                  placeholder="1.0"
-                />
-              </label>
+        <div className="card">
+          <div className="cardPad">
+            <div className="cardHead">
+              <h2 className="h2">Resumen base</h2>
+              <span className="small">semana</span>
             </div>
-          </Card>
+            <div className="hr" />
+            <div className="alert statCard">
+              <div className="statLabel">Horas-persona base (sin gap)</div>
+              <div className="statValue">{weekBaseHours}</div>
+            </div>
+            <div style={{ marginTop: 10 }} className="small">
+              Gap colación/traslape se agrega en el cálculo.
+            </div>
+          </div>
+        </div>
+      </div>
 
-          <Card title="Paso 3 — Contratos" right="Tu set real">
+      {/* Config */}
+      <div style={{ marginTop: 14 }} className="grid2">
+        <div className="card">
+          <div className="cardPad">
+            <div className="cardHead">
+              <h2 className="h2">Base (FTE y umbral)</h2>
+              <span className="small">Paso 1</span>
+            </div>
+            <div className="hr" />
+
+            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <div className="field">
+                <div className="label">Horas full para 1 FTE (ej: 42)</div>
+                <input className="input" value={fullHoursPerWeek} onChange={(e) => setFullHoursPerWeek(e.target.value)} />
+              </div>
+
+              <div className="field">
+                <div className="label">Umbral FT/PT (ej: 30)</div>
+                <input className="input" value={fullTimeThresholdHours} onChange={(e) => setFullTimeThresholdHours(e.target.value)} />
+              </div>
+            </div>
+
+            <div style={{ marginTop: 10 }} className="small">
+              FTE = horas requeridas / horas full.
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="cardPad">
+            <div className="cardHead">
+              <h2 className="h2">Contratos disponibles</h2>
+              <span className="small">Paso 2</span>
+            </div>
+            <div className="hr" />
+
             <div style={{ display: "grid", gap: 10 }}>
-              {contracts.map((c, i) => (
-                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 140px 110px", gap: 10 }}>
-                  <Input value={c.name} onChange={(e) => updateContract(i, { name: e.target.value })} />
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    value={c.hoursPerWeek}
-                    onChange={(e) => updateContract(i, { hoursPerWeek: e.target.value })}
-                    placeholder="42"
+              {contracts.map((c, idx) => (
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr auto", gap: 10, alignItems: "center" }}>
+                  <input
+                    className="input"
+                    placeholder="Nombre (ej: 42h)"
+                    value={c.name}
+                    onChange={(e) =>
+                      setContracts((p) => {
+                        const out = p.slice();
+                        out[idx] = { ...out[idx], name: e.target.value };
+                        return out;
+                      })
+                    }
                   />
-                  <Button variant="danger" onClick={() => removeContract(i)}>
-                    Eliminar
+                  <input
+                    className="input"
+                    placeholder="Horas/sem"
+                    value={c.hoursPerWeek}
+                    onChange={(e) =>
+                      setContracts((p) => {
+                        const out = p.slice();
+                        out[idx] = { ...out[idx], hoursPerWeek: e.target.value };
+                        return out;
+                      })
+                    }
+                  />
+                  <Button
+                    variant="ghost"
+                    onClick={() => setContracts((p) => p.filter((_, i) => i !== idx))}
+                    disabled={contracts.length <= 1}
+                  >
+                    Quitar
                   </Button>
                 </div>
               ))}
             </div>
 
-            <div style={{ marginTop: 12 }}>
-              <Button onClick={addContract}>+ Agregar contrato</Button>
+            <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button onClick={() => setContracts((p) => [...p, { name: `Nuevo`, hoursPerWeek: "30" }])}>
+                + Agregar contrato
+              </Button>
             </div>
-          </Card>
+          </div>
         </div>
+      </div>
 
-        <div style={{ marginTop: 16 }}>
-          <Card title="Paso 2 — Preferencias" right="Criterios del mix">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <label style={{ display: "grid", gap: 6 }}>
-                <Tooltip
-                  label="Estrategia"
-                  text="Balanceado = cuerpo base full + PT para ajustar. Menos personas = compacta headcount."
-                />
-                <Select
-                  value={preferences.strategy}
-                  onChange={(e) =>
-                    setPreferences((p) => ({ ...p, strategy: e.target.value as Preferences["strategy"] }))
-                  }
+      {/* Preferencias + Día editor */}
+      <div style={{ marginTop: 14 }} className="gridMain">
+        <div className="card">
+          <div className="cardPad">
+            <div className="cardHead">
+              <h2 className="h2">Preferencias de mix</h2>
+              <span className="small">Paso 3</span>
+            </div>
+            <div className="hr" />
+
+            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <div className="field">
+                <div className="label">Estrategia</div>
+                <select
+                  className="select"
+                  value={prefs.strategy}
+                  onChange={(e) => setPrefs((p) => ({ ...p, strategy: e.target.value as any }))}
                 >
-                  <option value="balanced">Balanceado (recomendado)</option>
+                  <option value="balanced">Balanceado</option>
                   <option value="min_people">Menos personas</option>
-                </Select>
-              </label>
+                  <option value="stable">Más estable (menos PT)</option>
+                </select>
+              </div>
 
-              <label style={{ display: "grid", gap: 6 }}>
-                <Tooltip label="PT fin de semana" text="Si está desactivado: no propondrá PT 20h/16h." />
-                <Select
-                  value={preferences.allow_pt_weekend ? "yes" : "no"}
-                  onChange={(e) => setPreferences((p) => ({ ...p, allow_pt_weekend: e.target.value === "yes" }))}
-                >
-                  <option value="yes">Permitido</option>
-                  <option value="no">No permitido</option>
-                </Select>
-              </label>
-
-              <label style={{ display: "grid", gap: 6 }}>
-                <Tooltip label="PT estricto Sáb+Dom" text="PT 20h/16h fijo Sáb+Dom (lógica silenciosa)." />
-                <Select
-                  value={preferences.pt_weekend_strict ? "yes" : "no"}
-                  onChange={(e) => setPreferences((p) => ({ ...p, pt_weekend_strict: e.target.value === "yes" }))}
-                  disabled={!preferences.allow_pt_weekend}
-                >
-                  <option value="yes">Sí (Sáb+Dom)</option>
-                  <option value="no">No (flexible)</option>
-                </Select>
-              </label>
-
-              <div style={{ display: "grid", gap: 6 }}>
-                <Tooltip label="Jornadas full permitidas" text="Activa/desactiva las jornadas que tu empresa permite usar." />
-                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", paddingTop: 6 }}>
-                  {[
-                    { key: "allow_6x1", label: "6x1" },
-                    { key: "allow_5x2", label: "5x2" },
-                    { key: "allow_4x3", label: "4x3" },
-                  ].map((x) => (
-                    <label
-                      key={x.key}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        cursor: "pointer",
-                        color: "var(--text)",
-                        fontWeight: 800,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={preferences[x.key as keyof Preferences] as boolean}
-                        onChange={(e) => setPreferences((p) => ({ ...p, [x.key]: e.target.checked } as Preferences))}
-                      />
-                      {x.label}
-                    </label>
-                  ))}
+              <div className="field">
+                <div className="label">Nota</div>
+                <div className="small">
+                  4x3 solo funciona si incluyes contrato <b>40h</b>.
                 </div>
               </div>
             </div>
-          </Card>
+
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button className={`toggle ${prefs.allow_6x1 ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, allow_6x1: !p.allow_6x1 }))}>
+                <span className="dot" /> Permitir 6x1
+              </button>
+
+              <button className={`toggle ${prefs.allow_5x2 ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, allow_5x2: !p.allow_5x2 }))}>
+                <span className="dot" /> Permitir 5x2
+              </button>
+
+              <button className={`toggle ${prefs.allow_4x3 ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, allow_4x3: !p.allow_4x3 }))}>
+                <span className="dot" /> Permitir 4x3 (40h)
+              </button>
+
+              <button className={`toggle ${prefs.allow_pt_weekend ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, allow_pt_weekend: !p.allow_pt_weekend }))}>
+                <span className="dot" /> Permitir PT fin de semana
+              </button>
+
+              <button className={`toggle ${prefs.pt_weekend_strict ? "toggleOn" : ""}`} onClick={() => setPrefs((p) => ({ ...p, pt_weekend_strict: !p.pt_weekend_strict }))}>
+                <span className="dot" /> PT estricto
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div style={{ marginTop: 16 }}>
-          <Card title="Paso 4 — Semana (Lun a Dom)" right="Qué necesitas cada día">
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <div className="card">
+          <div className="cardPad">
+            <div className="cardHead">
+              <h2 className="h2">Operación (gap)</h2>
+              <span className="small">aplica por día</span>
+            </div>
+            <div className="hr" />
+            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <div className="field">
+                <div className="label">Traslape (min) — {DAY_LABEL[selectedDay]}</div>
+                <input
+                  className="input"
+                  value={overlapByDay[selectedDay]}
+                  onChange={(e) => setOverlapByDay((p) => ({ ...p, [selectedDay]: e.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <div className="label">Colación no imputable (min) — {DAY_LABEL[selectedDay]}</div>
+                <input
+                  className="input"
+                  value={breakByDay[selectedDay]}
+                  onChange={(e) => setBreakByDay((p) => ({ ...p, [selectedDay]: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div style={{ marginTop: 8 }} className="small">
+              Si colación &gt; traslape, se suman horas-persona extra usando el peak del día.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Paso 4 */}
+      <div style={{ marginTop: 14 }} className="card">
+        <div className="cardPad">
+          <div className="cardHead">
+            <h2 className="h2">Paso 4 — Necesidad operativa por tramos (30 min)</h2>
+            <span className="small">día por día</span>
+          </div>
+          <div className="hr" />
+
+          <div className="pills">
+            {DAY_ORDER.map((d) => (
+              <button
+                key={d}
+                className={`pill ${selectedDay === d ? "pillOn" : ""}`}
+                onClick={() => setSelectedDay(d)}
+                title={DAY_LABEL[d]}
+              >
+                {DAY_LABEL[d]}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <button className={`toggle ${dayOpen[selectedDay] ? "toggleOn" : ""}`} onClick={() => toggleOpenDay(selectedDay, !dayOpen[selectedDay])}>
+              <span className="dot" /> Día abierto
+            </button>
+
+            <span className="small">
+              Base: <b>{dayBaseHours}</b> hrs-persona · Peak: <b>{dayPeak}</b> pers.
+            </span>
+          </div>
+
+          <div style={{ marginTop: 12 }} className="grid2">
+            <div className="card" style={{ background: "var(--panel2)" as any }}>
+              <div className="cardPad">
+                <div className="h2">Rellenar rango (rápido)</div>
+                <div className="small" style={{ marginTop: 4 }}>
+                  Ej: 12:00 a 16:00 = 3 personas
+                </div>
+
+                <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
+                  <div className="field">
+                    <div className="label">Inicio</div>
+                    <input className="input" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} placeholder="08:00" />
+                  </div>
+                  <div className="field">
+                    <div className="label">Fin</div>
+                    <input className="input" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} placeholder="18:00" />
+                  </div>
+                  <div className="field">
+                    <div className="label">Personas</div>
+                    <input className="input" value={rangeValue} onChange={(e) => setRangeValue(e.target.value)} placeholder="2" />
+                  </div>
+                  <Button variant="primary" onClick={applyRangeFill} disabled={!dayOpen[selectedDay]}>
+                    Aplicar
+                  </Button>
+                </div>
+
+                <div style={{ marginTop: 10, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <Button onClick={clearDay} disabled={!dayOpen[selectedDay]}>
+                    Limpiar día
+                  </Button>
+
+                  <div className="field" style={{ minWidth: 160 }}>
+                    <div className="label">Copiar a…</div>
+                    <select className="select" value={copyTarget} onChange={(e) => setCopyTarget(e.target.value as DayKey)}>
+                      {DAY_ORDER.filter((d) => d !== selectedDay).map((d) => (
+                        <option key={d} value={d}>
+                          {DAY_LABEL[d]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <Button onClick={() => copyDay(selectedDay, copyTarget)} disabled={!dayOpen[selectedDay]}>
+                    Copiar día
+                  </Button>
+
+                  <Button onClick={() => copyDayToAll(selectedDay)} disabled={!dayOpen[selectedDay]}>
+                    Copiar a toda la semana
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="card" style={{ background: "var(--panel2)" as any }}>
+              <div className="cardPad">
+                <div className="cardHead">
+                  <div>
+                    <div className="h2">Resumen del día</div>
+                    <div className="small">segmentos detectados (solo valores ≠ 0)</div>
+                  </div>
+                  <Button variant="ghost" onClick={() => setShowGrid((v) => !v)} disabled={!dayOpen[selectedDay]}>
+                    {showGrid ? "Ocultar grilla" : "Ver grilla"}
+                  </Button>
+                </div>
+
+                <div className="hr" />
+
+                {daySegments.length === 0 ? (
+                  <div className="small">Aún no hay tramos (o el día está en 0). Usa “Rellenar rango”.</div>
+                ) : (
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {daySegments.slice(0, 10).map((s, idx) => (
+                      <div key={idx} className="alert">
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                          <span>
+                            {slotLabel(s.start)}–{slotLabel(s.end)}
+                          </span>
+                          <b>{s.value} pers.</b>
+                        </div>
+                      </div>
+                    ))}
+                    {daySegments.length > 10 ? <div className="small">…y {daySegments.length - 10} tramos más</div> : null}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {showGrid ? (
+            <div style={{ marginTop: 14 }} className="tableWrap">
+              <table className="gridTable">
                 <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                    <th style={{ textAlign: "left", padding: 8, color: "var(--muted)" }}>Día</th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>Abierto</th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip label="Horas abierto" text="Cuántas horas está abierto el local ese día." />
-                    </th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip label="Personas simultáneas" text="Cuántas personas necesitas AL MISMO TIEMPO." />
-                    </th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip label="Cambios de turno/día" text="Cuántos equipos se alternan en el día. Ej: 2 = AM/PM." />
-                    </th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip label="Traslape (min)" text="Minutos que se cruzan turnos (colación/cambio). Si no aplica, 0." />
-                    </th>
-                    <th style={{ padding: 8, color: "var(--muted)" }}>
-                      <Tooltip
-                        label="Colación no imputable (min)"
-                        text="Minutos de colación que no cuentan como jornada (presencia adicional). Si no aplica, 0."
-                      />
-                    </th>
+                  <tr>
+                    <th>Hora</th>
+                    <th className="num">Personas</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {DAY_ORDER.map((d) => (
-                    <tr key={d} style={{ borderTop: "1px solid var(--border)" }}>
-                      <td style={{ padding: 8, fontWeight: 900, color: "var(--text)" }}>{DAY_LABEL[d]}</td>
-                      <td style={{ padding: 8, textAlign: "center" }}>
+                  {selectedSlots.map((v, i) => (
+                    <tr key={i}>
+                      <td>{slotLabel(i)}</td>
+                      <td className="num">
                         <input
-                          type="checkbox"
-                          checked={days[d].open}
-                          onChange={(e) => updateDay(d, { open: e.target.checked })}
-                        />
-                      </td>
-                      <td style={{ padding: 8 }}>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={days[d].hoursOpen}
-                          onChange={(e) => updateDay(d, { hoursOpen: e.target.value })}
-                          placeholder="12"
-                          style={{ width: 120 }}
-                        />
-                      </td>
-                      <td style={{ padding: 8 }}>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={days[d].requiredPeople}
-                          onChange={(e) => updateDay(d, { requiredPeople: e.target.value })}
-                          placeholder="2"
-                          style={{ width: 150 }}
-                        />
-                      </td>
-                      <td style={{ padding: 8 }}>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={days[d].shiftsPerDay}
-                          onChange={(e) => updateDay(d, { shiftsPerDay: e.target.value })}
-                          placeholder="2"
-                          style={{ width: 150 }}
-                        />
-                      </td>
-                      <td style={{ padding: 8 }}>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={days[d].overlapMinutes}
-                          onChange={(e) => updateDay(d, { overlapMinutes: e.target.value })}
-                          placeholder="30"
-                          style={{ width: 150 }}
-                        />
-                      </td>
-                      <td style={{ padding: 8 }}>
-                        <Input
-                          type="text"
-                          inputMode="numeric"
-                          value={days[d].breakMinutes}
-                          onChange={(e) => updateDay(d, { breakMinutes: e.target.value })}
-                          placeholder="60"
-                          style={{ width: 190 }}
+                          className="cellInput"
+                          type="number"
+                          min={0}
+                          max={99}
+                          value={v}
+                          disabled={!dayOpen[selectedDay]}
+                          onChange={(e) => updateCell(i, e.target.value)}
                         />
                       </td>
                     </tr>
@@ -909,161 +884,225 @@ export default function CalculadoraPage() {
                 </tbody>
               </table>
             </div>
+          ) : null}
 
+          <div style={{ marginTop: 12 }} className="small">
+            Consejo: si tu operación es estable, usa pocos tramos grandes. Si tiene “puntas”, marca solo esos cambios.
+          </div>
+
+          {/* ✅ Botón grande debajo del Paso 4 */}
+          <div style={{ marginTop: 14 }}>
             <Button
               variant="primary"
-              onClick={onCalculateClick}
-              disabled={loading}
-              style={{ marginTop: 12, width: "100%", height: 48, fontSize: 16 }}
+              className="btnBig"
+              onClick={onClickCalculate}
+              disabled={isLoading}
             >
-              {loading ? "CALCULANDO..." : "CALCULAR"}
+              {isLoading ? "Calculando…" : "Calcular (generar reporte)"}
             </Button>
-
-            {formError ? (
-              <div style={{ marginTop: 10, fontSize: 13, fontWeight: 900, color: "#ef4444" }}>{formError}</div>
-            ) : null}
-
-            {leadStatus ? <div style={{ marginTop: 10, fontSize: 13, color: "var(--muted)" }}>{leadStatus}</div> : null}
-          </Card>
-        </div>
-
-        <div style={{ marginTop: 16 }}>
-          <Card title="Paso 5 — Resultados" right="Resumen + mixes sugeridos">
-            {!resp && (
-              <p style={{ margin: 0, color: "var(--muted)" }}>
-                Presiona <b>CALCULAR</b> para ver resultados.
-              </p>
-            )}
-
-            {resp && !resp.ok && (
-              <div
-                style={{
-                  marginTop: 10,
-                  padding: 12,
-                  borderRadius: 14,
-                  border: "1px solid rgba(239,68,68,0.5)",
-                  background: "rgba(239,68,68,0.08)",
-                  color: "var(--text)",
-                }}
-              >
-                <b>Error:</b> {resp.error}
-              </div>
-            )}
-
-            {result && (
-              <div style={{ marginTop: 12, display: "grid", gap: 12 }}>
-                <div style={{ padding: 12, borderRadius: 14, border: "1px solid var(--border)", background: "var(--input-bg)" }}>
-                  <div style={{ fontWeight: 950, color: "var(--text)" }}>
-                    Estimación: {Number(result.fte).toFixed(2)} FTE (equivalentes full).
-                  </div>
-                  <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
-                    <div><b>Horas requeridas (semana):</b> {result.requiredHours}</div>
-                    <div><b>Brecha colación vs traslape:</b> {result.gapHours}</div>
-                    <div><b>Domingo requerido (personas):</b> {result.sundayReq}</div>
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gap: 12 }}>
-                  {result.mixes?.map((m: any, idx: number) => (
-                    <div key={idx} style={{ padding: 12, borderRadius: 14, border: "1px solid var(--border)", background: "var(--panel)" }}>
-                      <div style={{ fontWeight: 950, color: "var(--text)" }}>
-                        {m.title} — {m.sundayOk ? "✅ domingo OK" : "❌ domingo NO"}
-                      </div>
-                      <div style={{ marginTop: 8, color: "var(--muted)", fontSize: 13 }}>
-                        <div><b>Total personas:</b> {m.headcount}</div>
-                        <div><b>Horas totales:</b> {m.hoursTotal} (holgura {m.slackHours} / {Math.round(m.slackPct * 100)}%)</div>
-                        <div><b>Domingo:</b> capacidad {m.sundayCap} / requerido {m.sundayReq}</div>
-                      </div>
-                      <div style={{ marginTop: 8, fontWeight: 900, color: "var(--text)" }}>Composición</div>
-                      <ul style={{ marginTop: 6, marginBottom: 0, color: "var(--muted)", fontSize: 13 }}>
-                        {m.items.map((it: any, j: number) => (
-                          <li key={j}>
-                            {it.count} × {it.contractName}{" "}
-                            <span style={{ color: "var(--muted)" }}>
-                              (h/sem {it.hoursPerWeek}, jornada {it.jornadaLabel ?? it.jornada ?? "-"}, domingo {it.sundayFactor})
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div style={{ marginTop: 14, fontSize: 12, color: "var(--muted)", display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-              <span>Dotaciones.cl — MVP v0.1</span>
-              <a href="/contacto" style={{ color: "var(--primary2)" }}>Contacto / sugerencias</a>
-            </div>
-          </Card>
+          </div>
         </div>
       </div>
 
-      {/* Modal Lead */}
-      <Modal open={leadModalOpen} title="Recibir reporte por correo" onClose={() => setLeadModalOpen(false)}>
-        <div style={{ color: "var(--muted)", fontSize: 13, lineHeight: 1.5 }}>
-          Completa estos datos para enviarte el reporte y mejorar la herramienta.
+      {/* Resultados */}
+      <div style={{ marginTop: 14 }}>
+        {error ? <div className="alert alertError">❌ {error}</div> : null}
+
+        {result ? (
+          <div style={{ display: "grid", gap: 14 }}>
+            <div className="card">
+              <div className="cardPad">
+                <div className="cardHead">
+                  <h2 className="h2">Resultado</h2>
+                  <span className="small">requerimiento y mixes</span>
+                </div>
+                <div className="hr" />
+
+                <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+                  <div className="alert statCard">
+                    <div className="statLabel">Horas requeridas</div>
+                    <div className="statValue">{result.requiredHours}</div>
+                  </div>
+                  <div className="alert statCard">
+                    <div className="statLabel">FTE estimado</div>
+                    <div className="statValue">{result.fte}</div>
+                  </div>
+                </div>
+
+                {reportId ? (
+                  <div style={{ marginTop: 10 }} className="alert alertOk">
+                    ✅ Reporte generado:{" "}
+                    <Link href={`/reporte/${reportId}`} style={{ fontWeight: 950, textDecoration: "underline" }}>
+                      /reporte/{reportId}
+                    </Link>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 10 }} className="small">
+                    Si tu /api/leads devuelve un id, acá mostramos el link al reporte automáticamente.
+                  </div>
+                )}
+
+                {result.warnings?.length ? (
+                  <div style={{ marginTop: 12 }}>
+                    <div className="h2">Warnings</div>
+                    <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
+                      {result.warnings.map((w, idx) => (
+                        <div key={idx} className="alert alertWarn">
+                          ⚠️ {w}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <div style={{ marginTop: 12 }}>
+                  <div className="h2">Demanda por día (hrs-persona)</div>
+                  <div style={{ marginTop: 10 }} className="tableWrap">
+                    <table className="gridTable" style={{ minWidth: 420 }}>
+                      <thead>
+                        <tr>
+                          <th>Día</th>
+                          <th className="num">Horas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {result.demandByDay.map((d, idx) => (
+                          <tr key={idx}>
+                            <td>{d.day}</td>
+                            <td className="num"><b>{d.hours}</b></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <div className="h2">Mix sugeridos</div>
+                  <div className="small">Te mostramos alternativas: balanceado, menos personas, menos PT, etc.</div>
+
+                  <div style={{ marginTop: 10, display: "grid", gap: 12 }}>
+                    {result.mixes.map((m, idx) => (
+                      <div key={idx} className="card" style={{ background: "var(--panel2)" as any }}>
+                        <div className="cardPad">
+                          <div className="cardHead">
+                            <div>
+                              <div style={{ fontWeight: 950, fontSize: 16 }}>{m.title}</div>
+                              <div className="small">
+                                Headcount: <b>{m.headcount}</b> · Horas: <b>{m.hoursTotal}</b> · Holgura: <b>{m.slackHours}</b>{" "}
+                                ({Math.round(m.slackPct * 100)}%) · PT: <b>{Math.round(m.ptShare * 100)}%</b>
+                              </div>
+                            </div>
+                            <div className={`alert ${m.sundayOk ? "alertOk" : "alertError"}`} style={{ padding: "8px 10px" }}>
+                              <div className="small">Domingo</div>
+                              <div style={{ fontWeight: 950 }}>{m.sundayOk ? "OK" : "Revisar"}</div>
+                            </div>
+                          </div>
+
+                          <div className="hr" />
+
+                          <div className="tableWrap">
+                            <table className="gridTable" style={{ minWidth: 760 }}>
+                              <thead>
+                                <tr>
+                                  <th>Jornada</th>
+                                  <th>Contrato</th>
+                                  <th className="num">Horas/Sem</th>
+                                  <th className="num">Cantidad</th>
+                                  <th className="num">Tipo</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {m.items.map((it, j) => (
+                                  <tr key={j}>
+                                    <td>{it.jornadaLabel}</td>
+                                    <td>{it.contractName}</td>
+                                    <td className="num">{it.hoursPerWeek}</td>
+                                    <td className="num"><b>{it.count}</b></td>
+                                    <td className="num">{it.isPt ? "PT" : "Full"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          <div style={{ marginTop: 10 }} className="small">
+                            Consejo: si ves mucha holgura, prueba agregando un contrato intermedio (ej 36h/30h/16h) o ajusta demanda.
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <details style={{ marginTop: 12 }}>
+                    <summary className="small" style={{ cursor: "pointer", fontWeight: 950 }}>
+                      Ver JSON completo (debug)
+                    </summary>
+                    <pre style={{ whiteSpace: "pre-wrap", marginTop: 10, fontSize: 12 }} className="alert">
+                      {JSON.stringify(result, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Modal lead */}
+      <Modal open={leadOpen} title="Antes de calcular (para enviarte el reporte)" onClose={() => setLeadOpen(false)}>
+        <div className="modalGrid">
+          <div className="field">
+            <div className="label">Nombre</div>
+            <input className="input" value={lead.name} onChange={(e) => setLead((p) => ({ ...p, name: e.target.value }))} placeholder="Juan" />
+          </div>
+
+          <div className="field">
+            <div className="label">Cargo</div>
+            <input className="input" value={lead.role} onChange={(e) => setLead((p) => ({ ...p, role: e.target.value }))} placeholder="Jefe de Operaciones" />
+          </div>
+
+          <div className="field">
+            <div className="label">Industria</div>
+            <input
+              className="input"
+              value={lead.industry}
+              onChange={(e) => setLead((p) => ({ ...p, industry: e.target.value }))}
+              placeholder="Retail / Hospital / Alimentación"
+            />
+          </div>
+
+          <div className="field">
+            <div className="label">Cantidad de empleados</div>
+            <input
+              className="input"
+              value={lead.company_size}
+              onChange={(e) => setLead((p) => ({ ...p, company_size: e.target.value }))}
+              placeholder="120"
+            />
+          </div>
+
+          <div className="field" style={{ gridColumn: "1 / -1" }}>
+            <div className="label">Email</div>
+            <input
+              className="input"
+              value={lead.email}
+              onChange={(e) => setLead((p) => ({ ...p, email: e.target.value }))}
+              placeholder="nombre@dominio.com"
+            />
+            <div className="small" style={{ marginTop: 4 }}>
+              Evita emails “de ejemplo”. Usa un correo real para recibir el reporte.
+            </div>
+          </div>
         </div>
 
-        <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontWeight: 900, color: "var(--text)" }}>Nombre</span>
-              <Input value={leadName} onChange={(e) => setLeadName(e.target.value)} placeholder="Juan Pérez" />
-            </label>
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontWeight: 900, color: "var(--text)" }}>Cargo</span>
-              <Input value={leadRole} onChange={(e) => setLeadRole(e.target.value)} placeholder="Jefe de tienda / RRHH / Operaciones" />
-            </label>
-          </div>
+        {leadError ? <div style={{ marginTop: 10 }} className="alert alertError">❌ {leadError}</div> : null}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontWeight: 900, color: "var(--text)" }}>Industria</span>
-              <Select value={leadIndustry} onChange={(e) => setLeadIndustry(e.target.value)}>
-                <option value="">Selecciona…</option>
-                <option value="Retail">Retail</option>
-                <option value="Comida rápida">Comida rápida</option>
-                <option value="Restaurantes">Restaurantes</option>
-                <option value="Supermercados">Supermercados</option>
-                <option value="Farmacias">Farmacias</option>
-                <option value="Otro">Otro</option>
-              </Select>
-            </label>
-
-            <label style={{ display: "grid", gap: 6 }}>
-              <span style={{ fontWeight: 900, color: "var(--text)" }}>Cantidad de empleados</span>
-              <Input
-                type="text"
-                inputMode="numeric"
-                value={leadEmployees}
-                onChange={(e) => setLeadEmployees(e.target.value)}
-                placeholder="Ej: 120"
-              />
-            </label>
-          </div>
-
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontWeight: 900, color: "var(--text)" }}>Email</span>
-            <Input type="email" value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} placeholder="nombre@dominio.com" />
-          </label>
-
-          {leadError ? <div style={{ color: "#ef4444", fontWeight: 900, fontSize: 13 }}>{leadError}</div> : null}
-
-          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 6 }}>
-            <Button onClick={() => setLeadModalOpen(false)} variant="secondary">
-              Cancelar
-            </Button>
-            <Button onClick={onSubmitLead} variant="primary">
-              Enviar y calcular
-            </Button>
-          </div>
-
-          <div style={{ marginTop: 10, fontSize: 12, color: "var(--muted)" }}>
-            No cobramos. Estos datos ayudan a mejorar el modelo y reportes comparables por industria.
-          </div>
+        <div className="modalActions">
+          <Button onClick={() => setLeadOpen(false)}>Cancelar</Button>
+          <Button variant="primary" onClick={onSubmitLead}>Continuar y calcular</Button>
         </div>
       </Modal>
-    </>
+    </main>
   );
 }

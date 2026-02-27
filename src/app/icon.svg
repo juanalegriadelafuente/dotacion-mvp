@@ -1,0 +1,17 @@
+<!-- src/app/icon.svg -->
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Dotaciones.cl">
+  <defs>
+    <linearGradient id="g" x1="18" y1="16" x2="110" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6d5efc"/>
+      <stop offset="1" stop-color="#22c1c3"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="96" height="96" rx="26" fill="url(#g)"/>
+  <text x="64" y="78"
+        text-anchor="middle"
+        font-size="58"
+        font-weight="900"
+        font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial"
+        fill="white">D</text>
+  <circle cx="90" cy="38" r="6" fill="rgba(255,255,255,0.9)"/>
+</svg>
