@@ -1,32 +1,10 @@
 // src/app/page.tsx
-
 import Image from "next/image";
 import Link from "next/link";
 
-function Card({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="card">
-      <div className="cardPad">
-        <div className="cardHead">
-          <h2 className="h2">{title}</h2>
-        </div>
-        <div className="p">{children}</div>
-      </div>
-    </div>
-  );
-}
-
 export default function HomePage() {
-  const year = new Date().getFullYear();
-
   return (
-    <main className="container">
+    <main className="container" style={{ paddingTop: 18 }}>
       <div className="topbar">
         <div className="brand">
           <Link href="/" className="brandMark" aria-label="Ir al inicio">
@@ -41,141 +19,105 @@ export default function HomePage() {
             <span className="brandName">Dotaciones.cl</span>
           </Link>
           <div className="brandSub">
-            Herramienta gratuita para dimensionar dotación por tramos (cada 30
-            minutos).
+            Calculadoras gratuitas para dotación y mix de contratos.
           </div>
         </div>
 
         <div className="actions">
           <Link className="btn" href="/contacto">
-            Sugerencias
-          </Link>
-          <Link className="btn btnPrimary" href="/calculadora">
-            Ir a la calculadora →
+            Contacto
           </Link>
         </div>
       </div>
 
-      <div style={{ marginTop: 18 }} className="grid2">
-        <div className="card">
-          <div className="cardPad">
-            <h1 className="h1">
-              Calculadora de Dotación por Tramos (30 min) — Chile
-            </h1>
-            <p className="p">
-              Si tu operación <b>sube y baja por hora</b> (retail, alimentación,
-              bodegas, clínicas…), aquí puedes cargar tu
-              <b> necesidad operativa</b> como una grilla:{" "}
-              <b>cuántas personas necesitas cada 30 minutos</b>. Luego te
-              devolvemos <b>horas-persona</b>, <b>FTE</b> y{" "}
-              <b>mix de contratos sugerido</b>.
-            </p>
+      <div className="card" style={{ marginTop: 14 }}>
+        <div className="cardPad">
+          <h1 className="h2" style={{ margin: 0 }}>
+            Elige tu calculadora
+          </h1>
+          <div className="small" style={{ marginTop: 6 }}>
+            Dos caminos según tu tipo de operación. Ambas te entregan un resultado
+            defendible y exportable a Excel.
+          </div>
 
-            <div
-              style={{
-                marginTop: 14,
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-              }}
-            >
-              <Link className="btn btnPrimary" href="/calculadora">
-                Empezar cálculo
-              </Link>
-              <Link className="btn" href="/calculadora?example=1">
-                Cargar ejemplo típico
-              </Link>
-              <a className="btn btnGhost" href="#como">
-                Cómo funciona
-              </a>
+          <div className="grid2" style={{ marginTop: 14, gridTemplateColumns: "1fr 1fr" }}>
+            {/* Retail */}
+            <div className="card">
+              <div className="cardPad">
+                <div className="h3" style={{ margin: 0 }}>
+                  🛒 Calculadora Retail / Servicios similares
+                </div>
+                <div className="small" style={{ marginTop: 6 }}>
+                  Para operaciones con horario de funcionamiento y demanda por día
+                  (turnos), donde necesitas un mix de contratos/jornadas.
+                </div>
+
+                <div className="hr" style={{ marginTop: 12 }} />
+
+                <div className="h3" style={{ marginTop: 0 }}>
+                  Paso a paso (rápido)
+                </div>
+                <ol className="small" style={{ marginTop: 6, paddingLeft: 18 }}>
+                  <li>Define días abiertos y horas de funcionamiento.</li>
+                  <li>Indica personas simultáneas + colación/traslape.</li>
+                  <li>Elige contratos y jornadas permitidas.</li>
+                  <li>Genera mix recomendado y descarga Excel.</li>
+                </ol>
+
+                <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                  <Link className="btn btnPrimary" href="/calculadora">
+                    Ir a Retail →
+                  </Link>
+                  <Link className="btn" href="/calculadora/guia">
+                    Ver guía
+                  </Link>
+                </div>
+              </div>
             </div>
 
-            <div style={{ marginTop: 10 }} className="small">
-              Palabras clave: <b>calculadora de dotación</b>,{" "}
-              <b>dimensionamiento de personal</b>, <b>dotación por tramos</b>.
+            {/* SAN */}
+            <div className="card">
+              <div className="cardPad">
+                <div className="h3" style={{ margin: 0 }}>
+                  🏥 Calculadora SAN Hospitalaria
+                </div>
+                <div className="small" style={{ marginTop: 6 }}>
+                  Para servicios de alimentación hospitalaria. Primero calcula normativa,
+                  luego operación real (horario) y finalmente mix PRO (FT primero).
+                </div>
+
+                <div className="hr" style={{ marginTop: 12 }} />
+
+                <div className="h3" style={{ marginTop: 0 }}>
+                  Paso a paso (PRO)
+                </div>
+                <ol className="small" style={{ marginTop: 6, paddingLeft: 18 }}>
+                  <li>Completa RTD/RCD (o modo avanzado) + camas.</li>
+                  <li>Calcula normativa SAN.</li>
+                  <li>Define horario por día (operación real).</li>
+                  <li>Elige contratos/jornadas permitidas + % máximo PT.</li>
+                  <li>Genera mix PRO y descarga Excel (incluye Operación y MixPro).</li>
+                </ol>
+
+                <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                  <Link className="btn btnPrimary" href="/san">
+                    Ir a SAN →
+                  </Link>
+                  <Link className="btn" href="/san/guia">
+                    Ver guía
+                  </Link>
+                </div>
+              </div>
             </div>
+          </div>
+
+          <div className="hr" style={{ marginTop: 16 }} />
+
+          <div className="small">
+            Tip: si estás licitando, usa siempre el Excel exportado para valorización
+            (costo empresa) y respaldo.
           </div>
         </div>
-
-        <div className="card">
-          <div className="cardPad">
-            <div className="h2">Ejemplo rápido (un día)</div>
-            <div className="hr" />
-            <div style={{ display: "grid", gap: 10 }}>
-              <div className="alert">
-                <div
-                  style={{ display: "flex", justifyContent: "space-between" }}
-                >
-                  <span>08:00–12:00</span>
-                  <b>2 pers.</b>
-                </div>
-              </div>
-              <div className="alert">
-                <div
-                  style={{ display: "flex", justifyContent: "space-between" }}
-                >
-                  <span>12:00–16:00</span>
-                  <b>3 pers.</b>
-                </div>
-              </div>
-              <div className="alert">
-                <div
-                  style={{ display: "flex", justifyContent: "space-between" }}
-                >
-                  <span>16:00–20:00</span>
-                  <b>2 pers.</b>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginTop: 10 }} className="small">
-              Tú cargas los tramos. La herramienta te devuelve <b>FTE</b> y{" "}
-              <b>alternativas de mix</b>.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div id="como" style={{ marginTop: 14 }} className="grid2">
-        <Card title="Qué entrega">
-          <ul style={{ margin: 0, paddingLeft: 18 }}>
-            <li>Horas-persona/semana + FTE estimado</li>
-            <li>Demanda por día (para detectar cuellos)</li>
-            <li>Mix de contratos sugerido (alternativas)</li>
-            <li>Warnings (holguras raras / exceso de PT)</li>
-          </ul>
-        </Card>
-
-        <Card title="Qué cambió (y por qué es mejor)">
-          <div>
-            Antes era “semana simple”. Ahora es{" "}
-            <b>necesidad operativa por tramos de 30 min</b>. Eso permite modelar
-            picos (almuerzo, salida, cierre), días distintos (sábado/domingo) y
-            operaciones que cruzan medianoche.
-          </div>
-        </Card>
-
-        <Card title="Cómo funciona (en 4 pasos)">
-          <ol style={{ margin: 0, paddingLeft: 18 }}>
-            <li>Defines tu base: horas full para FTE y umbral FT/PT.</li>
-            <li>Ingresas tus contratos reales (42h, 36h, 30h, 20h…).</li>
-            <li>Completas la semana en tramos de 30 min.</li>
-            <li>Presionas Calcular y revisas mixes sugeridos.</li>
-          </ol>
-        </Card>
-
-        <Card title="Para quién es">
-          Operaciones, RRHH, jefaturas de local y cualquiera que necesite
-          responder rápido:{" "}
-          <b>
-            “Con esta demanda por hora… ¿cuántas personas contrato y con qué
-            mix?”
-          </b>
-        </Card>
-      </div>
-
-      <div style={{ marginTop: 16 }} className="small">
-        © {year} Dotaciones.cl
       </div>
     </main>
   );

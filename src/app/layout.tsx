@@ -13,17 +13,22 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Metadata global (general, no amarrado a retail)
 export const metadata: Metadata = {
-  title:
-    "Calculadora de Dotación Retail Chile | ¿Cuántas personas necesito para mi tienda?",
+  title: {
+    default: "Dotaciones.cl | Calculadoras de dotación por horas y mix de contratos",
+    template: "%s | Dotaciones.cl",
+  },
   description:
-    "Calcula la dotación mínima retail en Chile considerando efecto domingo, horas hombre y mix de contratos. Herramienta gratuita para operaciones y RRHH.",
+    "Herramientas gratuitas para dimensionar dotación por horas y mix de contratos. Incluye calculadora retail y calculadora SAN hospitalaria con trazabilidad.",
   metadataBase: new URL("https://dotaciones.cl"),
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
-    title:
-      "Calculadora de Dotación Retail Chile | Efecto Domingo y Horas Hombre",
+    title: "Dotaciones.cl | Calculadoras de dotación por horas",
     description:
-      "Herramienta gratuita para calcular cuántas personas necesitas en tu tienda retail.",
+      "Calculadoras gratuitas para dotación por horas y mix de contratos (retail y SAN hospitalario).",
     url: "https://dotaciones.cl",
     siteName: "Dotaciones.cl",
     locale: "es_CL",
@@ -38,9 +43,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es-CL">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
         <Analytics />
       </body>
