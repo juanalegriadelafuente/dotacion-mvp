@@ -105,12 +105,7 @@ function freshSlots() {
   return Array.from({ length: SLOT_COUNT }, () => 0);
 }
 
-function rangeFill(
-  arr: number[],
-  startSlot: number,
-  endSlot: number,
-  value: number,
-) {
+function rangeFill(arr: number[], startSlot: number, endSlot: number, value: number) {
   const out = arr.slice();
   if (endSlot === startSlot) return out;
 
@@ -197,47 +192,25 @@ function Modal({
 }) {
   if (!open) return null;
   return (
-    <div
-      className="modalOverlay"
-      role="dialog"
-      aria-modal="true"
-      aria-label={title}
-    >
-      <div className="modal">
-        <div className="modalPad">
-          <div className="modalHead">
-            <div>
-              <div className="h2">{title}</div>
-              <div className="small" style={{ marginTop: 4 }}>
-                Te enviamos un link al reporte (y te avisamos cuando haya
-                mejoras).
-              </div>
-            </div>
-            <button className="iconBtn" onClick={onClose} aria-label="Cerrar">
-              ✕
-            </button>
-          </div>
-          <div style={{ marginTop: 12 }}>{children}</div>
+    <div className="modalOverlay" onClick={onClose} role="presentation">
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modalHead">
+          <div className="h3">{title}</div>
+          <button className="btn btnGhost" onClick={onClose}>
+            ✕
+          </button>
         </div>
+        <div className="hr" />
+        <div className="modalBody">{children}</div>
       </div>
     </div>
   );
 }
 
 export default function CalculadoraPage() {
-  
-
-  // Base
+  // Config
   const [fullHoursPerWeek, setFullHoursPerWeek] = useState("42");
   const [fullTimeThresholdHours, setFullTimeThresholdHours] = useState("30");
-
-  // Contratos
-  const [contracts, setContracts] = useState<ContractRow[]>([
-    { name: "42h", hoursPerWeek: "42" },
-    { name: "36h", hoursPerWeek: "36" },
-    { name: "30h", hoursPerWeek: "30" },
-    { name: "20h", hoursPerWeek: "20" },
-  ]);
 
   // Preferencias
   const [prefs, setPrefs] = useState<Preferences>({
@@ -248,6 +221,15 @@ export default function CalculadoraPage() {
     allow_pt_weekend: true,
     pt_weekend_strict: true,
   });
+
+  // Contratos
+  const [contracts, setContracts] = useState<ContractRow[]>([
+    { name: "44h", hoursPerWeek: "44" },
+    { name: "42h", hoursPerWeek: "42" },
+    { name: "40h", hoursPerWeek: "40" },
+    { name: "30h", hoursPerWeek: "30" },
+    { name: "20h", hoursPerWeek: "20" },
+  ]);
 
   // Operación por día (gap colación/traslape)
   const [overlapByDay, setOverlapByDay] = useState<Record<DayKey, string>>({
@@ -358,165 +340,155 @@ export default function CalculadoraPage() {
     setSelectedDay("mon");
     setShowGrid(false);
 
-    track("dot_calculadora_load_example", { version: "step4" });
-  }, []);
+    setOverlapByDay({
+      mon: "30",
+      tue: "30",
+      wed: "30",
+      thu: "30",
+      fri: "30",
+      sat: "30",
+      sun: "30",
+    });
+    setBreakByDay({
+      mon: "30",
+      tue: "30",
+      wed: "30",
+      thu: "30",
+      fri: "30",
+      sat: "30",
+      sun: "30",
+    });
 
-  useEffect(() => {
-  const ex = new URLSearchParams(window.location.search).get("example");
-  if (ex === "1") loadExample();
-}, [loadExample]);
+    setContracts([
+      { name: "44h", hoursPerWeek: "44" },
+      { name: "42h", hoursPerWeek: "42" },
+      { name: "40h", hoursPerWeek: "40" },
+      { name: "30h", hoursPerWeek: "30" },
+      { name: "20h", hoursPerWeek: "20" },
+    ]);
 
-  const selectedSlots = demand30[selectedDay];
-  const dayBaseHours = useMemo(
-    () => slotsBaseHours(selectedSlots),
-    [selectedSlots],
-  );
-  const dayPeak = useMemo(() => slotsPeak(selectedSlots), [selectedSlots]);
-  const daySegments = useMemo(
-    () => slotsToSegments(selectedSlots),
-    [selectedSlots],
-  );
-
-  const weekBaseHours = useMemo(() => {
-    let sum = 0;
-    for (const d of DAY_ORDER) {
-      if (!dayOpen[d]) continue;
-      sum += slotsBaseHours(demand30[d]);
-    }
-    return Math.round(sum * 10) / 10;
-  }, [dayOpen, demand30]);
-
-  function toggleOpenDay(day: DayKey, open: boolean) {
-    setDayOpen((p) => ({ ...p, [day]: open }));
-    if (!open) {
-      setDemand30((p) => ({ ...p, [day]: freshSlots() }));
-    }
-  }
-
-  function applyRangeFill() {
-    const s = timeToSlot(rangeStart);
-    const e = timeToSlot(rangeEnd);
-    const v = clamp(Number(rangeValue || 0), 0, 99);
-
-    setDemand30((prev) => ({
-      ...prev,
-      [selectedDay]: rangeFill(prev[selectedDay], s, e, v),
+    setPrefs((p) => ({
+      ...p,
+      strategy: "balanced",
+      allow_6x1: true,
+      allow_5x2: true,
+      allow_4x3: true,
+      allow_pt_weekend: true,
+      pt_weekend_strict: true,
     }));
 
-    if (!dayOpen[selectedDay] && v > 0) toggleOpenDay(selectedDay, true);
-  }
+    setResult(null);
+    setError(null);
+    setReportId(null);
 
-  function clearDay() {
-    setDemand30((prev) => ({ ...prev, [selectedDay]: freshSlots() }));
-  }
+    track("calc_load_example");
+  }, []);
 
-  function updateCell(i: number, value: string) {
-    const v = clamp(Number(value || 0), 0, 99);
-    setDemand30((prev) => {
-      const arr = prev[selectedDay].slice();
-      arr[i] = v;
-      return { ...prev, [selectedDay]: arr };
-    });
-    if (!dayOpen[selectedDay] && v > 0) toggleOpenDay(selectedDay, true);
-  }
+  const dayStats = useMemo(() => {
+    const slots = demand30[selectedDay] ?? [];
+    return {
+      baseHours: slotsBaseHours(slots),
+      peak: slotsPeak(slots),
+      segments: slotsToSegments(slots),
+    };
+  }, [demand30, selectedDay]);
 
-  function copyDay(from: DayKey, to: DayKey) {
-    setDemand30((prev) => ({ ...prev, [to]: prev[from].slice() }));
-    if (!dayOpen[from]) toggleOpenDay(to, false);
-    else toggleOpenDay(to, true);
-  }
-
-  function copyDayToAll(from: DayKey) {
-    setDemand30((prev) => {
-      const src = prev[from].slice();
-      const out = { ...prev } as Record<DayKey, number[]>;
-      for (const d of DAY_ORDER) out[d] = src.slice();
-      return out;
-    });
-    setDayOpen({
-      mon: true,
-      tue: true,
-      wed: true,
-      thu: true,
-      fri: true,
-      sat: true,
-      sun: true,
-    });
-  }
-
-  function buildPayload() {
-    const fteDen = clamp(Number(fullHoursPerWeek || 42), 1, 80);
-    const threshold = clamp(Number(fullTimeThresholdHours || 30), 1, 60);
-
-    const cleanContracts = contracts
-      .map((c) => ({
-        name: (c.name || "").trim(),
-        hoursPerWeek: clamp(Number(c.hoursPerWeek || 0), 1, 80),
-      }))
-      .filter((c) => c.name.length > 0 && c.hoursPerWeek > 0);
-
-    const demand30Payload: Partial<Record<DayKey, number[]>> = {};
+  const calcInput = useMemo(() => {
     const days: any = {};
-
     for (const d of DAY_ORDER) {
-      const slots = demand30[d];
-      const base = slotsBaseHours(slots);
-      const peak = slotsPeak(slots);
-      const open = Boolean(dayOpen[d]) && base > 0.0001;
-
-      if (open) demand30Payload[d] = slots;
-
       days[d] = {
-        open,
-        hoursOpen: base,
-        requiredPeople: peak,
-        overlapMinutes: clamp(Number(overlapByDay[d] || 0), 0, 300),
-        breakMinutes: clamp(Number(breakByDay[d] || 0), 0, 300),
+        open: !!dayOpen[d],
+        hoursOpen: 0,
+        requiredPeople: 0,
+        overlapMinutes: Number(overlapByDay[d] || 0),
+        breakMinutes: Number(breakByDay[d] || 0),
       };
     }
 
+    const parsedContracts = contracts
+      .map((c) => ({
+        name: String(c.name || "").trim(),
+        hoursPerWeek: Number(c.hoursPerWeek || 0),
+      }))
+      .filter((c) => c.name.length > 0 && Number.isFinite(c.hoursPerWeek) && c.hoursPerWeek > 0);
+
     return {
-      fullHoursPerWeek: fteDen,
-      fullTimeThresholdHours: threshold,
+      fullHoursPerWeek: Number(fullHoursPerWeek || 42),
+      fullTimeThresholdHours: Number(fullTimeThresholdHours || 30),
       days,
-      contracts: cleanContracts,
+      demand30,
+      contracts: parsedContracts,
       preferences: prefs,
-      demand30: demand30Payload,
       debugNonce: Date.now(),
     };
-  }
+  }, [
+    breakByDay,
+    contracts,
+    dayOpen,
+    demand30,
+    fullHoursPerWeek,
+    fullTimeThresholdHours,
+    overlapByDay,
+    prefs,
+  ]);
 
-  function onClickCalculate() {
-    setLeadError(null);
-    setLeadOpen(true);
+  async function runCalculateOnly() {
+    setIsLoading(true);
+    setError(null);
+    setReportId(null);
+
+    try {
+      track("calc_submit", { mode: "retail" });
+      const r = await fetch("/api/calculate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(calcInput),
+      });
+      const json = (await r.json()) as CalcResponse;
+
+      if (!r.ok || !json.ok) {
+        setResult(null);
+        setError((json as any)?.error || "No se pudo calcular.");
+        return;
+      }
+
+      setResult(json.result);
+    } catch (e: any) {
+      setResult(null);
+      setError(e?.message || "Error inesperado.");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   async function runCalculateAndLeadSave() {
     setIsLoading(true);
     setError(null);
-    setResult(null);
     setReportId(null);
 
     try {
-      const calcInput = buildPayload();
+      track("calc_submit", { mode: "lead" });
 
-      // 1) Calcular
-      const resp = await fetch("/api/calculate", {
+      const r = await fetch("/api/calculate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(calcInput),
       });
+      const json = (await r.json()) as CalcResponse;
 
-      const json = (await resp.json()) as CalcResponse;
-      if (!resp.ok || !json.ok)
-        throw new Error((json as any)?.error || "Error calculando.");
+      if (!r.ok || !json.ok) {
+        setResult(null);
+        setError((json as any)?.error || "No se pudo calcular.");
+        return;
+      }
 
       setResult(json.result);
-      track("dot_calculadora_calculate", { version: "step4" });
 
-      // 2) Guardar lead + enviar correo
-      const leadPayload: any = {
+      const leadPayload = {
+        name: lead.name.trim(),
         email: lead.email.trim(),
+        company: "",
+        phone: "",
         role: lead.role.trim(),
         company_size: lead.company_size.trim(),
         city: "",
@@ -537,8 +509,7 @@ export default function CalculadoraPage() {
       const leadJson: any = await leadResp.json().catch(() => null);
 
       if (leadResp.ok) {
-        const id =
-          leadJson?.id || leadJson?.leadId || leadJson?.data?.id || null;
+        const id = leadJson?.id || leadJson?.leadId || leadJson?.data?.id || null;
         if (id) setReportId(String(id));
       }
     } catch (e: any) {
@@ -554,11 +525,8 @@ export default function CalculadoraPage() {
     if (!lead.name.trim()) return setLeadError("Pon tu nombre (o alias).");
     if (!lead.role.trim()) return setLeadError("¿Tu cargo?");
     if (!lead.industry.trim())
-      return setLeadError(
-        "¿Industria? (retail / hospital / alimentación / logística)",
-      );
-    if (!lead.company_size.trim())
-      return setLeadError("¿Cantidad aprox. de empleados?");
+      return setLeadError("¿Industria? (retail / hospital / alimentación / logística)");
+    if (!lead.company_size.trim()) return setLeadError("¿Cantidad aprox. de empleados?");
     if (!emailLooksOk(lead.email))
       return setLeadError("Ese email se ve inválido (ej: nombre@dominio.com).");
 
@@ -600,6 +568,37 @@ export default function CalculadoraPage() {
         </div>
       </div>
 
+      {/* CTA SAN (empuje de tráfico interno) */}
+      <div className="card" style={{ marginTop: 12 }}>
+        <div
+          className="cardPad"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div className="h3" style={{ margin: 0 }}>
+              🏥 Nuevo: Calculadora SAN Hospitalaria (PRO)
+            </div>
+            <div className="small" style={{ marginTop: 4 }}>
+              Normativa + operación por día + mix FT primero + Excel PRO.
+            </div>
+          </div>
+
+          <Link
+            className="btn btnPrimary"
+            href="/san"
+            onClick={() => track("cta_san_from_calculadora")}
+          >
+            Ir a SAN →
+          </Link>
+        </div>
+      </div>
+
       {/* Hero */}
       <div style={{ marginTop: 16 }} className="gridMain">
         <div className="card">
@@ -621,263 +620,98 @@ export default function CalculadoraPage() {
             >
               <Button
                 variant="primary"
-                onClick={onClickCalculate}
+                onClick={runCalculateOnly}
                 disabled={isLoading}
               >
                 {isLoading ? "Calculando…" : "Calcular"}
               </Button>
-              <span className="small">
-                Tip: usa <span className="kbd">Rellenar rango</span> y deja la
-                grilla para ajustes finos.
-              </span>
-            </div>
-          </div>
-        </div>
 
-        <div className="card">
-          <div className="cardPad">
-            <div className="cardHead">
-              <h2 className="h2">Resumen base</h2>
-              <span className="small">semana</span>
-            </div>
-            <div className="hr" />
-            <div className="alert statCard">
-              <div className="statLabel">Horas-persona base (sin gap)</div>
-              <div className="statValue">{weekBaseHours}</div>
-            </div>
-            <div style={{ marginTop: 10 }} className="small">
-              Gap colación/traslape se agrega en el cálculo.
-            </div>
-          </div>
-        </div>
-      </div>
+              <Button
+                variant="secondary"
+                onClick={() => setLeadOpen(true)}
+                disabled={isLoading}
+              >
+                Guardar reporte (gratis)
+              </Button>
 
-      {/* Config */}
-      <div style={{ marginTop: 14 }} className="grid2">
-        <div className="card">
-          <div className="cardPad">
-            <div className="cardHead">
-              <h2 className="h2">Base (FTE y umbral)</h2>
-              <span className="small">Paso 1</span>
+              {reportId ? (
+                <Link className="btn" href={`/reporte/${reportId}`}>
+                  Ver reporte →
+                </Link>
+              ) : null}
             </div>
-            <div className="hr" />
 
-            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              <div className="field">
-                <div className="label">Horas full para 1 FTE (ej: 42)</div>
-                <input
-                  className="input"
-                  value={fullHoursPerWeek}
-                  onChange={(e) => setFullHoursPerWeek(e.target.value)}
-                />
+            {error ? (
+              <div className="alert alertError" style={{ marginTop: 12 }}>
+                ❌ {error}
               </div>
+            ) : null}
 
-              <div className="field">
-                <div className="label">Umbral FT/PT (ej: 30)</div>
-                <input
-                  className="input"
-                  value={fullTimeThresholdHours}
-                  onChange={(e) => setFullTimeThresholdHours(e.target.value)}
-                />
+            {result?.warnings?.length ? (
+              <div className="alert" style={{ marginTop: 12 }}>
+                ⚠️ {result.warnings.join(" | ")}
               </div>
-            </div>
-
-            <div style={{ marginTop: 10 }} className="small">
-              FTE = horas requeridas / horas full.
-            </div>
+            ) : null}
           </div>
         </div>
 
+        {/* Sidebar (día) */}
         <div className="card">
           <div className="cardPad">
-            <div className="cardHead">
-              <h2 className="h2">Contratos disponibles</h2>
-              <span className="small">Paso 2</span>
+            <div className="h3" style={{ marginTop: 0 }}>
+              Día / Tramos (30 min)
             </div>
-            <div className="hr" />
 
-            <div style={{ display: "grid", gap: 10 }}>
-              {contracts.map((c, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.2fr 0.8fr auto",
-                    gap: 10,
-                    alignItems: "center",
-                  }}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {DAY_ORDER.map((d) => (
+                <Button
+                  key={d}
+                  variant={d === selectedDay ? "primary" : "secondary"}
+                  onClick={() => setSelectedDay(d)}
                 >
-                  <input
-                    className="input"
-                    placeholder="Nombre (ej: 42h)"
-                    value={c.name}
-                    onChange={(e) =>
-                      setContracts((p) => {
-                        const out = p.slice();
-                        out[idx] = { ...out[idx], name: e.target.value };
-                        return out;
-                      })
-                    }
-                  />
-                  <input
-                    className="input"
-                    placeholder="Horas/sem"
-                    value={c.hoursPerWeek}
-                    onChange={(e) =>
-                      setContracts((p) => {
-                        const out = p.slice();
-                        out[idx] = {
-                          ...out[idx],
-                          hoursPerWeek: e.target.value,
-                        };
-                        return out;
-                      })
-                    }
-                  />
-                  <Button
-                    variant="ghost"
-                    onClick={() =>
-                      setContracts((p) => p.filter((_, i) => i !== idx))
-                    }
-                    disabled={contracts.length <= 1}
-                  >
-                    Quitar
-                  </Button>
-                </div>
+                  {DAY_LABEL[d]}
+                </Button>
               ))}
             </div>
 
-            <div
-              style={{
-                marginTop: 10,
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-              }}
-            >
-              <Button
-                onClick={() =>
-                  setContracts((p) => [
-                    ...p,
-                    { name: `Nuevo`, hoursPerWeek: "30" },
-                  ])
-                }
-              >
-                + Agregar contrato
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+            <div className="hr" style={{ marginTop: 12 }} />
 
-      {/* Preferencias + Día editor */}
-      <div style={{ marginTop: 14 }} className="gridMain">
-        <div className="card">
-          <div className="cardPad">
-            <div className="cardHead">
-              <h2 className="h2">Preferencias de mix</h2>
-              <span className="small">Paso 3</span>
+            <div className="small">
+              Base horas-persona (día): <b>{dayStats.baseHours}</b>
+              <br />
+              Peak personas: <b>{dayStats.peak}</b>
             </div>
-            <div className="hr" />
 
-            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              <div className="field">
-                <div className="label">Estrategia</div>
-                <select
-                  className="select"
-                  value={prefs.strategy}
+            <div className="hr" style={{ marginTop: 12 }} />
+
+            <label className="label">Abierto</label>
+            <div className="small" style={{ display: "flex", gap: 10 }}>
+              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={dayOpen[selectedDay]}
                   onChange={(e) =>
-                    setPrefs((p) => ({ ...p, strategy: e.target.value as any }))
+                    setDayOpen((p) => ({ ...p, [selectedDay]: e.target.checked }))
                   }
-                >
-                  <option value="balanced">Balanceado</option>
-                  <option value="min_people">Menos personas</option>
-                  <option value="stable">Más estable (menos PT)</option>
-                </select>
-              </div>
+                />
+                {DAY_LABEL[selectedDay]}
+              </label>
+            </div>
 
+            <div className="grid2" style={{ marginTop: 10 }}>
               <div className="field">
-                <div className="label">Nota</div>
-                <div className="small">
-                  4x3 solo funciona si incluyes contrato <b>40h</b>.
-                </div>
+                <label className="label">Colación (min)</label>
+                <input
+                  className="input"
+                  value={breakByDay[selectedDay]}
+                  onChange={(e) =>
+                    setBreakByDay((p) => ({ ...p, [selectedDay]: e.target.value }))
+                  }
+                  inputMode="numeric"
+                />
               </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: 12,
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-              }}
-            >
-              <button
-                className={`toggle ${prefs.allow_6x1 ? "toggleOn" : ""}`}
-                onClick={() =>
-                  setPrefs((p) => ({ ...p, allow_6x1: !p.allow_6x1 }))
-                }
-              >
-                <span className="dot" /> Permitir 6x1
-              </button>
-
-              <button
-                className={`toggle ${prefs.allow_5x2 ? "toggleOn" : ""}`}
-                onClick={() =>
-                  setPrefs((p) => ({ ...p, allow_5x2: !p.allow_5x2 }))
-                }
-              >
-                <span className="dot" /> Permitir 5x2
-              </button>
-
-              <button
-                className={`toggle ${prefs.allow_4x3 ? "toggleOn" : ""}`}
-                onClick={() =>
-                  setPrefs((p) => ({ ...p, allow_4x3: !p.allow_4x3 }))
-                }
-              >
-                <span className="dot" /> Permitir 4x3 (40h)
-              </button>
-
-              <button
-                className={`toggle ${prefs.allow_pt_weekend ? "toggleOn" : ""}`}
-                onClick={() =>
-                  setPrefs((p) => ({
-                    ...p,
-                    allow_pt_weekend: !p.allow_pt_weekend,
-                  }))
-                }
-              >
-                <span className="dot" /> Permitir PT fin de semana
-              </button>
-
-              <button
-                className={`toggle ${prefs.pt_weekend_strict ? "toggleOn" : ""}`}
-                onClick={() =>
-                  setPrefs((p) => ({
-                    ...p,
-                    pt_weekend_strict: !p.pt_weekend_strict,
-                  }))
-                }
-              >
-                <span className="dot" /> PT estricto
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="cardPad">
-            <div className="cardHead">
-              <h2 className="h2">Operación (gap)</h2>
-              <span className="small">aplica por día</span>
-            </div>
-            <div className="hr" />
-            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
               <div className="field">
-                <div className="label">
-                  Traslape (min) — {DAY_LABEL[selectedDay]}
-                </div>
+                <label className="label">Traslape (min)</label>
                 <input
                   className="input"
                   value={overlapByDay[selectedDay]}
@@ -887,257 +721,146 @@ export default function CalculadoraPage() {
                       [selectedDay]: e.target.value,
                     }))
                   }
-                />
-              </div>
-              <div className="field">
-                <div className="label">
-                  Colación no imputable (min) — {DAY_LABEL[selectedDay]}
-                </div>
-                <input
-                  className="input"
-                  value={breakByDay[selectedDay]}
-                  onChange={(e) =>
-                    setBreakByDay((p) => ({
-                      ...p,
-                      [selectedDay]: e.target.value,
-                    }))
-                  }
+                  inputMode="numeric"
                 />
               </div>
             </div>
-            <div style={{ marginTop: 8 }} className="small">
-              Si colación &gt; traslape, se suman horas-persona extra usando el
-              peak del día.
+
+            <div className="hr" style={{ marginTop: 12 }} />
+
+            <Button
+              variant="secondary"
+              onClick={() => setShowGrid((v) => !v)}
+            >
+              {showGrid ? "Ocultar grilla" : "Editar grilla 30 min"}
+            </Button>
+
+            <div className="hr" style={{ marginTop: 12 }} />
+
+            <div className="h3" style={{ marginTop: 0 }}>
+              Copiar configuración
+            </div>
+
+            <div className="grid2">
+              <div className="field">
+                <label className="label">Copiar día actual a</label>
+                <select
+                  className="input"
+                  value={copyTarget}
+                  onChange={(e) => setCopyTarget(e.target.value as DayKey)}
+                >
+                  {DAY_ORDER.filter((d) => d !== selectedDay).map((d) => (
+                    <option key={d} value={d}>
+                      {DAY_LABEL[d]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setDemand30((p) => ({ ...p, [copyTarget]: p[selectedDay].slice() }));
+                    setDayOpen((p) => ({ ...p, [copyTarget]: p[selectedDay] }));
+                    setBreakByDay((p) => ({ ...p, [copyTarget]: p[selectedDay] }));
+                    setOverlapByDay((p) => ({ ...p, [copyTarget]: p[selectedDay] }));
+                    track("calc_copy_day");
+                  }}
+                >
+                  Copiar
+                </Button>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Paso 4 */}
-      <div style={{ marginTop: 14 }} className="card">
-        <div className="cardPad">
-          <div className="cardHead">
-            <h2 className="h2">
-              Paso 4 — Necesidad operativa por tramos (30 min)
-            </h2>
-            <span className="small">día por día</span>
-          </div>
-          <div className="hr" />
+      {/* Grid editor */}
+      {showGrid ? (
+        <div className="card" style={{ marginTop: 14 }}>
+          <div className="cardPad">
+            <div className="h3" style={{ marginTop: 0 }}>
+              Editar grilla 30 min — {DAY_LABEL[selectedDay]}
+            </div>
 
-          <div className="pills">
-            {DAY_ORDER.map((d) => (
-              <button
-                key={d}
-                className={`pill ${selectedDay === d ? "pillOn" : ""}`}
-                onClick={() => setSelectedDay(d)}
-                title={DAY_LABEL[d]}
-              >
-                {DAY_LABEL[d]}
-              </button>
-            ))}
-          </div>
-
-          <div
-            style={{
-              marginTop: 12,
-              display: "flex",
-              gap: 10,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            <button
-              className={`toggle ${dayOpen[selectedDay] ? "toggleOn" : ""}`}
-              onClick={() => toggleOpenDay(selectedDay, !dayOpen[selectedDay])}
-            >
-              <span className="dot" /> Día abierto
-            </button>
-
-            <span className="small">
-              Base: <b>{dayBaseHours}</b> hrs-persona · Peak: <b>{dayPeak}</b>{" "}
-              pers.
-            </span>
-          </div>
-
-          <div style={{ marginTop: 12 }} className="grid2">
-            <div
-              className="card"
-              style={{ background: "var(--panel2)" as any }}
-            >
-              <div className="cardPad">
-                <div className="h2">Rellenar rango (rápido)</div>
-                <div className="small" style={{ marginTop: 4 }}>
-                  Ej: 12:00 a 16:00 = 3 personas
-                </div>
-
-                <div
-                  style={{
-                    marginTop: 10,
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr 1fr auto",
-                    gap: 10,
-                    alignItems: "end",
-                  }}
-                >
-                  <div className="field">
-                    <div className="label">Inicio</div>
-                    <input
-                      className="input"
-                      value={rangeStart}
-                      onChange={(e) => setRangeStart(e.target.value)}
-                      placeholder="08:00"
-                    />
-                  </div>
-                  <div className="field">
-                    <div className="label">Fin</div>
-                    <input
-                      className="input"
-                      value={rangeEnd}
-                      onChange={(e) => setRangeEnd(e.target.value)}
-                      placeholder="18:00"
-                    />
-                  </div>
-                  <div className="field">
-                    <div className="label">Personas</div>
-                    <input
-                      className="input"
-                      value={rangeValue}
-                      onChange={(e) => setRangeValue(e.target.value)}
-                      placeholder="2"
-                    />
-                  </div>
-                  <Button
-                    variant="primary"
-                    onClick={applyRangeFill}
-                    disabled={!dayOpen[selectedDay]}
-                  >
-                    Aplicar
-                  </Button>
-                </div>
-
-                <div
-                  style={{
-                    marginTop: 10,
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Button onClick={clearDay} disabled={!dayOpen[selectedDay]}>
-                    Limpiar día
-                  </Button>
-
-                  <div className="field" style={{ minWidth: 160 }}>
-                    <div className="label">Copiar a…</div>
-                    <select
-                      className="select"
-                      value={copyTarget}
-                      onChange={(e) => setCopyTarget(e.target.value as DayKey)}
-                    >
-                      {DAY_ORDER.filter((d) => d !== selectedDay).map((d) => (
-                        <option key={d} value={d}>
-                          {DAY_LABEL[d]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <Button
-                    onClick={() => copyDay(selectedDay, copyTarget)}
-                    disabled={!dayOpen[selectedDay]}
-                  >
-                    Copiar día
-                  </Button>
-
-                  <Button
-                    onClick={() => copyDayToAll(selectedDay)}
-                    disabled={!dayOpen[selectedDay]}
-                  >
-                    Copiar a toda la semana
-                  </Button>
-                </div>
+            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <div className="field">
+                <label className="label">Desde</label>
+                <input
+                  className="input"
+                  value={rangeStart}
+                  onChange={(e) => setRangeStart(e.target.value)}
+                  placeholder="08:00"
+                />
+              </div>
+              <div className="field">
+                <label className="label">Hasta</label>
+                <input
+                  className="input"
+                  value={rangeEnd}
+                  onChange={(e) => setRangeEnd(e.target.value)}
+                  placeholder="18:00"
+                />
               </div>
             </div>
 
-            <div
-              className="card"
-              style={{ background: "var(--panel2)" as any }}
-            >
-              <div className="cardPad">
-                <div className="cardHead">
-                  <div>
-                    <div className="h2">Resumen del día</div>
-                    <div className="small">
-                      segmentos detectados (solo valores ≠ 0)
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowGrid((v) => !v)}
-                    disabled={!dayOpen[selectedDay]}
-                  >
-                    {showGrid ? "Ocultar grilla" : "Ver grilla"}
-                  </Button>
-                </div>
+            <div className="grid2" style={{ marginTop: 10, gridTemplateColumns: "1fr 1fr" }}>
+              <div className="field">
+                <label className="label">Personas</label>
+                <input
+                  className="input"
+                  value={rangeValue}
+                  onChange={(e) => setRangeValue(e.target.value)}
+                  inputMode="numeric"
+                />
+              </div>
 
-                <div className="hr" />
-
-                {daySegments.length === 0 ? (
-                  <div className="small">
-                    Aún no hay tramos (o el día está en 0). Usa “Rellenar
-                    rango”.
-                  </div>
-                ) : (
-                  <div style={{ display: "grid", gap: 8 }}>
-                    {daySegments.slice(0, 10).map((s, idx) => (
-                      <div key={idx} className="alert">
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 10,
-                          }}
-                        >
-                          <span>
-                            {slotLabel(s.start)}–{slotLabel(s.end)}
-                          </span>
-                          <b>{s.value} pers.</b>
-                        </div>
-                      </div>
-                    ))}
-                    {daySegments.length > 10 ? (
-                      <div className="small">
-                        …y {daySegments.length - 10} tramos más
-                      </div>
-                    ) : null}
-                  </div>
-                )}
+              <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    const s = timeToSlot(rangeStart);
+                    const e = timeToSlot(rangeEnd);
+                    const v = clamp(Number(rangeValue || 0), 0, 999);
+                    setDemand30((p) => ({
+                      ...p,
+                      [selectedDay]: rangeFill(p[selectedDay], s, e, v),
+                    }));
+                    track("calc_fill_range");
+                  }}
+                >
+                  Rellenar rango
+                </Button>
               </div>
             </div>
-          </div>
 
-          {showGrid ? (
-            <div style={{ marginTop: 14 }} className="tableWrap">
-              <table className="gridTable">
+            <div className="hr" style={{ marginTop: 14 }} />
+
+            <div className="gridScroll">
+              <table className="table">
                 <thead>
                   <tr>
-                    <th>Hora</th>
-                    <th className="num">Personas</th>
+                    <th>Tramo</th>
+                    <th>Personas</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedSlots.map((v, i) => (
+                  {demand30[selectedDay].map((v, i) => (
                     <tr key={i}>
                       <td>{slotLabel(i)}</td>
-                      <td className="num">
+                      <td style={{ width: 160 }}>
                         <input
-                          className="cellInput"
-                          type="number"
-                          min={0}
-                          max={99}
-                          value={v}
-                          disabled={!dayOpen[selectedDay]}
-                          onChange={(e) => updateCell(i, e.target.value)}
+                          className="input"
+                          value={String(v)}
+                          onChange={(e) => {
+                            const nv = clamp(Number(e.target.value || 0), 0, 999);
+                            setDemand30((p) => {
+                              const out = p[selectedDay].slice();
+                              out[i] = nv;
+                              return { ...p, [selectedDay]: out };
+                            });
+                          }}
+                          inputMode="numeric"
                         />
                       </td>
                     </tr>
@@ -1145,295 +868,393 @@ export default function CalculadoraPage() {
                 </tbody>
               </table>
             </div>
-          ) : null}
 
-          <div style={{ marginTop: 12 }} className="small">
-            Consejo: si tu operación es estable, usa pocos tramos grandes. Si
-            tiene “puntas”, marca solo esos cambios.
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setDemand30((p) => ({ ...p, [selectedDay]: freshSlots() }));
+                  track("calc_clear_day");
+                }}
+              >
+                Limpiar día
+              </Button>
+              <Button variant="ghost" onClick={() => setShowGrid(false)}>
+                Listo
+              </Button>
+            </div>
           </div>
+        </div>
+      ) : null}
 
-          {/* ✅ Botón grande debajo del Paso 4 */}
-          <div style={{ marginTop: 14 }}>
-            <Button
-              variant="primary"
-              className="btnBig"
-              onClick={onClickCalculate}
-              disabled={isLoading}
-            >
-              {isLoading ? "Calculando…" : "Calcular (generar reporte)"}
-            </Button>
+      {/* Config */}
+      <div className="grid2" style={{ marginTop: 14, gridTemplateColumns: "1fr 1fr" }}>
+        <div className="card">
+          <div className="cardPad">
+            <div className="h3" style={{ marginTop: 0 }}>
+              Configuración
+            </div>
+
+            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+              <div className="field">
+                <label className="label">Horas Full (FTE)</label>
+                <input
+                  className="input"
+                  value={fullHoursPerWeek}
+                  onChange={(e) => setFullHoursPerWeek(e.target.value)}
+                  inputMode="numeric"
+                />
+                <div className="small">Ej: 42</div>
+              </div>
+              <div className="field">
+                <label className="label">Umbral Full/Part</label>
+                <input
+                  className="input"
+                  value={fullTimeThresholdHours}
+                  onChange={(e) => setFullTimeThresholdHours(e.target.value)}
+                  inputMode="numeric"
+                />
+                <div className="small">Ej: 30</div>
+              </div>
+            </div>
+
+            <div className="hr" style={{ marginTop: 12 }} />
+
+            <div className="h3" style={{ marginTop: 0 }}>
+              Preferencias
+            </div>
+
+            <div className="field">
+              <label className="label">Estrategia</label>
+              <select
+                className="input"
+                value={prefs.strategy}
+                onChange={(e) =>
+                  setPrefs((p) => ({ ...p, strategy: e.target.value as any }))
+                }
+              >
+                <option value="balanced">Balanceado</option>
+                <option value="min_people">Menos personas</option>
+                <option value="stable">Más estable</option>
+              </select>
+            </div>
+
+            <div className="grid2" style={{ marginTop: 10 }}>
+              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={prefs.allow_6x1}
+                  onChange={(e) => setPrefs((p) => ({ ...p, allow_6x1: e.target.checked }))}
+                />
+                6x1
+              </label>
+
+              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={prefs.allow_5x2}
+                  onChange={(e) => setPrefs((p) => ({ ...p, allow_5x2: e.target.checked }))}
+                />
+                5x2
+              </label>
+
+              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={prefs.allow_4x3}
+                  onChange={(e) => setPrefs((p) => ({ ...p, allow_4x3: e.target.checked }))}
+                />
+                4x3 (solo 40h)
+              </label>
+
+              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={prefs.allow_pt_weekend}
+                  onChange={(e) =>
+                    setPrefs((p) => ({ ...p, allow_pt_weekend: e.target.checked }))
+                  }
+                />
+                PT fin de semana
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="cardPad">
+            <div className="h3" style={{ marginTop: 0 }}>
+              Contratos
+            </div>
+
+            <div className="small">
+              Define los contratos disponibles. El motor arma combinaciones por jornada (6x1 / 5x2 /
+              4x3 / PT fin de semana).
+            </div>
+
+            <div className="hr" style={{ marginTop: 12 }} />
+
+            <div className="gridScroll">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Horas/sem</th>
+                    <th style={{ width: 110 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {contracts.map((c, i) => (
+                    <tr key={i}>
+                      <td>
+                        <input
+                          className="input"
+                          value={c.name}
+                          onChange={(e) =>
+                            setContracts((p) => {
+                              const out = p.slice();
+                              out[i] = { ...out[i], name: e.target.value };
+                              return out;
+                            })
+                          }
+                        />
+                      </td>
+                      <td style={{ width: 140 }}>
+                        <input
+                          className="input"
+                          value={c.hoursPerWeek}
+                          inputMode="numeric"
+                          onChange={(e) =>
+                            setContracts((p) => {
+                              const out = p.slice();
+                              out[i] = { ...out[i], hoursPerWeek: e.target.value };
+                              return out;
+                            })
+                          }
+                        />
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <Button
+                          variant="danger"
+                          onClick={() => {
+                            setContracts((p) => p.filter((_, j) => j !== i));
+                            track("calc_remove_contract");
+                          }}
+                        >
+                          Quitar
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setContracts((p) => [...p, { name: "Nuevo", hoursPerWeek: "30" }]);
+                  track("calc_add_contract");
+                }}
+              >
+                Agregar contrato
+              </Button>
+
+              <Button variant="primary" onClick={runCalculateOnly} disabled={isLoading}>
+                {isLoading ? "Calculando…" : "Recalcular"}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Resultados */}
-      <div style={{ marginTop: 14 }}>
-        {error ? <div className="alert alertError">❌ {error}</div> : null}
+      {/* Resultado */}
+      <div className="card" style={{ marginTop: 14 }}>
+        <div className="cardPad">
+          <div className="h3" style={{ marginTop: 0 }}>
+            Resultado
+          </div>
 
-        {result ? (
-          <div style={{ display: "grid", gap: 14 }}>
-            <div className="card">
-              <div className="cardPad">
-                <div className="cardHead">
-                  <h2 className="h2">Resultado</h2>
-                  <span className="small">requerimiento y mixes</span>
-                </div>
-                <div className="hr" />
-
-                <div
-                  className="grid2"
-                  style={{ gridTemplateColumns: "1fr 1fr" }}
-                >
-                  <div className="alert statCard">
-                    <div className="statLabel">Horas requeridas</div>
-                    <div className="statValue">{result.requiredHours}</div>
-                  </div>
-                  <div className="alert statCard">
-                    <div className="statLabel">FTE estimado</div>
-                    <div className="statValue">{result.fte}</div>
-                  </div>
-                </div>
-
-                {reportId ? (
-                  <div style={{ marginTop: 10 }} className="alert alertOk">
-                    ✅ Reporte generado:{" "}
-                    <Link
-                      href={`/reporte/${reportId}`}
-                      style={{ fontWeight: 950, textDecoration: "underline" }}
-                    >
-                      /reporte/{reportId}
-                    </Link>
-                  </div>
-                ) : (
-                  <div style={{ marginTop: 10 }} className="small">
-                    Si tu /api/leads devuelve un id, acá mostramos el link al
-                    reporte automáticamente.
-                  </div>
-                )}
-
-                {result.warnings?.length ? (
-                  <div style={{ marginTop: 12 }}>
-                    <div className="h2">Warnings</div>
-                    <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
-                      {result.warnings.map((w, idx) => (
-                        <div key={idx} className="alert alertWarn">
-                          ⚠️ {w}
-                        </div>
-                      ))}
+          {!result ? (
+            <div className="small" style={{ marginTop: 8 }}>
+              Ejecuta <b>Calcular</b> para ver horas, FTE y mixes sugeridos.
+            </div>
+          ) : (
+            <>
+              <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 10 }}>
+                <div className="card">
+                  <div className="cardPad">
+                    <div className="small">Horas requeridas (semana)</div>
+                    <div className="h2" style={{ marginTop: 6 }}>
+                      {result.requiredHours}
                     </div>
                   </div>
-                ) : null}
-
-                <div style={{ marginTop: 12 }}>
-                  <div className="h2">Demanda por día (hrs-persona)</div>
-                  <div style={{ marginTop: 10 }} className="tableWrap">
-                    <table className="gridTable" style={{ minWidth: 420 }}>
-                      <thead>
-                        <tr>
-                          <th>Día</th>
-                          <th className="num">Horas</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {result.demandByDay.map((d, idx) => (
-                          <tr key={idx}>
-                            <td>{d.day}</td>
-                            <td className="num">
-                              <b>{d.hours}</b>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
                 </div>
 
-                <div style={{ marginTop: 12 }}>
-                  <div className="h2">Mix sugeridos</div>
-                  <div className="small">
-                    Te mostramos alternativas: balanceado, menos personas, menos
-                    PT, etc.
+                <div className="card">
+                  <div className="cardPad">
+                    <div className="small">FTE (sobre {fullHoursPerWeek}h)</div>
+                    <div className="h2" style={{ marginTop: 6 }}>
+                      {result.fte}
+                    </div>
                   </div>
-
-                  <div style={{ marginTop: 10, display: "grid", gap: 12 }}>
-                    {result.mixes.map((m, idx) => (
-                      <div
-                        key={idx}
-                        className="card"
-                        style={{ background: "var(--panel2)" as any }}
-                      >
-                        <div className="cardPad">
-                          <div className="cardHead">
-                            <div>
-                              <div style={{ fontWeight: 950, fontSize: 16 }}>
-                                {m.title}
-                              </div>
-                              <div className="small">
-                                Headcount: <b>{m.headcount}</b> · Horas:{" "}
-                                <b>{m.hoursTotal}</b> · Holgura:{" "}
-                                <b>{m.slackHours}</b> (
-                                {Math.round(m.slackPct * 100)}%) · PT:{" "}
-                                <b>{Math.round(m.ptShare * 100)}%</b>
-                              </div>
-                            </div>
-                            <div
-                              className={`alert ${m.sundayOk ? "alertOk" : "alertError"}`}
-                              style={{ padding: "8px 10px" }}
-                            >
-                              <div className="small">Domingo</div>
-                              <div style={{ fontWeight: 950 }}>
-                                {m.sundayOk ? "OK" : "Revisar"}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="hr" />
-
-                          <div className="tableWrap">
-                            <table
-                              className="gridTable"
-                              style={{ minWidth: 760 }}
-                            >
-                              <thead>
-                                <tr>
-                                  <th>Jornada</th>
-                                  <th>Contrato</th>
-                                  <th className="num">Horas/Sem</th>
-                                  <th className="num">Cantidad</th>
-                                  <th className="num">Tipo</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {m.items.map((it, j) => (
-                                  <tr key={j}>
-                                    <td>{it.jornadaLabel}</td>
-                                    <td>{it.contractName}</td>
-                                    <td className="num">{it.hoursPerWeek}</td>
-                                    <td className="num">
-                                      <b>{it.count}</b>
-                                    </td>
-                                    <td className="num">
-                                      {it.isPt ? "PT" : "Full"}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          <div style={{ marginTop: 10 }} className="small">
-                            Consejo: si ves mucha holgura, prueba agregando un
-                            contrato intermedio (ej 36h/30h/16h) o ajusta
-                            demanda.
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <details style={{ marginTop: 12 }}>
-                    <summary
-                      className="small"
-                      style={{ cursor: "pointer", fontWeight: 950 }}
-                    >
-                      Ver JSON completo (debug)
-                    </summary>
-                    <pre
-                      style={{
-                        whiteSpace: "pre-wrap",
-                        marginTop: 10,
-                        fontSize: 12,
-                      }}
-                      className="alert"
-                    >
-                      {JSON.stringify(result, null, 2)}
-                    </pre>
-                  </details>
                 </div>
               </div>
-            </div>
-          </div>
-        ) : null}
+
+              <div className="hr" style={{ marginTop: 14 }} />
+
+              <div className="h3" style={{ marginTop: 0 }}>
+                Demanda por día (horas-persona)
+              </div>
+
+              <div style={{ overflowX: "auto", marginTop: 8 }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Día</th>
+                      <th style={{ textAlign: "right" }}>Horas-persona</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.demandByDay.map((d, i) => (
+                      <tr key={i}>
+                        <td>{d.day}</td>
+                        <td style={{ textAlign: "right" }}>{d.hours}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="hr" style={{ marginTop: 14 }} />
+
+              <div className="h3" style={{ marginTop: 0 }}>
+                Mixes sugeridos
+              </div>
+
+              <div style={{ display: "grid", gap: 12, marginTop: 10 }}>
+                {result.mixes.map((m, i) => (
+                  <div key={i} className="card">
+                    <div className="cardPad">
+                      <div className="h3" style={{ marginTop: 0 }}>
+                        {m.title}
+                      </div>
+                      <div className="small" style={{ marginTop: 6 }}>
+                        Personas: <b>{m.headcount}</b> — Horas totales: <b>{m.hoursTotal}</b> — Holgura:{" "}
+                        <b>{m.slackHours}</b> — PT share: <b>{Math.round(m.ptShare * 100)}%</b>
+                      </div>
+
+                      <div style={{ overflowX: "auto", marginTop: 10 }}>
+                        <table className="table">
+                          <thead>
+                            <tr>
+                              <th>Jornada</th>
+                              <th>Contrato</th>
+                              <th style={{ textAlign: "right" }}>Horas/sem</th>
+                              <th style={{ textAlign: "right" }}>Cantidad</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {m.items.map((it, j) => (
+                              <tr key={j}>
+                                <td>{it.jornadaLabel}</td>
+                                <td>{it.contractName}</td>
+                                <td style={{ textAlign: "right" }}>{it.hoursPerWeek}</td>
+                                <td style={{ textAlign: "right" }}>{it.count}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="small" style={{ marginTop: 10 }}>
+                        Domingo: req {m.sundayReq} / cubre {m.sundayCap} →{" "}
+                        <b>{m.sundayOk ? "OK" : "Revisar"}</b>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hr" style={{ marginTop: 14 }} />
+
+              <div className="small">
+                Tip: Si la holgura es alta, agrega un contrato intermedio (ej 36h/30h) o ajusta demanda.
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
-      {/* Modal lead */}
-      <Modal
-        open={leadOpen}
-        title="Antes de calcular (para enviarte el reporte)"
-        onClose={() => setLeadOpen(false)}
-      >
-        <div className="modalGrid">
-          <div className="field">
-            <div className="label">Nombre</div>
-            <input
-              className="input"
-              value={lead.name}
-              onChange={(e) => setLead((p) => ({ ...p, name: e.target.value }))}
-              placeholder="Juan"
-            />
-          </div>
-
-          <div className="field">
-            <div className="label">Cargo</div>
-            <input
-              className="input"
-              value={lead.role}
-              onChange={(e) => setLead((p) => ({ ...p, role: e.target.value }))}
-              placeholder="Jefe de Operaciones"
-            />
-          </div>
-
-          <div className="field">
-            <div className="label">Industria</div>
-            <input
-              className="input"
-              value={lead.industry}
-              onChange={(e) =>
-                setLead((p) => ({ ...p, industry: e.target.value }))
-              }
-              placeholder="Retail / Hospital / Alimentación"
-            />
-          </div>
-
-          <div className="field">
-            <div className="label">Cantidad de empleados</div>
-            <input
-              className="input"
-              value={lead.company_size}
-              onChange={(e) =>
-                setLead((p) => ({ ...p, company_size: e.target.value }))
-              }
-              placeholder="120"
-            />
-          </div>
-
-          <div className="field" style={{ gridColumn: "1 / -1" }}>
-            <div className="label">Email</div>
-            <input
-              className="input"
-              value={lead.email}
-              onChange={(e) =>
-                setLead((p) => ({ ...p, email: e.target.value }))
-              }
-              placeholder="nombre@dominio.com"
-            />
-            <div className="small" style={{ marginTop: 4 }}>
-              Evita emails “de ejemplo”. Usa un correo real para recibir el
-              reporte.
-            </div>
-          </div>
+      {/* Lead Modal */}
+      <Modal open={leadOpen} title="Guardar reporte (gratis)" onClose={() => setLeadOpen(false)}>
+        <div className="small">
+          Esto genera un reporte compartible (link) y nos ayuda a mejorar la herramienta.
         </div>
 
         {leadError ? (
-          <div style={{ marginTop: 10 }} className="alert alertError">
+          <div className="alert alertError" style={{ marginTop: 12 }}>
             ❌ {leadError}
           </div>
         ) : null}
 
-        <div className="modalActions">
-          <Button onClick={() => setLeadOpen(false)}>Cancelar</Button>
-          <Button variant="primary" onClick={onSubmitLead}>
-            Continuar y calcular
+        <div className="grid2" style={{ marginTop: 12 }}>
+          <div className="field">
+            <label className="label">Nombre</label>
+            <input
+              className="input"
+              value={lead.name}
+              onChange={(e) => setLead((p) => ({ ...p, name: e.target.value }))}
+            />
+          </div>
+          <div className="field">
+            <label className="label">Cargo</label>
+            <input
+              className="input"
+              value={lead.role}
+              onChange={(e) => setLead((p) => ({ ...p, role: e.target.value }))}
+            />
+          </div>
+        </div>
+
+        <div className="grid2" style={{ marginTop: 12 }}>
+          <div className="field">
+            <label className="label">Industria</label>
+            <input
+              className="input"
+              value={lead.industry}
+              onChange={(e) => setLead((p) => ({ ...p, industry: e.target.value }))}
+              placeholder="retail / hospital / alimentación / logística"
+            />
+          </div>
+          <div className="field">
+            <label className="label">Tamaño empresa</label>
+            <input
+              className="input"
+              value={lead.company_size}
+              onChange={(e) => setLead((p) => ({ ...p, company_size: e.target.value }))}
+              placeholder="Ej: 300"
+            />
+          </div>
+        </div>
+
+        <div className="field" style={{ marginTop: 12 }}>
+          <label className="label">Email</label>
+          <input
+            className="input"
+            value={lead.email}
+            onChange={(e) => setLead((p) => ({ ...p, email: e.target.value }))}
+            placeholder="nombre@dominio.com"
+          />
+        </div>
+
+        <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <Button variant="secondary" onClick={() => setLeadOpen(false)}>
+            Cancelar
+          </Button>
+          <Button variant="primary" onClick={onSubmitLead} disabled={isLoading}>
+            {isLoading ? "Guardando…" : "Guardar y calcular"}
           </Button>
         </div>
       </Modal>
