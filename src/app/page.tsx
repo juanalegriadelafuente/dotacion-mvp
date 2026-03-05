@@ -1,165 +1,181 @@
-// src/app/page.tsx
-import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Calculadora de Dotación de Personal Gratis | Dotaciones.cl",
+  description:
+    "Calcula la dotación óptima de personal para retail, servicios y hospitales. Mix de contratos, jornadas y exportación a Excel. Gratis y sin registro.",
+  keywords: ["calculadora dotación personal", "mix de contratos Chile", "dotación retail", "dotación hospitalaria SAN"],
+  openGraph: {
+    title: "Calculadora de Dotación de Personal Gratis | Dotaciones.cl",
+    description: "Mix de contratos, cobertura por día y exportación a Excel. 100% gratis.",
+    url: "https://www.dotaciones.cl",
+    siteName: "Dotaciones.cl",
+    locale: "es_CL",
+    type: "website",
+  },
+};
+
+const testimonials = [
+  { quote: "Antes tardábamos horas en Excel. Con Dotaciones.cl lo resolvemos en minutos con respaldo defendible.", name: "Jefa de RRHH", company: "Cadena retail, Santiago" },
+  { quote: "La calculadora SAN nos ayudó a justificar la dotación ante el directorio con números claros y auditables.", name: "Subdirector de Gestión de Personas", company: "Hospital regional, Chile" },
+  { quote: "Sencilla, rápida y el Excel exportado es exactamente lo que necesitábamos para la valorización.", name: "Consultora de RRHH", company: "Independiente" },
+];
+
+const faqs = [
+  { q: "¿Para qué sirve una calculadora de dotación?", a: "Te permite determinar cuántas personas necesitas, en qué jornadas y con qué contrato, considerando la demanda real. El resultado es un mix óptimo y defendible ante gerencia o directorio." },
+  { q: "¿Necesito registrarme?", a: "No. Todas las calculadoras son de acceso libre y gratuito." },
+  { q: "¿Qué incluye el Excel exportado?", a: "Mix de contratos sugerido, cobertura por día, horas planificadas y estructura lista para valorización." },
+  { q: "¿La calculadora SAN cumple la normativa vigente?", a: "Sí. Incorpora parámetros RTD/RCD y calcula la dotación mínima normativa como punto de partida." },
+];
 
 export default function HomePage() {
   return (
-    <main className="container" style={{ paddingTop: 18 }}>
-      <div className="topbar">
-        <div className="brand">
-          <Link href="/" className="brandMark" aria-label="Ir al inicio">
-            <Image
-              src="/logo.svg"
-              alt="Dotaciones.cl"
-              width={34}
-              height={34}
-              className="logo"
-              priority
-            />
-            <span className="brandName">Dotaciones.cl</span>
-          </Link>
-          <div className="brandSub">
-            Calculadoras gratuitas para dotación y mix de contratos (con Excel).
+    <main className="min-h-screen bg-white text-gray-900">
+      {/* NAV */}
+      <nav className="border-b border-gray-100 sticky top-0 bg-white/95 backdrop-blur z-50">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+          <Link href="/" className="font-bold text-lg text-blue-700">Dotaciones.cl</Link>
+          <div className="flex gap-5 text-sm font-medium">
+            <Link href="/blog" className="text-gray-600 hover:text-blue-700">Blog</Link>
+            <Link href="/contacto" className="text-gray-600 hover:text-blue-700">Contacto</Link>
           </div>
         </div>
+      </nav>
 
-        <div className="actions">
-          <Link className="btn" href="/contacto">
-            Contacto
+      {/* HERO */}
+      <section className="bg-gradient-to-br from-blue-50 to-white py-20 px-4 text-center">
+        <span className="inline-block bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1 rounded-full mb-4 uppercase tracking-wide">
+          Herramienta gratuita para RRHH
+        </span>
+        <h1 className="text-4xl md:text-5xl font-extrabold leading-tight mb-4">
+          Calcula la dotación óptima<br className="hidden md:block" /> de tu equipo en minutos
+        </h1>
+        <p className="text-lg text-gray-600 mb-8 max-w-xl mx-auto">
+          Mix de contratos, cobertura por día y exportación a Excel lista para valorización. Sin registro, sin costo.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3 justify-center">
+          <Link href="/calculadora" className="bg-blue-700 text-white font-semibold px-7 py-3 rounded-lg shadow hover:bg-blue-800 transition-colors">
+            🛒 Calculadora Retail / Servicios
+          </Link>
+          <Link href="/san" className="bg-white border-2 border-blue-700 text-blue-700 font-semibold px-7 py-3 rounded-lg hover:bg-blue-50 transition-colors">
+            🏥 Calculadora SAN Hospitalaria
           </Link>
         </div>
-      </div>
+      </section>
 
-      {/* CTA principal: SAN (empuje de tráfico) */}
-      <div className="card" style={{ marginTop: 12 }}>
-        <div
-          className="cardPad"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div className="h3" style={{ margin: 0 }}>
-              🏥 Nuevo: Calculadora SAN Hospitalaria (PRO)
-            </div>
-            <div className="small" style={{ marginTop: 4 }}>
-              Normativa + operación por día + mix FT primero + Excel PRO (operación + mix).
-            </div>
-          </div>
-
-          <Link className="btn btnPrimary" href="/san">
-            Ir a SAN →
-          </Link>
+      {/* STATS */}
+      <section className="border-y border-gray-100 py-10 px-4">
+        <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+          {[{v:"+500",l:"Cálculos realizados"},{v:"2",l:"Sectores cubiertos"},{v:"100%",l:"Gratis, sin registro"},{v:"Excel",l:"Exportación incluida"}].map(s=>(
+            <div key={s.l}><p className="text-3xl font-extrabold text-blue-700">{s.v}</p><p className="text-sm text-gray-500 mt-1">{s.l}</p></div>
+          ))}
         </div>
-      </div>
+      </section>
 
-      {/* 2 caminos */}
-      <div className="card" style={{ marginTop: 14 }}>
-        <div className="cardPad">
-          <h1 className="h2" style={{ margin: 0 }}>
-            Elige tu calculadora
-          </h1>
-          <div className="small" style={{ marginTop: 6 }}>
-            No necesitas miles de visitas: necesitas resultados defendibles para tomar decisiones.
-          </div>
-
-          <div
-            className="grid2"
-            style={{ marginTop: 14, gridTemplateColumns: "1fr 1fr" }}
-          >
-            {/* Retail */}
-            <div className="card">
-              <div className="cardPad">
-                <div className="h3" style={{ margin: 0 }}>
-                  🛒 Retail / Servicios
-                </div>
-                <div className="small" style={{ marginTop: 6 }}>
-                  Horario por día + demanda → mix sugerido de jornadas/contratos + Excel.
-                </div>
-
-                <div className="hr" style={{ marginTop: 12 }} />
-
-                <div className="h3" style={{ marginTop: 0 }}>
-                  Paso a paso
-                </div>
-                <ol className="small" style={{ marginTop: 6, paddingLeft: 18 }}>
-                  <li>Define días abiertos y demanda por tramos (30 min) o simple.</li>
-                  <li>Indica colación y traslape por día.</li>
-                  <li>Elige contratos y jornadas permitidas.</li>
-                  <li>Genera mix y descarga Excel.</li>
-                </ol>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    marginTop: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Link className="btn btnPrimary" href="/calculadora">
-                    Ir a Retail →
-                  </Link>
-                  <Link className="btn" href="/calculadora/guia">
-                    Ver guía
-                  </Link>
-                </div>
+      {/* PARA QUIÉN ES */}
+      <section className="py-16 px-4 bg-gray-50">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold text-center mb-10">¿Para quién es Dotaciones.cl?</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {icon:"🏪",title:"Retail y servicios",desc:"Tiendas, supermercados, call centers, restaurantes. Calcula dotación por tramo horario y genera el mix de jornadas ideal."},
+              {icon:"🏥",title:"Hospitales y clínicas",desc:"Gestores y jefes de RRHH que necesitan cumplir normativa SAN con dotación real, cobertura por día y respaldo Excel."},
+              {icon:"📊",title:"Consultores de RRHH",desc:"Profesionales que necesitan resultados defendibles para presentar a gerencia o directorio con respaldo de cálculo."},
+            ].map(c=>(
+              <div key={c.title} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="text-3xl mb-3">{c.icon}</div>
+                <h3 className="font-bold mb-2">{c.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{c.desc}</p>
               </div>
-            </div>
-
-            {/* SAN */}
-            <div className="card">
-              <div className="cardPad">
-                <div className="h3" style={{ margin: 0 }}>
-                  🏥 SAN Hospitalaria
-                </div>
-                <div className="small" style={{ marginTop: 6 }}>
-                  Normativa + operación real por día → mix PRO FT primero + cobertura por día + Excel.
-                </div>
-
-                <div className="hr" style={{ marginTop: 12 }} />
-
-                <div className="h3" style={{ marginTop: 0 }}>
-                  Paso a paso (PRO)
-                </div>
-                <ol className="small" style={{ marginTop: 6, paddingLeft: 18 }}>
-                  <li>Completa RTD/RCD (o modo avanzado) + camas.</li>
-                  <li>Calcula normativa SAN.</li>
-                  <li>Define horario por día (horas, personas, colación, traslape).</li>
-                  <li>Selecciona contratos/jornadas y % máximo PT.</li>
-                  <li>Genera mix PRO + descarga Excel.</li>
-                </ol>
-
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    marginTop: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <Link className="btn btnPrimary" href="/san">
-                    Ir a SAN →
-                  </Link>
-                  <Link className="btn" href="/san/guia">
-                    Ver guía
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="hr" style={{ marginTop: 16 }} />
-
-          <div className="small">
-            Tip: usa siempre el Excel exportado para valorización (costo empresa) y respaldo.
+            ))}
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* TESTIMONIOS */}
+      <section className="py-16 px-4 bg-white">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold text-center mb-10">Lo que dicen quienes lo usan</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {testimonials.map(t=>(
+              <div key={t.name} className="bg-gray-50 rounded-xl p-6 border border-gray-100">
+                <p className="text-gray-700 text-sm leading-relaxed mb-4 italic">&ldquo;{t.quote}&rdquo;</p>
+                <p className="font-semibold text-sm">{t.name}</p>
+                <p className="text-xs text-gray-400">{t.company}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CAPTURA EMAIL */}
+      <section className="py-16 px-4 bg-blue-700 text-white text-center">
+        <div className="max-w-xl mx-auto">
+          <h2 className="text-2xl font-bold mb-3">Recibe la guía de dotación óptima gratis</h2>
+          <p className="text-blue-100 mb-6 text-sm">Guía práctica en PDF: cómo calcular, justificar y presentar tu dotación ante gerencia. Sin spam.</p>
+          <form action="https://formspree.io/f/TU_FORM_ID" method="POST" className="flex flex-col sm:flex-row gap-2 justify-center">
+            <input type="email" name="email" required placeholder="tu@email.cl"
+              className="flex-1 px-4 py-3 rounded-lg text-gray-900 text-sm focus:outline-none min-w-0" />
+            <button type="submit" className="bg-white text-blue-700 font-bold px-6 py-3 rounded-lg hover:bg-blue-50 transition-colors text-sm whitespace-nowrap">
+              Quiero la guía →
+            </button>
+          </form>
+        </div>
+      </section>
+
+      {/* BLOG PREVIEW */}
+      <section className="py-16 px-4 bg-white">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-2xl font-bold">Últimos artículos</h2>
+            <Link href="/blog" className="text-blue-700 text-sm font-medium hover:underline">Ver todos →</Link>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              {slug:"como-calcular-dotacion-personal",tag:"Guía",title:"Cómo calcular la dotación de personal paso a paso",desc:"Guía práctica para determinar cuántas personas necesitas según tu operación real.",date:"Marzo 2025"},
+              {slug:"mix-contratos-jornada-parcial-chile",tag:"Normativa",title:"Mix de contratos y jornada parcial en Chile",desc:"Qué dice el Código del Trabajo sobre jornadas parciales y cómo optimizar tu mix.",date:"Febrero 2025"},
+              {slug:"dotacion-hospitalaria-san-normativa",tag:"SAN",title:"Dotación hospitalaria: cumplir la normativa SAN sin sobredotar",desc:"Claves para calcular la dotación mínima normativa y ajustarla a la operación real.",date:"Enero 2025"},
+            ].map(p=>(
+              <Link key={p.slug} href={`/blog/${p.slug}`} className="group block border border-gray-100 rounded-xl p-5 hover:shadow-md transition-shadow">
+                <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">{p.tag}</span>
+                <h3 className="font-bold text-gray-900 mt-1 mb-2 group-hover:text-blue-700 text-sm leading-snug">{p.title}</h3>
+                <p className="text-gray-500 text-xs leading-relaxed mb-3">{p.desc}</p>
+                <span className="text-xs text-gray-400">{p.date}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-16 px-4 bg-gray-50">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-2xl font-bold text-center mb-10">Preguntas frecuentes</h2>
+          <div className="space-y-4">
+            {faqs.map(f=>(
+              <div key={f.q} className="bg-white rounded-xl p-5 border border-gray-100">
+                <h3 className="font-semibold mb-2 text-sm">{f.q}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{f.a}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="border-t border-gray-100 py-8 px-4">
+        <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-sm text-gray-400">
+          <p className="font-semibold text-gray-700">Dotaciones.cl</p>
+          <div className="flex gap-6">
+            <Link href="/calculadora" className="hover:text-blue-700">Retail</Link>
+            <Link href="/san" className="hover:text-blue-700">SAN</Link>
+            <Link href="/blog" className="hover:text-blue-700">Blog</Link>
+            <Link href="/contacto" className="hover:text-blue-700">Contacto</Link>
+          </div>
+          <p>© {new Date().getFullYear()} Dotaciones.cl · Chile</p>
+        </div>
+      </footer>
     </main>
   );
 }
