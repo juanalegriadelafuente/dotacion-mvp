@@ -1,57 +1,18 @@
-// src/app/san/page.tsx
 "use client";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+// ─── Tipos ──────────────────────────────────────────────────────────────────
+
 type ApiResp = { ok: true; result: any } | { ok: false; error: string };
 type MixApiResp = { ok: true; result: any } | { ok: false; error: string };
-
-type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-type DayConfig = {
-  open: boolean;
-  hoursOpen: number;
-  requiredPeople: number;
-  overlapMinutes: number;
-  breakMinutes: number;
-};
-
-const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-
-function dayLabel(d: DayKey) {
-  return (
-    {
-      mon: "Lun",
-      tue: "Mar",
-      wed: "Mié",
-      thu: "Jue",
-      fri: "Vie",
-      sat: "Sáb",
-      sun: "Dom",
-    }[d] ?? d
-  );
-}
+type EquipmentLevel = "all" | "some" | "none";
+type RoundingMode = "normativo" | "conservador";
 
 function safeNum(x: any) {
   const n = Number(x);
   return Number.isFinite(n) ? n : 0;
-}
-
-function areaLabel(area: string) {
-  switch (area) {
-    case "recepcion_almacenamiento":
-      return "Recepción / Almacenamiento";
-    case "produccion":
-      return "Producción";
-    case "lavado":
-      return "Lavado";
-    case "distribucion_clinica_anexas":
-      return "Distribución (Clínica + Anexas)";
-    case "distribucion_casino":
-      return "Distribución (Casino)";
-    default:
-      return area;
-  }
 }
 
 function pct(x: number) {
@@ -59,18 +20,72 @@ function pct(x: number) {
   return `${Math.round(x * 100)}%`;
 }
 
-export default function SanPage() {
-  const [maxWeekHours, setMaxWeekHours] = useState<44 | 42 | 40>(42);
-  const [roundingMode, setRoundingMode] = useState<"normativo" | "conservador">(
-    "normativo"
+// ─── Componentes pequeños ────────────────────────────────────────────────────
+
+function SectionHeader({ step, title, subtitle }: { step: number; title: string; subtitle?: string }) {
+  return (
+    <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-start gap-3">
+      <div className="w-6 h-6 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">
+        {step}
+      </div>
+      <div>
+        <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
+        {subtitle && <p className="text-xs text-slate-400 mt-0.5">{subtitle}</p>}
+      </div>
+    </div>
   );
+}
 
-  // ---- RTD directos ----
-  const [rtdPatients, setRtdPatients] = useState<number>(0);
-  const [rtdCasino, setRtdCasino] = useState<number>(0);
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-xs text-slate-500 mb-1.5">{label}</label>
+      {children}
+      {hint && <p className="text-xs text-slate-400 mt-1">{hint}</p>}
+    </div>
+  );
+}
 
-  // ---- RTD por comidas (CR) ----
-  const [useMeals, setUseMeals] = useState<boolean>(false);
+function NumInput({ value, onChange, min = 0, max, step = 1, disabled = false }: {
+  value: number; onChange: (v: number) => void;
+  min?: number; max?: number; step?: number; disabled?: boolean;
+}) {
+  return (
+    <input
+      type="number" min={min} max={max} step={step}
+      value={value} disabled={disabled}
+      onChange={(e) => onChange(safeNum(e.target.value))}
+      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-slate-50 disabled:text-slate-400"
+    />
+  );
+}
+
+function KpiCard({ label, value, sub, highlight = false }: {
+  label: string; value: string; sub?: string; highlight?: boolean;
+}) {
+  return (
+    <div className={`px-5 py-4 ${highlight ? "bg-blue-50" : "bg-white"}`}>
+      <p className="text-xs text-slate-500 mb-1">{label}</p>
+      <p className={`text-2xl font-bold font-mono ${highlight ? "text-blue-700" : "text-slate-900"}`}>{value}</p>
+      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+// ─── Página principal ────────────────────────────────────────────────────────
+
+export default function SanPage() {
+
+  // ── Etapa 1: Normativa SAN ──────────────────────────────────────────────
+
+  const [maxWeekHours, setMaxWeekHours] = useState<44 | 42 | 40>(44);
+  const [roundingMode, setRoundingMode] = useState<RoundingMode>("normativo");
+
+  // RTD
+  const [useMeals, setUseMeals] = useState(false);
+  const [rtdPatients, setRtdPatients] = useState(0);
+  const [rtdCasino, setRtdCasino] = useState(0);
+  // RTD por tiempos de comida
   const [pDes, setPDes] = useState(0);
   const [pColAm, setPColAm] = useState(0);
   const [pAlm, setPAlm] = useState(0);
@@ -80,167 +95,138 @@ export default function SanPage() {
   const [cAlm, setCAlm] = useState(0);
   const [cCen, setCCen] = useState(0);
 
-  // ---- RCD ----
-  const [rcd, setRcd] = useState<number>(0);
+  // RCD
+  const [advanced, setAdvanced] = useState(false);
+  const [rcd, setRcd] = useState(0);
+  const [rtdTotal, setRtdTotal] = useState(0);
+  // FC
+  const [equipmentLevel, setEquipmentLevel] = useState<EquipmentLevel>("all");
+  const [useEquipmentFC, setUseEquipmentFC] = useState(false);
+  const [useExtraLines, setUseExtraLines] = useState(false);
+  const [extraMealsPerDay, setExtraMealsPerDay] = useState(0);
+  const [useVeg, setUseVeg] = useState(false);
+  const [vegPercent, setVegPercent] = useState(0);
 
-  // ---- RCD avanzado (RTD + FC) ----
-  const [advanced, setAdvanced] = useState<boolean>(false);
-  const [rtdTotal, setRtdTotal] = useState<number>(0);
+  // Camas (clínica)
+  const [bedsBasic, setBedsBasic] = useState(0);
+  const [bedsMedium, setBedsMedium] = useState(0);
+  const [bedsCritical, setBedsCritical] = useState(0);
 
-  const [useExtraLines, setUseExtraLines] = useState<boolean>(false);
-  const [extraMealsPerDay, setExtraMealsPerDay] = useState<number>(0);
+  // ── Etapa 2: Perfil operacional ──────────────────────────────────────────
 
-  const [useVeg, setUseVeg] = useState<boolean>(false);
-  const [vegPercent, setVegPercent] = useState<number>(0);
+  const [weekendMode, setWeekendMode] = useState<"percent" | "rtd">("percent");
+  const [weekendReduction, setWeekendReduction] = useState(30); // % reducción sáb-dom
+  // RTD diferenciado (modo avanzado)
+  const [rtdPatientsWeekend, setRtdPatientsWeekend] = useState(0);
+  const [rtdCasinoWeekend, setRtdCasinoWeekend] = useState(0);
+  // Horario operacional
+  const [hoursPerShift, setHoursPerShift] = useState(10);
+  const [shiftsPerDay, setShiftsPerDay] = useState(1);
+  const [replacementFactor, setReplacementFactor] = useState(1.18); // salud pública ~18%
+  const [breakMinutes, setBreakMinutes] = useState(30);
+  const [overlapMinutes, setOverlapMinutes] = useState(30);
 
-  // ---- Clínica ----
-  const [bedsBasic, setBedsBasic] = useState<number>(0);
-  const [bedsMedium, setBedsMedium] = useState<number>(0);
-  const [bedsCritical, setBedsCritical] = useState<number>(0);
+  // ── Etapa 3: Mix contratos ───────────────────────────────────────────────
 
-  // ---- Operación (horario simple) ----
-  const [days, setDays] = useState<Record<DayKey, DayConfig>>({
-    mon: { open: true, hoursOpen: 10, requiredPeople: 6, overlapMinutes: 0, breakMinutes: 30 },
-    tue: { open: true, hoursOpen: 10, requiredPeople: 6, overlapMinutes: 0, breakMinutes: 30 },
-    wed: { open: true, hoursOpen: 10, requiredPeople: 6, overlapMinutes: 0, breakMinutes: 30 },
-    thu: { open: true, hoursOpen: 10, requiredPeople: 6, overlapMinutes: 0, breakMinutes: 30 },
-    fri: { open: true, hoursOpen: 10, requiredPeople: 6, overlapMinutes: 0, breakMinutes: 30 },
-    sat: { open: true, hoursOpen: 8, requiredPeople: 4, overlapMinutes: 0, breakMinutes: 30 },
-    sun: { open: true, hoursOpen: 8, requiredPeople: 4, overlapMinutes: 0, breakMinutes: 30 },
-  });
-
-  function setDay(d: DayKey, patch: Partial<DayConfig>) {
-    setDays((prev) => ({ ...prev, [d]: { ...prev[d], ...patch } }));
-  }
-
-  // ---- Selección PRO (como retail) ----
-  const [allowedContracts, setAllowedContracts] = useState<number[]>([
-    44, 42, 40, 30, 20,
-  ]);
+  const [allowedContracts, setAllowedContracts] = useState<number[]>([44, 42, 40, 30, 20]);
   const [allowedJornadas, setAllowedJornadas] = useState({
     allow_6x1: true,
     allow_5x2: true,
     allow_4x3: true,
     allow_pt_weekend: true,
+    allow_2x2: false,
+    allow_3x3: false,
   });
-  const [ptMaxShare, setPtMaxShare] = useState<number>(0.25);
+  const [ptMaxShare, setPtMaxShare] = useState(0.25);
 
   function toggleContract(h: number) {
     setAllowedContracts((prev) =>
-      prev.includes(h)
-        ? prev.filter((x) => x !== h)
-        : [...prev, h].sort((a, b) => b - a)
+      prev.includes(h) ? prev.filter((x) => x !== h) : [...prev, h].sort((a, b) => b - a)
     );
   }
 
-  const payload = useMemo(() => {
-    return {
-      scenario: { maxWeekHours, roundingMode },
-
-      rtdPatients: useMeals ? undefined : rtdPatients,
-      rtdCasino: useMeals ? undefined : rtdCasino,
-
-      rtdMeals: useMeals
-        ? {
-            enabled: true,
-            integerMode: roundingMode === "conservador" ? "ceil" : "round",
-            patients: {
-              desayuno: pDes,
-              colacion_am: pColAm,
-              almuerzo: pAlm,
-              once: pOnce,
-              cena: pCen,
-            },
-            casino: {
-              desayuno: cDes,
-              almuerzo: cAlm,
-              cena: cCen,
-            },
-          }
-        : undefined,
-
-      rcd: advanced ? undefined : rcd,
-
-      rtdTotal: advanced ? rtdTotal : undefined,
-      factors: advanced
-        ? {
-            extraProductionLines: { enabled: useExtraLines, extraMealsPerDay },
-            vegUnprocessedShare: { enabled: useVeg, percent: vegPercent },
-          }
-        : undefined,
-
-      bedsBasic,
-      bedsMedium,
-      bedsCritical,
-    };
-  }, [
-    maxWeekHours,
-    roundingMode,
-    useMeals,
-    rtdPatients,
-    rtdCasino,
-    pDes,
-    pColAm,
-    pAlm,
-    pOnce,
-    pCen,
-    cDes,
-    cAlm,
-    cCen,
-    advanced,
-    rcd,
-    rtdTotal,
-    useExtraLines,
-    extraMealsPerDay,
-    useVeg,
-    vegPercent,
-    bedsBasic,
-    bedsMedium,
-    bedsCritical,
-  ]);
+  // ── API calls ────────────────────────────────────────────────────────────
 
   const [loading, setLoading] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [resp, setResp] = useState<ApiResp | null>(null);
-
   const [mixLoading, setMixLoading] = useState(false);
   const [mixResp, setMixResp] = useState<MixApiResp | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const sanPayload = useMemo(() => ({
+    scenario: { maxWeekHours, roundingMode },
+    rtdPatients: useMeals ? undefined : rtdPatients,
+    rtdCasino: useMeals ? undefined : rtdCasino,
+    rtdMeals: useMeals ? {
+      enabled: true,
+      integerMode: roundingMode === "conservador" ? "ceil" : "round",
+      patients: { desayuno: pDes, colacion_am: pColAm, almuerzo: pAlm, once: pOnce, cena: pCen },
+      casino: { desayuno: cDes, almuerzo: cAlm, cena: cCen },
+    } : undefined,
+    rcd: advanced ? undefined : rcd,
+    rtdTotal: advanced ? rtdTotal : undefined,
+    factors: advanced ? {
+      equipmentTechnology: { enabled: useEquipmentFC, level: equipmentLevel },
+      extraProductionLines: { enabled: useExtraLines, extraMealsPerDay },
+      vegUnprocessedShare: { enabled: useVeg, percent: vegPercent },
+    } : undefined,
+    bedsBasic, bedsMedium, bedsCritical,
+  }), [maxWeekHours, roundingMode, useMeals, rtdPatients, rtdCasino, pDes, pColAm, pAlm, pOnce, pCen, cDes, cAlm, cCen, advanced, rcd, rtdTotal, useEquipmentFC, equipmentLevel, useExtraLines, extraMealsPerDay, useVeg, vegPercent, bedsBasic, bedsMedium, bedsCritical]);
 
   async function runSan() {
-    setLoading(true);
-    setResp(null);
+    setLoading(true); setResp(null);
     try {
-      const r = await fetch("/api/san", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = (await r.json()) as ApiResp;
-      setResp(data);
+      const r = await fetch("/api/san", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sanPayload) });
+      setResp(await r.json());
     } catch (e: any) {
       setResp({ ok: false, error: e?.message ?? "Error inesperado" });
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
-  async function generateMixPro() {
-    setMixLoading(true);
-    setMixResp(null);
+  async function generateMix() {
+    setMixLoading(true); setMixResp(null);
+
+    const sanResult = resp?.ok ? resp.result : null;
+
+    // requiredPeople = total personas simultáneas según Tablas 4+5 (Etapa 1)
+    // Es la suma de dotación por área de la UCP.
+    const ucpAreas: any[] = sanResult?.ucpStaffByArea ?? [];
+    const peopleFromSan = ucpAreas.reduce((sum: number, a: any) => sum + (Number(a.applied) || 0), 0);
+
+    // Si no hay resultado SAN todavía, usar shiftsPerDay como fallback razonable
+    const peopleLV = peopleFromSan > 0 ? peopleFromSan : shiftsPerDay;
+
+    // Factor de reducción fin de semana
+    const weekendFactor = weekendMode === "percent"
+      ? (1 - weekendReduction / 100)
+      : (rtdPatientsWeekend + rtdCasinoWeekend) / Math.max(1, rtdPatients + rtdCasino);
+
+    const peopleWeekend = Math.max(0, Math.round(peopleLV * weekendFactor));
+
+    const daysPayload: any = {};
+    const weekdays = ["mon", "tue", "wed", "thu", "fri"];
+    const weekend = ["sat", "sun"];
+
+    for (const d of weekdays) {
+      daysPayload[d] = {
+        open: true,
+        hoursOpen: hoursPerShift,
+        requiredPeople: peopleLV,
+        overlapMinutes,
+        breakMinutes,
+      };
+    }
+    for (const d of weekend) {
+      daysPayload[d] = {
+        open: peopleWeekend > 0,
+        hoursOpen: hoursPerShift,
+        requiredPeople: peopleWeekend,
+        overlapMinutes,
+        breakMinutes,
+      };
+    }
 
     try {
-      const daysPayload: any = {};
-      for (const d of DAY_ORDER) {
-        const di = days[d];
-        daysPayload[d] = {
-          open: !!di.open,
-          hoursOpen: safeNum(di.hoursOpen),
-          requiredPeople: safeNum(di.requiredPeople),
-          overlapMinutes: safeNum(di.overlapMinutes),
-          breakMinutes: safeNum(di.breakMinutes),
-        };
-      }
-
       const r = await fetch("/api/san/mix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -250,572 +236,598 @@ export default function SanPage() {
           allowedContracts,
           allowedJornadas,
           ptMaxShare,
+          replacementFactor,
         }),
       });
-
-      const data = (await r.json()) as MixApiResp;
-      setMixResp(data);
+      setMixResp(await r.json());
     } catch (e: any) {
       setMixResp({ ok: false, error: e?.message ?? "Error generando mix" });
-    } finally {
-      setMixLoading(false);
-    }
+    } finally { setMixLoading(false); }
   }
 
   async function downloadExcel() {
     setExporting(true);
     try {
-      const exportBody = {
-        ...payload,
-        days,
-        allowedContracts,
-        allowedJornadas,
-        ptMaxShare,
-      };
-
-      const r = await fetch("/api/san/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(exportBody),
-      });
-
-      if (!r.ok) {
-        const txt = await r.text().catch(() => "");
-        throw new Error(txt || `No se pudo generar el Excel (HTTP ${r.status})`);
-      }
-
+      const body = { ...sanPayload, days: {}, allowedContracts, allowedJornadas, ptMaxShare, replacementFactor };
+      const r = await fetch("/api/san/export", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "SAN_dotacion.xlsx";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch (e: any) {
-      alert(e?.message ?? "Error descargando Excel");
-    } finally {
-      setExporting(false);
-    }
+      const a = document.createElement("a"); a.href = url; a.download = "SAN_dotacion.xlsx";
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    } catch (e: any) { alert(e?.message ?? "Error descargando Excel"); }
+    finally { setExporting(false); }
   }
 
-  const sanResult = resp && resp.ok ? resp.result : null;
-  const mixResult = mixResp && mixResp.ok ? mixResp.result : null;
+  const sanResult = resp?.ok ? resp.result : null;
+  const mixResult = mixResp?.ok ? mixResp.result : null;
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <main className="container" style={{ paddingTop: 18 }}>
-      <h1 className="h2">Calculadora SAN (Hospitalaria)</h1>
-      <div className="small" style={{ marginTop: 6 }}>
-        PRO: 1) Normativa SAN. 2) Operación (horario). 3) Mix (FT primero, PT solo para cerrar brechas).
-      </div>
+    <div className="min-h-screen bg-white" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap'); * { box-sizing: border-box; } .mono { font-family: 'DM Mono', monospace; }`}</style>
 
-      <div className="small" style={{ marginTop: 8 }}>
-        <Link href="/san/glosario">Ver glosario de siglas (RTD, RCD, FC, CR…)</Link>
-      </div>
+      {/* Header */}
+      <header className="border-b border-slate-200 bg-white">
+        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
+          <Link href="/" className="font-bold text-slate-900 text-lg tracking-tight">
+            dotaciones<span className="text-blue-600">.cl</span>
+          </Link>
+          <nav className="flex items-center gap-1">
+            <Link href="/calculadora" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Calculadora</Link>
+            <Link href="/blog" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Blog</Link>
+            <Link href="/san/glosario" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Glosario</Link>
+          </nav>
+        </div>
+      </header>
 
-      <div className="card" style={{ marginTop: 14 }}>
-        <div className="cardPad">
-          {/* Escenario */}
-          <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            <div className="field">
-              <label className="label">Escenario jornada máxima</label>
-              <select
-                className="input"
-                value={maxWeekHours}
-                onChange={(e) => setMaxWeekHours(Number(e.target.value) as any)}
-              >
-                <option value={44}>44 horas</option>
-                <option value={42}>42 horas</option>
-                <option value={40}>40 horas</option>
-              </select>
-            </div>
+      <div className="max-w-5xl mx-auto px-6 py-8">
 
-            <div className="field">
-              <label className="label">Modo de redondeo</label>
-              <select
-                className="input"
-                value={roundingMode}
-                onChange={(e) => setRoundingMode(e.target.value as any)}
-              >
-                <option value="normativo">Normativo</option>
-                <option value="conservador">Conservador (anti-riesgo)</option>
-              </select>
-            </div>
+        {/* Título */}
+        <div className="mb-8">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">PRO</span>
+            <span className="text-xs text-slate-400">OT-SAN MINSAL 2025</span>
           </div>
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mb-1">Calculadora SAN Hospitalaria</h1>
+          <p className="text-sm text-slate-500">
+            Normativa MINSAL → perfil operacional → mix de contratos. Tres etapas integradas.
+          </p>
+        </div>
 
-          <div className="hr" style={{ marginTop: 14 }} />
-
-          {/* Selección PRO */}
-          <h2 className="h3" style={{ marginTop: 10 }}>Selección PRO (como retail)</h2>
-
-          <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 10 }}>
-            <div className="field">
-              <div className="label">Jornadas permitidas</div>
-              <div className="small" style={{ marginTop: 6, display: "grid", gap: 6 }}>
-                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={allowedJornadas.allow_6x1}
-                    onChange={(e) =>
-                      setAllowedJornadas((p) => ({ ...p, allow_6x1: e.target.checked }))
-                    }
-                  />
-                  6x1
-                </label>
-                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={allowedJornadas.allow_5x2}
-                    onChange={(e) =>
-                      setAllowedJornadas((p) => ({ ...p, allow_5x2: e.target.checked }))
-                    }
-                  />
-                  5x2
-                </label>
-                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={allowedJornadas.allow_4x3}
-                    onChange={(e) =>
-                      setAllowedJornadas((p) => ({ ...p, allow_4x3: e.target.checked }))
-                    }
-                  />
-                  4x3 (solo 40h)
-                </label>
-                <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={allowedJornadas.allow_pt_weekend}
-                    onChange={(e) =>
-                      setAllowedJornadas((p) => ({ ...p, allow_pt_weekend: e.target.checked }))
-                    }
-                  />
-                  PT fin de semana
-                </label>
-              </div>
-            </div>
-
-            <div className="field">
-              <div className="label">Contratos permitidos</div>
-              <div className="small" style={{ marginTop: 6, display: "grid", gap: 6 }}>
-                {[44, 42, 40, 30, 20].map((h) => (
-                  <label key={h} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input
-                      type="checkbox"
-                      checked={allowedContracts.includes(h)}
-                      onChange={() => toggleContract(h)}
-                    />
-                    {h}h/sem
-                  </label>
+        {/* Configuración global */}
+        <div className="border border-slate-200 rounded-xl overflow-hidden mb-6">
+          <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+            <h2 className="text-sm font-semibold text-slate-700">Configuración del escenario</h2>
+          </div>
+          <div className="px-5 py-4 grid grid-cols-2 gap-4">
+            <Field label="Jornada máxima">
+              <div className="flex gap-2">
+                {([44, 42, 40] as const).map((h) => (
+                  <button key={h} onClick={() => setMaxWeekHours(h)}
+                    className={`flex-1 text-sm py-2 rounded-lg border font-mono font-medium transition-all ${maxWeekHours === h ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}>
+                    {h}h
+                  </button>
                 ))}
               </div>
-
-              <div className="hr" style={{ marginTop: 12 }} />
-
-              <label className="label">Política hospital: máximo % PT</label>
-              <input
-                className="input"
-                type="number"
-                value={Math.round(ptMaxShare * 100)}
-                onChange={(e) =>
-                  setPtMaxShare(Math.max(0, Math.min(1, safeNum(e.target.value) / 100)))
-                }
-                style={{ textAlign: "right" }}
-              />
-              <div className="small">Recomendado 25%. PT se usa solo para cerrar brechas.</div>
-            </div>
-          </div>
-
-          <div className="hr" style={{ marginTop: 14 }} />
-
-          {/* Etapa 1 (normativa) — se deja como ya la tenías */}
-          <h2 className="h3" style={{ marginTop: 10 }}>Etapa 1 — Normativa SAN</h2>
-
-          <div className="field" style={{ marginTop: 8 }}>
-            <label className="label" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="checkbox" checked={useMeals} onChange={(e) => setUseMeals(e.target.checked)} />
-              Calcular RTD desde tiempos de comida (CR)
-            </label>
-          </div>
-
-          {!useMeals ? (
-            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 10 }}>
-              <div className="field">
-                <label className="label">RTD pacientes + anexas</label>
-                <input className="input" type="number" value={rtdPatients} onChange={(e) => setRtdPatients(Number(e.target.value))} />
+              <p className="text-xs text-slate-400 mt-1">Ley 21.561 reduce a 42h el 26 abr 2025</p>
+            </Field>
+            <Field label="Modo de redondeo">
+              <div className="flex gap-2">
+                {[{ id: "normativo" as const, label: "Normativo" }, { id: "conservador" as const, label: "Conservador" }].map((m) => (
+                  <button key={m.id} onClick={() => setRoundingMode(m.id)}
+                    className={`flex-1 text-sm py-2 rounded-lg border font-medium transition-all ${roundingMode === m.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}>
+                    {m.label}
+                  </button>
+                ))}
               </div>
-              <div className="field">
-                <label className="label">RTD casino</label>
-                <input className="input" type="number" value={rtdCasino} onChange={(e) => setRtdCasino(Number(e.target.value))} />
-              </div>
-            </div>
-          ) : (
-            <div className="card" style={{ marginTop: 12 }}>
-              <div className="cardPad">
-                <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                  <div className="field">
-                    <label className="label">Pacientes: Desayuno</label>
-                    <input className="input" type="number" value={pDes} onChange={(e) => setPDes(Number(e.target.value))} />
-                  </div>
-                  <div className="field">
-                    <label className="label">Pacientes: Colación AM</label>
-                    <input className="input" type="number" value={pColAm} onChange={(e) => setPColAm(Number(e.target.value))} />
-                  </div>
-                </div>
-                <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 10 }}>
-                  <div className="field">
-                    <label className="label">Pacientes: Almuerzo</label>
-                    <input className="input" type="number" value={pAlm} onChange={(e) => setPAlm(Number(e.target.value))} />
-                  </div>
-                  <div className="field">
-                    <label className="label">Pacientes: Once</label>
-                    <input className="input" type="number" value={pOnce} onChange={(e) => setPOnce(Number(e.target.value))} />
-                  </div>
-                </div>
-                <div className="field" style={{ marginTop: 10 }}>
-                  <label className="label">Pacientes: Cena</label>
-                  <input className="input" type="number" value={pCen} onChange={(e) => setPCen(Number(e.target.value))} />
-                </div>
-
-                <div className="hr" style={{ marginTop: 12 }} />
-
-                <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-                  <div className="field">
-                    <label className="label">Casino: Desayuno</label>
-                    <input className="input" type="number" value={cDes} onChange={(e) => setCDes(Number(e.target.value))} />
-                  </div>
-                  <div className="field">
-                    <label className="label">Casino: Almuerzo</label>
-                    <input className="input" type="number" value={cAlm} onChange={(e) => setCAlm(Number(e.target.value))} />
-                  </div>
-                </div>
-                <div className="field" style={{ marginTop: 10 }}>
-                  <label className="label">Casino: Cena</label>
-                  <input className="input" type="number" value={cCen} onChange={(e) => setCCen(Number(e.target.value))} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="hr" style={{ marginTop: 14 }} />
-
-          <div className="field">
-            <label className="label" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <input type="checkbox" checked={advanced} onChange={(e) => setAdvanced(e.target.checked)} />
-              RCD avanzado (RTD + FC)
-            </label>
+              <p className="text-xs text-slate-400 mt-1">Conservador redondea hacia arriba (anti-riesgo)</p>
+            </Field>
           </div>
+        </div>
 
-          {!advanced ? (
-            <div className="field" style={{ marginTop: 10 }}>
-              <label className="label">RCD (directo)</label>
-              <input className="input" type="number" value={rcd} onChange={(e) => setRcd(Number(e.target.value))} />
-            </div>
-          ) : (
-            <>
-              <div className="field" style={{ marginTop: 10 }}>
-                <label className="label">RTD total (base para RCD)</label>
-                <input className="input" type="number" value={rtdTotal} onChange={(e) => setRtdTotal(Number(e.target.value))} />
+        {/* ── ETAPA 1: Normativa SAN ── */}
+        <div className="border border-slate-200 rounded-xl overflow-hidden mb-6">
+          <SectionHeader step={1} title="Normativa SAN" subtitle="RTD → RCD → Factores de complejidad → Dotación normativa" />
+
+          <div className="px-5 py-5 space-y-6">
+
+            {/* RTD */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Raciones Totales Día (RTD)</p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div onClick={() => setUseMeals(!useMeals)}
+                    className={`relative w-8 h-4 rounded-full transition-colors ${useMeals ? "bg-blue-600" : "bg-slate-200"}`}>
+                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${useMeals ? "translate-x-4" : "translate-x-0.5"}`} />
+                  </div>
+                  <span className="text-xs text-slate-500">Calcular desde tiempos de comida</span>
+                </label>
               </div>
 
-              <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 10 }}>
-                <div className="field">
-                  <label className="label" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input type="checkbox" checked={useExtraLines} onChange={(e) => setUseExtraLines(e.target.checked)} />
-                    FC líneas adicionales
-                  </label>
-                  <input
-                    className="input"
-                    type="number"
-                    value={extraMealsPerDay}
-                    onChange={(e) => setExtraMealsPerDay(Number(e.target.value))}
-                    disabled={!useExtraLines}
-                  />
+              {!useMeals ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="RTD pacientes + unidades anexas">
+                    <NumInput value={rtdPatients} onChange={setRtdPatients} />
+                  </Field>
+                  <Field label="RTD casino (funcionarios)">
+                    <NumInput value={rtdCasino} onChange={setRtdCasino} />
+                  </Field>
                 </div>
-
-                <div className="field">
-                  <label className="label" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <input type="checkbox" checked={useVeg} onChange={(e) => setUseVeg(e.target.checked)} />
-                    FC vegetal sin procesar (%)
-                  </label>
-                  <input
-                    className="input"
-                    type="number"
-                    value={vegPercent}
-                    onChange={(e) => setVegPercent(Number(e.target.value))}
-                    disabled={!useVeg}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-
-          <div className="hr" style={{ marginTop: 14 }} />
-
-          <h3 className="h3" style={{ marginTop: 10 }}>Clínica (Nutricionistas)</h3>
-          <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            <div className="field">
-              <label className="label">Camas básico</label>
-              <input className="input" type="number" value={bedsBasic} onChange={(e) => setBedsBasic(Number(e.target.value))} />
-            </div>
-            <div className="field">
-              <label className="label">Camas medio</label>
-              <input className="input" type="number" value={bedsMedium} onChange={(e) => setBedsMedium(Number(e.target.value))} />
-            </div>
-          </div>
-          <div className="field" style={{ marginTop: 10 }}>
-            <label className="label">Camas crítico</label>
-            <input className="input" type="number" value={bedsCritical} onChange={(e) => setBedsCritical(Number(e.target.value))} />
-          </div>
-
-          <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
-            <button className="btn" disabled={loading} onClick={runSan}>
-              {loading ? "Calculando…" : "Calcular normativa SAN"}
-            </button>
-          </div>
-
-          {resp ? (
-            <div style={{ marginTop: 14 }}>
-              {!resp.ok ? (
-                <div className="alert alertError">❌ {resp.error}</div>
               ) : (
-                <div className="card" style={{ marginTop: 10 }}>
-                  <div className="cardPad">
-                    <div className="h3">Resultado normativa</div>
-                    <div className="small" style={{ marginTop: 6 }}>
-                      Horas/semana requeridas (base 44h): <b>{sanResult.totalHoursPerWeek_required}</b><br />
-                      FTE equivalente (sobre {maxWeekHours}): <b>{sanResult.totalFte_equivalent}</b>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Desayuno pacientes", value: pDes, set: setPDes },
+                      { label: "Colación AM pacientes", value: pColAm, set: setPColAm },
+                      { label: "Almuerzo pacientes", value: pAlm, set: setPAlm },
+                      { label: "Once pacientes", value: pOnce, set: setPOnce },
+                      { label: "Cena pacientes", value: pCen, set: setPCen },
+                    ].map((f) => (
+                      <Field key={f.label} label={f.label}>
+                        <NumInput value={f.value} onChange={f.set} />
+                      </Field>
+                    ))}
+                  </div>
+                  <div className="pt-3 border-t border-slate-100">
+                    <p className="text-xs text-slate-500 mb-3">Casino / funcionarios</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { label: "Desayuno casino", value: cDes, set: setCDes },
+                        { label: "Almuerzo casino", value: cAlm, set: setCAlm },
+                        { label: "Cena casino", value: cCen, set: setCCen },
+                      ].map((f) => (
+                        <Field key={f.label} label={f.label}>
+                          <NumInput value={f.value} onChange={f.set} />
+                        </Field>
+                      ))}
                     </div>
-
-                    <div className="hr" style={{ marginTop: 12 }} />
-
-                    <div className="h3">UCP por área</div>
-                    <div style={{ overflowX: "auto", marginTop: 8 }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                        <thead>
-                          <tr>
-                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #eee" }}>Área</th>
-                            <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Aplicado</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sanResult.ucpStaffByArea.map((a: any) => (
-                            <tr key={a.area}>
-                              <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2" }}>{areaLabel(a.area)}</td>
-                              <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2", textAlign: "right" }}>{a.applied}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-
                   </div>
                 </div>
               )}
             </div>
-          ) : null}
 
-          <div className="hr" style={{ marginTop: 18 }} />
+            {/* RCD */}
+            <div className="pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Raciones Completas Día (RCD)</p>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <div onClick={() => setAdvanced(!advanced)}
+                    className={`relative w-8 h-4 rounded-full transition-colors ${advanced ? "bg-blue-600" : "bg-slate-200"}`}>
+                    <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${advanced ? "translate-x-4" : "translate-x-0.5"}`} />
+                  </div>
+                  <span className="text-xs text-slate-500">Calcular RCD desde RTD + FC</span>
+                </label>
+              </div>
 
-          {/* Operación + Mix PRO */}
-          <h2 className="h3" style={{ marginTop: 10 }}>Etapa 2 — Operación (horario) + Mix PRO</h2>
-
-          <div style={{ overflowX: "auto", marginTop: 10 }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #eee" }}>Día</th>
-                  <th style={{ textAlign: "center", padding: 8, borderBottom: "1px solid #eee" }}>Abierto</th>
-                  <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Horas</th>
-                  <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Personas</th>
-                  <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Colación</th>
-                  <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Traslape</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DAY_ORDER.map((d) => {
-                  const di = days[d];
-                  return (
-                    <tr key={d}>
-                      <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2" }}>{dayLabel(d)}</td>
-                      <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2", textAlign: "center" }}>
-                        <input type="checkbox" checked={di.open} onChange={(e) => setDay(d, { open: e.target.checked })} />
-                      </td>
-                      <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2" }}>
-                        <input className="input" type="number" value={di.hoursOpen} disabled={!di.open}
-                          onChange={(e) => setDay(d, { hoursOpen: safeNum(e.target.value) })}
-                          style={{ width: 120, textAlign: "right" }}
-                        />
-                      </td>
-                      <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2" }}>
-                        <input className="input" type="number" value={di.requiredPeople} disabled={!di.open}
-                          onChange={(e) => setDay(d, { requiredPeople: safeNum(e.target.value) })}
-                          style={{ width: 120, textAlign: "right" }}
-                        />
-                      </td>
-                      <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2" }}>
-                        <input className="input" type="number" value={di.breakMinutes} disabled={!di.open}
-                          onChange={(e) => setDay(d, { breakMinutes: safeNum(e.target.value) })}
-                          style={{ width: 120, textAlign: "right" }}
-                        />
-                      </td>
-                      <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2" }}>
-                        <input className="input" type="number" value={di.overlapMinutes} disabled={!di.open}
-                          onChange={(e) => setDay(d, { overlapMinutes: safeNum(e.target.value) })}
-                          style={{ width: 120, textAlign: "right" }}
-                        />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", gap: 10, flexWrap: "wrap" }}>
-            <button className="btn btnPrimary" disabled={mixLoading} onClick={generateMixPro}>
-              {mixLoading ? "Generando mix…" : "Generar mix PRO (hospital)"}
-            </button>
-
-            <button className="btn btnPrimary" disabled={exporting} onClick={downloadExcel}>
-              {exporting ? "Generando Excel…" : "Descargar Excel PRO (incluye operación + mix)"}
-            </button>
-          </div>
-
-          {mixResp ? (
-            <div style={{ marginTop: 14 }}>
-              {!mixResp.ok ? (
-                <div className="alert alertError">❌ {mixResp.error}</div>
+              {!advanced ? (
+                <Field label="RCD (valor directo)" hint="Si ya calculaste RCD externamente, ingrésalo aquí">
+                  <NumInput value={rcd} onChange={setRcd} />
+                </Field>
               ) : (
-                <div className="card" style={{ marginTop: 10 }}>
-                  <div className="cardPad">
-                    <div className="h3">Resultado mix hospital (FT primero)</div>
-                    <div className="small" style={{ marginTop: 6 }}>
-                      Horas requeridas operación: <b>{mixResult.requiredHours}</b> — FTE:{" "}
-                      <b>{mixResult.fte}</b> — PT max: <b>{pct(mixResult.ptMaxShare)}</b>
+                <div className="space-y-4">
+                  <Field label="RTD total (base para RCD)">
+                    <NumInput value={rtdTotal} onChange={setRtdTotal} />
+                  </Field>
+                  <div className="space-y-3">
+                    <p className="text-xs text-slate-500 font-medium">Factores de complejidad (OT-SAN 2025)</p>
+
+                    {/* FC 1: Equipos */}
+                    <div className="border border-slate-100 rounded-lg p-3">
+                      <label className="flex items-center gap-2 cursor-pointer mb-2">
+                        <input type="checkbox" checked={useEquipmentFC} onChange={(e) => setUseEquipmentFC(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                        <span className="text-sm text-slate-700">FC nivel tecnológico de equipos</span>
+                      </label>
+                      {useEquipmentFC && (
+                        <div className="flex gap-2 ml-6">
+                          {([
+                            { id: "all" as const, label: "Todos", hint: "FC 1.0" },
+                            { id: "some" as const, label: "Al menos uno", hint: "FC 1.1" },
+                            { id: "none" as const, label: "Ninguno", hint: "FC 1.2" },
+                          ]).map((opt) => (
+                            <button key={opt.id} onClick={() => setEquipmentLevel(opt.id)}
+                              className={`flex-1 text-xs py-1.5 rounded-lg border transition-all ${equipmentLevel === opt.id ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"}`}>
+                              {opt.label}
+                              <span className={`ml-1 font-mono ${equipmentLevel === opt.id ? "text-blue-200" : "text-slate-400"}`}>{opt.hint}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {useEquipmentFC && (
+                        <p className="text-xs text-slate-400 mt-2 ml-6">Equipos: lavavajillas, hornos combinados, marmitas automáticas</p>
+                      )}
                     </div>
 
-                    {Array.isArray(mixResult.warnings) && mixResult.warnings.length ? (
-                      <div className="alert alertError" style={{ marginTop: 12 }}>
-                        ⚠️ {mixResult.warnings.join(" | ")}
+                    {/* FC 2: Líneas adicionales */}
+                    <div className="border border-slate-100 rounded-lg p-3">
+                      <label className="flex items-center gap-2 cursor-pointer mb-2">
+                        <input type="checkbox" checked={useExtraLines} onChange={(e) => setUseExtraLines(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                        <span className="text-sm text-slate-700">FC líneas adicionales de producción</span>
+                      </label>
+                      {useExtraLines && (
+                        <div className="ml-6">
+                          <Field label="Almuerzos o cenas en líneas adicionales (usar el mayor, no sumar)">
+                            <NumInput value={extraMealsPerDay} onChange={setExtraMealsPerDay} />
+                          </Field>
+                          <p className="text-xs text-slate-400 mt-1">0-29: FC 1.0 · 30-59: FC 1.1 · 60-89: FC 1.2 · 90+: FC 1.3</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* FC 3: Vegetal sin procesar */}
+                    <div className="border border-slate-100 rounded-lg p-3">
+                      <label className="flex items-center gap-2 cursor-pointer mb-2">
+                        <input type="checkbox" checked={useVeg} onChange={(e) => setUseVeg(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600" />
+                        <span className="text-sm text-slate-700">FC materia prima vegetal sin procesar</span>
+                      </label>
+                      {useVeg && (
+                        <div className="ml-6">
+                          <Field label="% MP vegetal sin procesar (excluye fruta natural)">
+                            <NumInput value={vegPercent} onChange={setVegPercent} min={0} max={100} />
+                          </Field>
+                          <p className="text-xs text-slate-400 mt-1">{"< 30%: FC 1.0 · ≥ 30%: FC 1.1"}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Camas clínica */}
+            <div className="pt-4 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Clínica — Nutricionistas</p>
+              <div className="grid grid-cols-3 gap-4">
+                <Field label="Camas básico" hint="1 nutri / 32 camas">
+                  <NumInput value={bedsBasic} onChange={setBedsBasic} />
+                </Field>
+                <Field label="Camas medio" hint="1 nutri / 24 camas">
+                  <NumInput value={bedsMedium} onChange={setBedsMedium} />
+                </Field>
+                <Field label="Camas crítico" hint="1 nutri / 16 camas">
+                  <NumInput value={bedsCritical} onChange={setBedsCritical} />
+                </Field>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button onClick={runSan} disabled={loading}
+                className="px-5 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+                {loading ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>Calculando…</> : "Calcular normativa SAN →"}
+              </button>
+            </div>
+          </div>
+
+          {/* Resultado Etapa 1 */}
+          {resp && (
+            <div className="border-t border-slate-200">
+              {!resp.ok ? (
+                <div className="px-5 py-4 bg-red-50 text-sm text-red-700">❌ {resp.error}</div>
+              ) : (
+                <div>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-100">
+                    <KpiCard label="Horas/sem requeridas" value={sanResult.totalHoursPerWeek_required} sub={`base ${maxWeekHours}h`} />
+                    <KpiCard label="FTE equivalente" value={sanResult.totalFte_equivalent} sub="dotación normativa" highlight />
+                    <KpiCard label="Complejidad UCP" value={sanResult.ucpComplexity ?? "—"} sub="mínima / mediana / máxima" />
+                    <KpiCard label="Nutricionistas clínica" value={sanResult.clinicaNutricionistas ?? "—"} sub="total requerido" />
+                  </div>
+                  {/* UCP por área */}
+                  <div className="px-5 py-4">
+                    <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Dotación por área (UCP)</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {(sanResult.ucpStaffByArea ?? []).map((a: any) => (
+                        <div key={a.area} className="border border-slate-100 rounded-lg px-4 py-3">
+                          <p className="text-xs text-slate-500 mb-1">{a.area.replace(/_/g, " ")}</p>
+                          <p className="text-lg font-bold font-mono text-slate-800">{a.applied}</p>
+                          <p className="text-xs text-slate-400">personas</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ── ETAPA 2: Perfil operacional ── */}
+        <div className={`border rounded-xl overflow-hidden mb-6 transition-opacity ${resp?.ok ? "border-slate-200 opacity-100" : "border-dashed border-slate-200 opacity-50 pointer-events-none"}`}>
+          <SectionHeader step={2} title="Perfil operacional"
+            subtitle="Define cómo varía la demanda en la semana — el sistema calcula las horas-persona reales" />
+
+          <div className="px-5 py-5 space-y-5">
+
+            {/* Variación fin de semana */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Variación sábado–domingo</p>
+                <div className="flex gap-1">
+                  {[
+                    { id: "percent" as const, label: "% reducción" },
+                    { id: "rtd" as const, label: "RTD diferenciado" },
+                  ].map((m) => (
+                    <button key={m.id} onClick={() => setWeekendMode(m.id)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${weekendMode === m.id ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"}`}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {weekendMode === "percent" ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Reducción sáb-dom (%)" hint="Ej: 30% = operan al 70% el fin de semana">
+                    <NumInput value={weekendReduction} onChange={setWeekendReduction} min={0} max={100} />
+                  </Field>
+                  <div className="flex items-center justify-center bg-slate-50 rounded-lg border border-slate-100 px-4">
+                    <div className="text-center">
+                      <p className="text-xs text-slate-400 mb-1">Operación fin de semana</p>
+                      <p className="text-2xl font-bold font-mono text-slate-800">{100 - weekendReduction}%</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="RTD pacientes sáb-dom" hint="vs L-V: {rtdPatients}">
+                    <NumInput value={rtdPatientsWeekend} onChange={setRtdPatientsWeekend} />
+                  </Field>
+                  <Field label="RTD casino sáb-dom">
+                    <NumInput value={rtdCasinoWeekend} onChange={setRtdCasinoWeekend} />
+                  </Field>
+                </div>
+              )}
+            </div>
+
+            {/* Horario */}
+            <div className="pt-4 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Horario de operación</p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Field label="Horas por turno" hint="Ej: 10h (07:00-17:00)">
+                  <NumInput value={hoursPerShift} onChange={setHoursPerShift} min={1} max={24} step={0.5} />
+                </Field>
+                <Field label="Colación (min)">
+                  <NumInput value={breakMinutes} onChange={setBreakMinutes} min={0} max={120} step={5} />
+                </Field>
+                <Field label="Traslape entre turnos (min)">
+                  <NumInput value={overlapMinutes} onChange={setOverlapMinutes} min={0} max={120} step={5} />
+                </Field>
+              </div>
+            </div>
+
+            {/* Factor reemplazo */}
+            <div className="pt-4 border-t border-slate-100">
+              <Field label="Factor de reemplazo" hint={`${((replacementFactor - 1) * 100).toFixed(0)}% ausentismo — salud pública ~18%, salud privada ~10%`}>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: "10%", value: 1.10 },
+                    { label: "15%", value: 1.15 },
+                    { label: "18%", value: 1.18 },
+                    { label: "Custom", value: null },
+                  ].map((opt) => (
+                    <button key={opt.label}
+                      onClick={() => opt.value && setReplacementFactor(opt.value)}
+                      className={`text-xs py-2 rounded-lg border transition-all ${opt.value && Math.abs(replacementFactor - opt.value) < 0.001 ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"}`}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <NumInput value={replacementFactor} onChange={setReplacementFactor} min={1} max={1.5} step={0.01} />
+                </div>
+              </Field>
+            </div>
+
+            {/* Resumen horas-persona */}
+            {resp?.ok && (
+              <div className="pt-4 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Resumen estimado semana</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {(() => {
+                    const ucpAreas: any[] = sanResult?.ucpStaffByArea ?? [];
+                    const pLV = ucpAreas.reduce((s: number, a: any) => s + (Number(a.applied) || 0), 0) || shiftsPerDay;
+                    const wFactor = weekendMode === "percent"
+                      ? (1 - weekendReduction / 100)
+                      : (rtdPatientsWeekend + rtdCasinoWeekend) / Math.max(1, rtdPatients + rtdCasino);
+                    const pWE = Math.round(pLV * wFactor);
+                    const hpLV  = pLV  * hoursPerShift * 5;
+                    const hpWE  = pWE  * hoursPerShift * 2;
+                    const totalAdj = (hpLV + hpWE) * replacementFactor;
+                    return [
+                      { label: `Horas-persona L-V (${pLV}p × ${hoursPerShift}h × 5d)`, value: `${hpLV}h` },
+                      { label: `Horas-persona Sáb-Dom (${pWE}p × ${hoursPerShift}h × 2d)`, value: `${hpWE}h` },
+                      { label: "Total ajustado / sem", value: `${totalAdj.toFixed(0)}h`, highlight: true },
+                    ];
+                  })().map((k) => (
+                    <div key={k.label} className={`rounded-lg border px-4 py-3 ${k.highlight ? "border-blue-200 bg-blue-50" : "border-slate-100"}`}>
+                      <p className="text-xs text-slate-500">{k.label}</p>
+                      <p className={`text-lg font-bold font-mono mt-0.5 ${k.highlight ? "text-blue-700" : "text-slate-800"}`}>{k.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ── ETAPA 3: Mix de contratos ── */}
+        <div className={`border rounded-xl overflow-hidden mb-6 transition-opacity ${resp?.ok ? "border-slate-200 opacity-100" : "border-dashed border-slate-200 opacity-50 pointer-events-none"}`}>
+          <SectionHeader step={3} title="Mix de contratos"
+            subtitle="Jornadas disponibles y restricciones — el motor propone 2-3 combinaciones" />
+
+          <div className="px-5 py-5 space-y-5">
+            <div className="grid grid-cols-2 gap-6">
+
+              {/* Jornadas */}
+              <div>
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Jornadas permitidas</p>
+                <div className="space-y-2">
+                  {[
+                    { key: "allow_6x1", label: "6×1", hint: "6 días trabajo, 1 descanso" },
+                    { key: "allow_5x2", label: "5×2", hint: "5 días trabajo, 2 descanso" },
+                    { key: "allow_4x3", label: "4×3 (solo 40h)", hint: "4 días trabajo, 3 descanso" },
+                    { key: "allow_pt_weekend", label: "PT fin de semana", hint: "Sáb-Dom únicamente" },
+                    { key: "allow_2x2", label: "2×2 (excepcional)", hint: "Requiere autorización" },
+                    { key: "allow_3x3", label: "3×3 (excepcional)", hint: "Requiere autorización" },
+                  ].map((j) => (
+                    <label key={j.key} className="flex items-start gap-2.5 cursor-pointer group">
+                      <input type="checkbox"
+                        checked={allowedJornadas[j.key as keyof typeof allowedJornadas]}
+                        onChange={(e) => setAllowedJornadas((p) => ({ ...p, [j.key]: e.target.checked }))}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 mt-0.5" />
+                      <div>
+                        <span className="text-sm text-slate-700 font-medium">{j.label}</span>
+                        <span className="text-xs text-slate-400 ml-2">{j.hint}</span>
                       </div>
-                    ) : null}
+                    </label>
+                  ))}
+                </div>
+              </div>
 
-                    <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-                      {(mixResult.mixes ?? []).map((m: any, i: number) => {
-                        const breakdown = Array.isArray(m.dayBreakdown) ? m.dayBreakdown : [];
-                        const maxBrecha = breakdown.reduce((mx: number, r: any) => {
-                          const v = safeNum(r?.remaining);
-                          return v > mx ? v : mx;
-                        }, 0);
+              {/* Contratos */}
+              <div>
+                <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-3">Contratos disponibles (horas/sem)</p>
+                <div className="flex gap-2 flex-wrap mb-4">
+                  {[44, 42, 40, 33, 30, 22, 20].map((h) => (
+                    <button key={h} onClick={() => toggleContract(h)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-mono border transition-all ${allowedContracts.includes(h) ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"}`}>
+                      {h}h
+                    </button>
+                  ))}
+                </div>
+                <Field label="Máx. % contratos PT (parciales)" hint="Recomendado ≤25% en sector hospitalario">
+                  <NumInput value={Math.round(ptMaxShare * 100)} onChange={(v) => setPtMaxShare(v / 100)} min={0} max={100} />
+                </Field>
+              </div>
+            </div>
 
-                        return (
-                          <div key={i} className="card">
-                            <div className="cardPad">
-                              <div className="h3" style={{ margin: 0 }}>
-                                {m.title ?? `Mix ${i + 1}`}
-                              </div>
-                              <div className="small" style={{ marginTop: 6 }}>
-                                Personas: <b>{m.headcount}</b> — Horas:{" "}
-                                <b>{m.hoursTotal}</b> — Holgura: <b>{m.slackHours}</b> — PT share:{" "}
-                                <b>{pct(m.ptShare ?? 0)}</b>
-                                {" — "}
-                                <span>
-                                  Brecha máxima (hrs-persona/día):{" "}
-                                  <b>{Math.round(maxBrecha * 10) / 10}</b>
-                                </span>
-                              </div>
+            <div className="flex items-center gap-3 pt-2 border-t border-slate-100">
+              <button onClick={generateMix} disabled={mixLoading || !resp?.ok}
+                className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2">
+                {mixLoading ? <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" /></svg>Generando mix…</> : "Generar mix PRO →"}
+              </button>
+              <button onClick={downloadExcel} disabled={exporting || !resp?.ok}
+                className="px-5 py-2.5 bg-white text-slate-700 text-sm font-semibold rounded-lg border border-slate-200 hover:border-slate-300 transition-colors disabled:opacity-50 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                {exporting ? "Generando…" : "Excel PRO"}
+              </button>
+            </div>
+          </div>
 
-                              {/* Tabla mix */}
-                              <div style={{ overflowX: "auto", marginTop: 8 }}>
-                                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                                  <thead>
-                                    <tr>
-                                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #eee" }}>Jornada</th>
-                                      <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #eee" }}>Contrato</th>
-                                      <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Horas/sem</th>
-                                      <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Cantidad</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {(m.items ?? []).map((it: any, j: number) => (
-                                      <tr key={j}>
-                                        <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2" }}>{it.jornadaLabel}</td>
-                                        <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2" }}>{it.contractName}</td>
-                                        <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2", textAlign: "right" }}>{it.hoursPerWeek}</td>
-                                        <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2", textAlign: "right" }}>{it.count}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
+          {/* Resultado mix */}
+          {mixResp && (
+            <div className="border-t border-slate-200">
+              {!mixResp.ok ? (
+                <div className="px-5 py-4 bg-red-50 text-sm text-red-700">❌ {mixResp.error}</div>
+              ) : (
+                <div className="px-5 py-5">
+                  <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100 text-sm text-slate-500">
+                    <span>Horas requeridas: <strong className="text-slate-800 mono">{mixResult.requiredHours}</strong></span>
+                    <span>FTE: <strong className="text-slate-800 mono">{mixResult.fte}</strong></span>
+                    <span>PT máx: <strong className="text-slate-800 mono">{pct(mixResult.ptMaxShare)}</strong></span>
+                    {mixResult.warnings?.length > 0 && (
+                      <span className="text-amber-600">⚠ {mixResult.warnings.join(" · ")}</span>
+                    )}
+                  </div>
 
-                              {/* Cobertura por día */}
-                              {breakdown.length ? (
-                                <details style={{ marginTop: 12 }}>
-                                  <summary className="small" style={{ cursor: "pointer" }}>
-                                    Ver cobertura por día (demanda vs cubre vs brecha)
-                                  </summary>
-
-                                  <div style={{ overflowX: "auto", marginTop: 8 }}>
-                                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                                      <thead>
-                                        <tr>
-                                          <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #eee" }}>Día</th>
-                                          <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Demanda</th>
-                                          <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Cubre</th>
-                                          <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #eee" }}>Brecha</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {breakdown.map((r: any, k: number) => {
-                                          const brecha = safeNum(r?.remaining);
-                                          const warn = brecha > 0.001;
-                                          return (
-                                            <tr key={k}>
-                                              <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2" }}>{r.day}</td>
-                                              <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2", textAlign: "right" }}>{r.demand}</td>
-                                              <td style={{ padding: 8, borderBottom: "1px solid #f2f2f2", textAlign: "right" }}>{r.supply}</td>
-                                              <td
-                                                style={{
-                                                  padding: 8,
-                                                  borderBottom: "1px solid #f2f2f2",
-                                                  textAlign: "right",
-                                                  fontWeight: warn ? 700 : 400,
-                                                }}
-                                              >
-                                                {r.remaining}
-                                              </td>
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </div>
-
-                                  <div className="small" style={{ marginTop: 8 }}>
-                                    Nota: Brecha &gt; 0 indica horas-persona sin cubrir en ese día (riesgo operacional).
-                                  </div>
-                                </details>
-                              ) : (
-                                <div className="small" style={{ marginTop: 10 }}>
-                                  (Aún no llegó dayBreakdown desde el motor. Revisa que /api/calculate esté actualizado.)
-                                </div>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {(mixResult.mixes ?? []).map((m: any, i: number) => {
+                      const breakdown = Array.isArray(m.dayBreakdown) ? m.dayBreakdown : [];
+                      const maxBrecha = breakdown.reduce((mx: number, r: any) => Math.max(mx, safeNum(r?.remaining)), 0);
+                      return (
+                        <div key={i} className={`rounded-xl border p-4 ${i === 0 ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"}`}>
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <p className={`text-xs font-semibold ${i === 0 ? "text-blue-700" : "text-slate-500"}`}>
+                                {m.title ?? (i === 0 ? "Recomendado" : `Alternativa ${i}`)}
+                              </p>
+                              {maxBrecha > 0.1 && (
+                                <p className="text-xs text-amber-600 mt-0.5">⚠ Brecha máx: {Math.round(maxBrecha * 10) / 10}h-p/día</p>
                               )}
                             </div>
+                            <div className="text-right">
+                              <p className={`text-2xl font-bold mono ${i === 0 ? "text-blue-700" : "text-slate-800"}`}>{m.headcount}</p>
+                              <p className="text-xs text-slate-400">personas</p>
+                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
 
+                          <div className="space-y-1.5 mb-3">
+                            {(m.items ?? []).map((it: any, j: number) => (
+                              <div key={j} className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-1.5 h-1.5 rounded-full ${i === 0 ? "bg-blue-500" : "bg-slate-400"}`} />
+                                  <span className="text-xs text-slate-700 font-medium">{it.contractName ?? `${it.hoursPerWeek}h`}</span>
+                                  <span className="text-xs text-slate-400 mono">{it.jornadaLabel ?? it.jornadaName}</span>
+                                </div>
+                                <span className={`text-xs font-bold mono ${i === 0 ? "text-blue-700" : "text-slate-700"}`}>×{it.count}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="pt-3 border-t border-slate-200 grid grid-cols-3 gap-2 text-xs">
+                            <div>
+                              <p className="text-slate-400">Horas</p>
+                              <p className="mono font-semibold text-slate-700">{m.hoursTotal}h</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400">Holgura</p>
+                              <p className={`mono font-semibold ${m.slackPct > 0.3 ? "text-amber-600" : "text-slate-700"}`}>
+                                {m.slackHours}h ({(m.slackPct * 100).toFixed(0)}%)
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400">PT share</p>
+                              <p className="mono font-semibold text-slate-700">{pct(m.ptShare ?? 0)}</p>
+                            </div>
+                          </div>
+
+                          {breakdown.length > 0 && (
+                            <details className="mt-3">
+                              <summary className="text-xs text-slate-500 cursor-pointer hover:text-slate-700">
+                                Ver cobertura por día →
+                              </summary>
+                              <div className="mt-2 space-y-1">
+                                {breakdown.map((r: any, k: number) => {
+                                  const brecha = safeNum(r?.remaining);
+                                  return (
+                                    <div key={k} className="flex items-center justify-between text-xs">
+                                      <span className="text-slate-500 w-8">{r.day}</span>
+                                      <span className="text-slate-600 mono">dem: {r.demand}</span>
+                                      <span className="text-slate-600 mono">cubre: {r.supply}</span>
+                                      <span className={`mono font-semibold ${brecha > 0.001 ? "text-amber-600" : "text-emerald-600"}`}>
+                                        {brecha > 0.001 ? `−${r.remaining}` : "✓"}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </details>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
             </div>
-          ) : null}
+          )}
         </div>
       </div>
-    </main>
+
+      <footer className="border-t border-slate-100 py-6 px-6 mt-8">
+        <div className="max-w-5xl mx-auto flex items-center justify-between text-xs text-slate-400">
+          <span>© {new Date().getFullYear()} dotaciones.cl</span>
+          <div className="flex gap-4">
+            <Link href="/blog" className="hover:text-slate-600 transition-colors">Blog</Link>
+            <Link href="/san/glosario" className="hover:text-slate-600 transition-colors">Glosario</Link>
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 }

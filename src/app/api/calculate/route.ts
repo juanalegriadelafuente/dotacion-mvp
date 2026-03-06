@@ -8,9 +8,9 @@ type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 type DayInput = {
   open: boolean;
   hoursOpen?: number; // fallback simple
-  requiredPeople: number; // personas simultáneas
+  requiredPeople: number; // personas simultÃ¡neas
   overlapMinutes: number; // traslape (min)
-  breakMinutes: number; // colación no imputable (min)
+  breakMinutes: number; // colaciÃ³n no imputable (min)
   shiftsPerDay?: number;
 };
 
@@ -22,7 +22,7 @@ type Preferences = {
   allow_5x2?: boolean;
   allow_4x3?: boolean; // SOLO con contrato 40h
   allow_pt_weekend?: boolean;
-  pt_weekend_strict?: boolean; // lógica silenciosa
+  pt_weekend_strict?: boolean; // lÃ³gica silenciosa
 };
 
 type CalcInput = {
@@ -52,10 +52,10 @@ function dayLabel(d: DayKey) {
     {
       mon: "Lun",
       tue: "Mar",
-      wed: "Mié",
+      wed: "MiÃ©",
       thu: "Jue",
       fri: "Vie",
-      sat: "Sáb",
+      sat: "SÃ¡b",
       sun: "Dom",
     }[d] ?? d
   );
@@ -64,7 +64,7 @@ function dayLabel(d: DayKey) {
 const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 /**
- * Rate limit best-effort (serverless: no es garantía)
+ * Rate limit best-effort (serverless: no es garantÃ­a)
  */
 type RLState = { count: number; resetAt: number };
 const RL = (globalThis as any).__DOT_RL__ as Map<string, RLState> | undefined;
@@ -94,7 +94,7 @@ function rateLimit(req: Request, limit = 60, windowMs = 60_000) {
 }
 
 /**
- * Jornadas típicas
+ * Jornadas tÃ­picas
  */
 type Jornada = "6x1" | "5x2" | "4x3" | "PT_WE";
 type Option = {
@@ -110,7 +110,7 @@ type Option = {
 };
 
 function jornadaPretty(j: Jornada) {
-  if (j === "PT_WE") return "Part Time Sábado y Domingo";
+  if (j === "PT_WE") return "Part Time SÃ¡bado y Domingo";
   return j;
 }
 
@@ -195,7 +195,7 @@ function buildOptions(params: {
     }
   }
 
-  // orden: primero full, después PT
+  // orden: primero full, despuÃ©s PT
   opts.sort((a, b) => {
     const af = a.isFull ? 0 : 1;
     const bf = b.isFull ? 0 : 1;
@@ -207,7 +207,7 @@ function buildOptions(params: {
 }
 
 /**
- * Demanda semanal (horas-persona por día)
+ * Demanda semanal (horas-persona por dÃ­a)
  */
 function computeDemand(params: {
   days: Record<DayKey, DayInput>;
@@ -327,7 +327,7 @@ function allocateOption(params: {
 }
 
 /**
- * Evalúa un mix: devuelve supplyByDay y remainingByDay
+ * EvalÃºa un mix: devuelve supplyByDay y remainingByDay
  */
 function evaluateMix(params: {
   options: Option[];
@@ -426,7 +426,7 @@ function evaluateMix(params: {
     ptShare,
     fullHeadcount,
     supplyByDay: supply,
-    remainingByDay: remaining, // ✅ NUEVO
+    remainingByDay: remaining, // âœ… NUEVO
     demandByDay: demandHoursByDay,
     score,
   };
@@ -454,16 +454,23 @@ function generateCandidates(params: {
       ? requiredHours * 1.3
       : requiredHours * 1.2;
 
+  // Límite dinámico: cuántas personas de ese contrato cubren la demanda solas + margen.
+  // Tope 60 para evitar OOM con hospitales grandes.
   const maxCounts = options.map((o) => {
-    const base = Math.ceil(requiredHours / o.hoursPerWeek);
-    const bump = o.isPt ? 8 : 5;
-    return clamp(base + bump, 0, 40);
+    const base = Math.ceil(requiredHours / Math.max(1, o.hoursPerWeek));
+    const bump = o.isPt ? 4 : 3;
+    return clamp(base + bump, 0, 60);
   });
 
   type CountMap = Record<string, number>;
   const results: CountMap[] = [];
 
+  // Tope duro de llamadas recursivas para evitar heap OOM
+  let recCalls = 0;
+  const MAX_REC = 300_000;
+
   function rec(i: number, counts: CountMap, head: number, hours: number) {
+    if (++recCalls > MAX_REC) return;
     if (head > maxHeadcount) return;
     if (hours > maxHours) return;
 
@@ -479,6 +486,7 @@ function generateCandidates(params: {
     const maxC = maxCounts[i];
 
     for (let k = 0; k <= maxC; k++) {
+      if (recCalls > MAX_REC) break;
       const newHead = head + k;
       const newHours = hours + k * opt.hoursPerWeek;
       if (newHead > maxHeadcount) break;
@@ -597,7 +605,7 @@ function pickTopScenarios(scored: any[]) {
     );
     return b6 - a6 || a.score - b.score;
   })[0];
-  if (more6x1) picks.push({ ...more6x1, title: "Alternativa (más 6x1)" });
+  if (more6x1) picks.push({ ...more6x1, title: "Alternativa (mÃ¡s 6x1)" });
 
   const seen = new Set<string>();
   const out: any[] = [];
@@ -632,7 +640,7 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
   try {
     input = (await req.json()) as CalcInput;
   } catch {
-    return NextResponse.json({ ok: false, error: "JSON inválido." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "JSON invÃ¡lido." }, { status: 400 });
   }
 
   const rawSize = JSON.stringify(input ?? {}).length;
@@ -672,7 +680,7 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
 
   const warnings: string[] = [];
   if (requiredHours <= 0.01) {
-    warnings.push("No hay horas requeridas (revisa días abiertos y personas simultáneas).");
+    warnings.push("No hay horas requeridas (revisa dÃ­as abiertos y personas simultÃ¡neas).");
   }
 
   const { options, has40 } = buildOptions({ contracts, threshold, prefs });
@@ -705,7 +713,7 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
       const sundayReq = demandHoursByDay.sun;
       const sundayCap = ev.supplyByDay.sun;
 
-      // ✅ NUEVO: breakdown por día para UI/Excel
+      // âœ… NUEVO: breakdown por dÃ­a para UI/Excel
       const dayBreakdown = DAY_ORDER.map((d) => ({
         day: dayLabel(d),
         demand: Math.round(demandHoursByDay[d] * 10) / 10,
@@ -726,7 +734,7 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
         uncovered: ev.uncovered,
         items,
 
-        // ✅ NUEVO: por día
+        // âœ… NUEVO: por dÃ­a
         demandByDay: ev.demandByDay,
         supplyByDay: ev.supplyByDay,
         remainingByDay: ev.remainingByDay,
@@ -752,7 +760,7 @@ export async function POST(req: Request): Promise<NextResponse<CalcResponse>> {
     warnings.push("Hay holgura relevante. Tip: agrega contrato intermedio o ajusta demanda.");
   }
   if (best && best.ptShare > 0.6) {
-    warnings.push("El mix usa muchos PT. Si necesitas cuerpo base, agrega más opciones full.");
+    warnings.push("El mix usa muchos PT. Si necesitas cuerpo base, agrega mÃ¡s opciones full.");
   }
 
   const result = {

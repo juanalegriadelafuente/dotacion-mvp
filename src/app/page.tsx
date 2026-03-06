@@ -1,20 +1,7 @@
-import Link from "next/link";
-import type { Metadata } from "next";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Calculadora de Dotación de Personal Gratis | Dotaciones.cl",
-  description:
-    "Calcula la dotación óptima de personal para retail, servicios y hospitales. Mix de contratos, jornadas y exportación a Excel. Gratis y sin registro.",
-  keywords: ["calculadora dotación personal", "mix de contratos Chile", "dotación retail", "dotación hospitalaria SAN"],
-  openGraph: {
-    title: "Calculadora de Dotación de Personal Gratis | Dotaciones.cl",
-    description: "Mix de contratos, cobertura por día y exportación a Excel. 100% gratis.",
-    url: "https://www.dotaciones.cl",
-    siteName: "Dotaciones.cl",
-    locale: "es_CL",
-    type: "website",
-  },
-};
+import Link from "next/link";
+import { useState } from "react";
 
 const testimonials = [
   { quote: "Antes tardábamos horas en Excel. Con Dotaciones.cl lo resolvemos en minutos con respaldo defendible.", name: "Jefa de RRHH", company: "Cadena retail, Santiago" },
@@ -28,6 +15,59 @@ const faqs = [
   { q: "¿Qué incluye el Excel exportado?", a: "Mix de contratos sugerido, cobertura por día, horas planificadas y estructura lista para valorización." },
   { q: "¿La calculadora SAN cumple la normativa vigente?", a: "Sí. Incorpora parámetros RTD/RCD y calcula la dotación mínima normativa como punto de partida." },
 ];
+
+function LeadForm() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return;
+    setStatus("loading");
+    try {
+      const r = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, source: "home-guia", role: null }),
+      });
+      const data = await r.json();
+      setStatus(data.ok ? "ok" : "error");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  if (status === "ok") {
+    return (
+      <p className="text-white font-semibold text-sm bg-blue-500 rounded-lg px-6 py-4 inline-block">
+        ✅ ¡Listo! Te enviamos la guía a tu correo.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2 justify-center">
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="tu@email.cl"
+        className="flex-1 px-4 py-3 rounded-lg text-gray-900 text-sm focus:outline-none min-w-0"
+      />
+      <button
+        type="submit"
+        disabled={status === "loading"}
+        className="bg-white text-blue-700 font-bold px-6 py-3 rounded-lg hover:bg-blue-50 transition-colors text-sm whitespace-nowrap disabled:opacity-60"
+      >
+        {status === "loading" ? "Enviando…" : "Quiero la guía →"}
+      </button>
+      {status === "error" && (
+        <p className="text-red-200 text-xs mt-1 w-full">Hubo un error. Intenta de nuevo.</p>
+      )}
+    </form>
+  );
+}
 
 export default function HomePage() {
   return (
@@ -114,13 +154,7 @@ export default function HomePage() {
         <div className="max-w-xl mx-auto">
           <h2 className="text-2xl font-bold mb-3">Recibe la guía de dotación óptima gratis</h2>
           <p className="text-blue-100 mb-6 text-sm">Guía práctica en PDF: cómo calcular, justificar y presentar tu dotación ante gerencia. Sin spam.</p>
-          <form action="https://formspree.io/f/TU_FORM_ID" method="POST" className="flex flex-col sm:flex-row gap-2 justify-center">
-            <input type="email" name="email" required placeholder="tu@email.cl"
-              className="flex-1 px-4 py-3 rounded-lg text-gray-900 text-sm focus:outline-none min-w-0" />
-            <button type="submit" className="bg-white text-blue-700 font-bold px-6 py-3 rounded-lg hover:bg-blue-50 transition-colors text-sm whitespace-nowrap">
-              Quiero la guía →
-            </button>
-          </form>
+          <LeadForm />
         </div>
       </section>
 
@@ -133,9 +167,9 @@ export default function HomePage() {
           </div>
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              {slug:"como-calcular-dotacion-personal",tag:"Guía",title:"Cómo calcular la dotación de personal paso a paso",desc:"Guía práctica para determinar cuántas personas necesitas según tu operación real.",date:"Marzo 2025"},
-              {slug:"mix-contratos-jornada-parcial-chile",tag:"Normativa",title:"Mix de contratos y jornada parcial en Chile",desc:"Qué dice el Código del Trabajo sobre jornadas parciales y cómo optimizar tu mix.",date:"Febrero 2025"},
-              {slug:"dotacion-hospitalaria-san-normativa",tag:"SAN",title:"Dotación hospitalaria: cumplir la normativa SAN sin sobredotar",desc:"Claves para calcular la dotación mínima normativa y ajustarla a la operación real.",date:"Enero 2025"},
+              {slug:"como-calcular-dotacion-personal",tag:"Guía",title:"Cómo calcular la dotación de personal paso a paso",desc:"Guía práctica para determinar cuántas personas necesitas según tu operación real.",date:"Marzo 2026"},
+              {slug:"mix-contratos-jornada-parcial-chile",tag:"Normativa",title:"Mix de contratos y jornada parcial en Chile",desc:"Qué dice el Código del Trabajo sobre jornadas parciales y cómo optimizar tu mix.",date:"Febrero 2026"},
+              {slug:"dotacion-hospitalaria-san-normativa",tag:"SAN",title:"Dotación hospitalaria: cumplir la normativa SAN sin sobredotar",desc:"Claves para calcular la dotación mínima normativa y ajustarla a la operación real.",date:"Enero 2026"},
             ].map(p=>(
               <Link key={p.slug} href={`/blog/${p.slug}`} className="group block border border-gray-100 rounded-xl p-5 hover:shadow-md transition-shadow">
                 <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">{p.tag}</span>

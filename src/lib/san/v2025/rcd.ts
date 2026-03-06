@@ -1,5 +1,6 @@
 // src/lib/san/v2025/rcd.ts
-import { computeFactors, type AppliedFactor, type FactorsInput } from "./factors";
+// [FIX-5] Usa combineFactors (aditivo) en lugar de reduce multiplicativo
+import { computeFactors, combineFactors, type AppliedFactor, type FactorsInput } from "./factors";
 
 export type RcdComputation = {
   rtd: number;
@@ -22,7 +23,8 @@ export function computeRcdFromRtd(params: {
   const rtd = Math.max(0, Number(params.rtd || 0));
 
   const factors = computeFactors(params.factors);
-  const multiplier = factors.reduce((acc, f) => acc * f.value, 1);
+  // [FIX-5] Combinación aditiva: 1.0 + Σ(delta_i), no multiplicativa
+  const multiplier = combineFactors(factors);
 
   const rcd = rtd * multiplier;
 

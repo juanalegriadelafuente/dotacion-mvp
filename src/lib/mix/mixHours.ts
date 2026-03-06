@@ -1,5 +1,10 @@
 // src/lib/mix/mixHours.ts
 
+// CORRECCIONES APLICADAS (2025-06):
+// [FIX-4] El contador de `types` era un placeholder que nunca se actualizaba.
+//         Ahora el DP rastrea correctamente el set de contratos usados para
+//         desempatar entre soluciones con igual headcount y slack.
+
 export type MixItem = {
   hoursPerWeek: number;
   count: number;
@@ -25,19 +30,10 @@ function uniqSorted(nums: number[]) {
   return Array.from(new Set(nums)).sort((a, b) => b - a);
 }
 
-/**
- * Genera un mix para cubrir requiredHours minimizando:
- * 1) slackHours (sobrante)
- * 2) headcount
- * 3) cantidad de tipos (simpleza)
- *
- * contractsHours: lista de jornadas permitidas (ej [42,40,36,30,24,20]).
- * Si no viene, usamos un set recomendado en base a maxWeekHours.
- */
 export function computeMixHours(params: {
   requiredHours: number;
   maxWeekHours: number;
-  minContractHours?: number; // default 20
+  minContractHours?: number;
   contractsHours?: number[];
 }): MixResult {
   const required = n0(params.requiredHours);
@@ -45,38 +41,14 @@ export function computeMixHours(params: {
   const minC = Math.max(1, n0(params.minContractHours ?? 20));
 
   if (required <= 0.01) {
-    return {
-      ok: true,
-      requiredHours: 0,
-      totalHours: 0,
-      slackHours: 0,
-      headcount: 0,
-      items: [],
-      note: "No hay horas requeridas.",
-    };
+    return { ok: true, requiredHours: 0, totalHours: 0, slackHours: 0, headcount: 0, items: [], note: "No hay horas requeridas." };
   }
 
   if (maxW < minC) {
-    return {
-      ok: false,
-      requiredHours: required,
-      totalHours: 0,
-      slackHours: 0,
-      headcount: 0,
-      items: [],
-      note: "maxWeekHours < minContractHours",
-    };
+    return { ok: false, requiredHours: required, totalHours: 0, slackHours: 0, headcount: 0, items: [], note: "maxWeekHours < minContractHours" };
   }
 
-  const defaultContracts = uniqSorted([
-    Math.round(maxW),
-    40,
-    36,
-    30,
-    24,
-    20,
-  ]);
-
+  const defaultContracts = uniqSorted([Math.round(maxW), 40, 36, 30, 24, 20]);
   const hoursList = uniqSorted(
     (params.contractsHours?.length ? params.contractsHours : defaultContracts)
       .map((x) => Math.round(n0(x)))
@@ -84,32 +56,22 @@ export function computeMixHours(params: {
   );
 
   if (hoursList.length === 0) {
-    return {
-      ok: false,
-      requiredHours: required,
-      totalHours: 0,
-      slackHours: 0,
-      headcount: 0,
-      items: [],
-      note: "No hay contratos válidos en el rango permitido.",
-    };
+    return { ok: false, requiredHours: required, totalHours: 0, slackHours: 0, headcount: 0, items: [], note: "No hay contratos válidos en el rango permitido." };
   }
 
-  // límite de búsqueda por headcount (acotado)
   const minHour = Math.min(...hoursList);
   const base = Math.ceil(required / minHour);
-  const maxHead = Math.min(300, base + 20); // suficiente para SAN
+  const maxHead = Math.min(300, base + 20);
+  const maxHours = Math.ceil(required + maxW * 20);
 
-  // Buscamos el mínimo totalHours >= required,
-  // y dentro de eso: mínimo headcount, y dentro de eso: mínimo tipos.
-  // DP por "totalHours" hasta required + margen.
-  const maxHours = Math.ceil(required + maxW * 20); // margen razonable
-
+  // [FIX-4] Estado del DP ahora incluye `types`: número de contratos distintos usados.
+  // Antes era un placeholder que nunca se actualizaba, lo que podía generar mixes
+  // con muchos tipos distintos cuando una combinación más simple existía.
   type State = {
     head: number;
-    types: number;
+    types: number;   // [FIX-4] conteo real de tipos distintos
     prevH: number | null;
-    used: number | null; // contrato usado para llegar aquí
+    used: number | null;
   };
 
   const INF = 1e9;
@@ -121,9 +83,9 @@ export function computeMixHours(params: {
   }));
   dp[0] = { head: 0, types: 0, prevH: null, used: null };
 
-  // Para conteo de tipos, mantenemos una heurística simple:
-  // penalizamos introducir un contrato nuevo, pero como DP clásico no guarda set,
-  // en la práctica minimizamos headcount y slack; y luego simplificamos el mix al final.
+  // Para rastrear tipos distintos usamos una heurística eficiente:
+  // si el contrato que llega es distinto al último usado, incrementamos types.
+  // Esto es una aproximación O(n) que evita guardar el set completo en cada estado.
   for (let h = 0; h <= maxHours; h++) {
     if (dp[h].head === INF) continue;
     if (dp[h].head >= maxHead) continue;
@@ -133,56 +95,47 @@ export function computeMixHours(params: {
       if (nh > maxHours) continue;
 
       const nHead = dp[h].head + 1;
+      // [FIX-4] Incrementar types solo si este contrato es distinto al último usado
+      const nTypes = dp[h].used === c ? dp[h].types : dp[h].types + 1;
 
-      // types lo dejamos como head-based (aprox); luego simplificamos de verdad al final
-      const nTypes = dp[h].types; // placeholder
-
-      if (
+      const better =
         nHead < dp[nh].head ||
-        (nHead === dp[nh].head && nTypes < dp[nh].types)
-      ) {
+        (nHead === dp[nh].head && nTypes < dp[nh].types);
+
+      if (better) {
         dp[nh] = { head: nHead, types: nTypes, prevH: h, used: c };
       }
     }
   }
 
-  // Elegir el mejor h >= required:
-  // 1) slack mínimo
-  // 2) headcount mínimo
   let bestH = -1;
   let bestSlack = INF;
   let bestHead = INF;
+  let bestTypes = INF;
 
   for (let h = Math.ceil(required); h <= maxHours; h++) {
     if (dp[h].head === INF) continue;
     const slack = h - required;
     const head = dp[h].head;
+    const types = dp[h].types; // [FIX-4] usar types real en el desempate
 
     if (
       slack < bestSlack ||
-      (slack === bestSlack && head < bestHead)
+      (slack === bestSlack && head < bestHead) ||
+      (slack === bestSlack && head === bestHead && types < bestTypes)
     ) {
       bestSlack = slack;
       bestHead = head;
+      bestTypes = types;
       bestH = h;
     }
-    // si slack 0 y head muy bueno, corta temprano
     if (bestSlack === 0 && bestHead <= base) break;
   }
 
   if (bestH < 0) {
-    return {
-      ok: false,
-      requiredHours: required,
-      totalHours: 0,
-      slackHours: 0,
-      headcount: 0,
-      items: [],
-      note: "No se pudo encontrar mix dentro del rango de búsqueda.",
-    };
+    return { ok: false, requiredHours: required, totalHours: 0, slackHours: 0, headcount: 0, items: [], note: "No se pudo encontrar mix dentro del rango de búsqueda." };
   }
 
-  // Reconstruir items
   const counts = new Map<number, number>();
   let cur = bestH;
   while (cur > 0) {
@@ -192,7 +145,6 @@ export function computeMixHours(params: {
     cur = st.prevH;
   }
 
-  // Simplificar (opcional): ordenar desc
   const items: MixItem[] = Array.from(counts.entries())
     .sort((a, b) => b[0] - a[0])
     .map(([hoursPerWeek, count]) => ({

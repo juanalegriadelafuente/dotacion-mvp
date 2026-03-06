@@ -1,1263 +1,566 @@
-// src/app/calculadora/page.tsx
 "use client";
 
-import { track } from "@vercel/analytics";
-import Image from "next/image";
+import { useState, useCallback } from "react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { calculate, type CalcInput, type CalcResult, type DayKey } from "@/lib/engine";
+import { SlotDemandGrid, computeStats } from "@/components/SlotDemandGrid";
 
-type DayKey = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-const DAY_ORDER: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-const DAY_LABEL: Record<DayKey, string> = {
-  mon: "Lun",
-  tue: "Mar",
-  wed: "Mié",
-  thu: "Jue",
-  fri: "Vie",
-  sat: "Sáb",
-  sun: "Dom",
-};
+// ─── Tipos ──────────────────────────────────────────────────────────────────
 
-type Preferences = {
-  strategy: "balanced" | "min_people" | "stable";
-  allow_6x1: boolean;
-  allow_5x2: boolean;
-  allow_4x3: boolean;
-  allow_pt_weekend: boolean;
-  pt_weekend_strict: boolean;
-};
-
-type ContractRow = { name: string; hoursPerWeek: string };
-
-type LeadForm = {
-  name: string;
-  role: string;
-  industry: string;
-  company_size: string;
-  email: string;
-};
-
-type CalcOk = {
-  ok: true;
-  result: {
-    requiredHours: number;
-    fte: number;
-    demandByDay: { day: string; hours: number }[];
-    warnings: string[];
-    mixes: Array<{
-      title: string;
-      headcount: number;
-      hoursTotal: number;
-      slackHours: number;
-      slackPct: number;
-      sundayReq: number;
-      sundayCap: number;
-      sundayOk: boolean;
-      ptShare: number;
-      uncovered: number;
-      items: Array<{
-        count: number;
-        jornada: string;
-        jornadaLabel: string;
-        contractName: string;
-        hoursPerWeek: number;
-        isFull: boolean;
-        isPt: boolean;
-      }>;
-    }>;
-  };
-};
-type CalcErr = { ok: false; error: string };
-type CalcResponse = CalcOk | CalcErr;
-
-/** Grid 30 min
- * Slot 0 = 07:00
- * Slot 47 = 06:30 (día siguiente)
- */
-const GRID_START_MIN = 7 * 60;
-const SLOT_MIN = 30;
-const SLOT_COUNT = 48;
-
-function slotLabel(i: number) {
-  const mins = GRID_START_MIN + i * SLOT_MIN;
-  const m = ((mins % (24 * 60)) + 24 * 60) % (24 * 60);
-  const hh = Math.floor(m / 60);
-  const mm = m % 60;
-  return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-}
-
-function timeToSlot(hhmm: string) {
-  const [hStr, mStr] = hhmm.split(":");
-  const h = Number(hStr);
-  const m = Number(mStr);
-  if (!Number.isFinite(h) || !Number.isFinite(m)) return 0;
-  const mins = h * 60 + m;
-  const adj = mins < GRID_START_MIN ? mins + 24 * 60 : mins;
-  const idx = Math.round((adj - GRID_START_MIN) / SLOT_MIN);
-  return Math.max(0, Math.min(SLOT_COUNT - 1, idx));
-}
-
-function clamp(n: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, n));
-}
-
-function freshSlots() {
-  return Array.from({ length: SLOT_COUNT }, () => 0);
-}
-
-function rangeFill(arr: number[], startSlot: number, endSlot: number, value: number) {
-  const out = arr.slice();
-  if (endSlot === startSlot) return out;
-
-  const fill = (a: number, b: number) => {
-    const lo = Math.max(0, Math.min(SLOT_COUNT, a));
-    const hi = Math.max(0, Math.min(SLOT_COUNT, b));
-    for (let i = lo; i < hi; i++) out[i] = value;
-  };
-
-  if (endSlot > startSlot) {
-    fill(startSlot, endSlot);
-  } else {
-    fill(startSlot, SLOT_COUNT);
-    fill(0, endSlot);
-  }
-  return out;
-}
-
-function slotsBaseHours(slots: number[]) {
-  let sum = 0;
-  for (const v of slots) sum += Math.max(0, v) * 0.5;
-  return Math.round(sum * 10) / 10;
-}
-
-function slotsPeak(slots: number[]) {
-  let peak = 0;
-  for (const v of slots) peak = Math.max(peak, Math.max(0, v));
-  return peak;
-}
-
-function slotsToSegments(slots: number[]) {
-  const segs: Array<{ start: number; end: number; value: number }> = [];
-  let curV = Math.max(0, slots[0] ?? 0);
-  let curS = 0;
-
-  for (let i = 1; i <= SLOT_COUNT; i++) {
-    const v = i === SLOT_COUNT ? NaN : Math.max(0, slots[i] ?? 0);
-    if (i === SLOT_COUNT || v !== curV) {
-      segs.push({ start: curS, end: i, value: curV });
-      curS = i;
-      curV = v as any;
-    }
-  }
-  return segs.filter((s) => s.value !== 0 && s.start !== s.end);
-}
-
-function emailLooksOk(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
-}
-
-function Button({
-  children,
-  className = "",
-  variant = "secondary",
-  ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "danger" | "ghost";
-}) {
-  const v =
-    variant === "primary"
-      ? "btn btnPrimary"
-      : variant === "danger"
-        ? "btn btnDanger"
-        : variant === "ghost"
-          ? "btn btnGhost"
-          : "btn";
-  return (
-    <button {...props} className={`${v} ${className}`.trim()}>
-      {children}
-    </button>
-  );
-}
-
-function Modal({
-  open,
-  title,
-  onClose,
-  children,
-}: {
+type DayConfig = {
   open: boolean;
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  if (!open) return null;
-  return (
-    <div className="modalOverlay" onClick={onClose} role="presentation">
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modalHead">
-          <div className="h3">{title}</div>
-          <button className="btn btnGhost" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-        <div className="hr" />
-        <div className="modalBody">{children}</div>
-      </div>
-    </div>
-  );
+  slots: number[]; // 48 tramos × personas requeridas
+  breakMinutes: number;
+  overlapMinutes: number;
+};
+
+type Contract = { id: string; name: string; hoursPerWeek: number };
+
+const DAY_KEYS: DayKey[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+const DAY_LABELS: Record<DayKey, string> = {
+  mon: "Lun", tue: "Mar", wed: "Mié", thu: "Jue", fri: "Vie", sat: "Sáb", sun: "Dom",
+};
+
+function makeDefaultDay(open: boolean): DayConfig {
+  return {
+    open,
+    slots: Array(48).fill(0),
+    breakMinutes: 30,
+    overlapMinutes: 30,
+  };
 }
+
+// ─── Página ─────────────────────────────────────────────────────────────────
 
 export default function CalculadoraPage() {
-  // Config
-  const [fullHoursPerWeek, setFullHoursPerWeek] = useState("42");
-  const [fullTimeThresholdHours, setFullTimeThresholdHours] = useState("30");
+  const [days, setDays] = useState<Record<DayKey, DayConfig>>(() => ({
+    mon: makeDefaultDay(true),
+    tue: makeDefaultDay(true),
+    wed: makeDefaultDay(true),
+    thu: makeDefaultDay(true),
+    fri: makeDefaultDay(true),
+    sat: makeDefaultDay(false),
+    sun: makeDefaultDay(false),
+  }));
+  const [activeDay, setActiveDay] = useState<DayKey>("mon");
 
-  // Preferencias
-  const [prefs, setPrefs] = useState<Preferences>({
-    strategy: "balanced",
-    allow_6x1: true,
-    allow_5x2: true,
-    allow_4x3: true,
-    allow_pt_weekend: true,
-    pt_weekend_strict: true,
-  });
+  const [fullHours, setFullHours] = useState(42);
+  const [replacementFactor, setReplacementFactor] = useState(1.15);
+  const [ptWeekdays, setPtWeekdays] = useState(false);
+  const [strategy, setStrategy] = useState("balanced");
 
-  // Contratos
-  const [contracts, setContracts] = useState<ContractRow[]>([
-    { name: "44h", hoursPerWeek: "44" },
-    { name: "42h", hoursPerWeek: "42" },
-    { name: "40h", hoursPerWeek: "40" },
-    { name: "30h", hoursPerWeek: "30" },
-    { name: "20h", hoursPerWeek: "20" },
+  const [contracts, setContracts] = useState<Contract[]>([
+    { id: "1", name: "44h", hoursPerWeek: 44 },
+    { id: "2", name: "42h", hoursPerWeek: 42 },
+    { id: "3", name: "40h", hoursPerWeek: 40 },
+    { id: "4", name: "30h", hoursPerWeek: 30 },
+    { id: "5", name: "20h", hoursPerWeek: 20 },
   ]);
 
-  // Operación por día (gap colación/traslape)
-  const [overlapByDay, setOverlapByDay] = useState<Record<DayKey, string>>({
-    mon: "30",
-    tue: "30",
-    wed: "30",
-    thu: "30",
-    fri: "30",
-    sat: "30",
-    sun: "30",
-  });
-  const [breakByDay, setBreakByDay] = useState<Record<DayKey, string>>({
-    mon: "30",
-    tue: "30",
-    wed: "30",
-    thu: "30",
-    fri: "30",
-    sat: "30",
-    sun: "30",
-  });
+  const [result, setResult] = useState<CalcResult | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Día seleccionado
-  const [selectedDay, setSelectedDay] = useState<DayKey>("mon");
+  // ── Helpers ──
 
-  // Demanda 30-min por día (slots)
-  const [demand30, setDemand30] = useState<Record<DayKey, number[]>>({
-    mon: freshSlots(),
-    tue: freshSlots(),
-    wed: freshSlots(),
-    thu: freshSlots(),
-    fri: freshSlots(),
-    sat: freshSlots(),
-    sun: freshSlots(),
-  });
-
-  // Abrir/cerrar días
-  const [dayOpen, setDayOpen] = useState<Record<DayKey, boolean>>({
-    mon: true,
-    tue: true,
-    wed: true,
-    thu: true,
-    fri: true,
-    sat: true,
-    sun: true,
-  });
-
-  // Rellenar rango
-  const [rangeStart, setRangeStart] = useState("08:00");
-  const [rangeEnd, setRangeEnd] = useState("18:00");
-  const [rangeValue, setRangeValue] = useState("2");
-  const [showGrid, setShowGrid] = useState(false);
-
-  // Copiar día
-  const [copyTarget, setCopyTarget] = useState<DayKey>("tue");
-
-  // Resultado
-  const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<CalcOk["result"] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [reportId, setReportId] = useState<string | null>(null);
-
-  // Lead modal
-  const [leadOpen, setLeadOpen] = useState(false);
-  const [lead, setLead] = useState<LeadForm>({
-    name: "",
-    role: "",
-    industry: "",
-    company_size: "",
-    email: "",
-  });
-  const [leadError, setLeadError] = useState<string | null>(null);
-
-  const loadExample = useCallback(() => {
-    const week: Record<DayKey, number[]> = {
-      mon: freshSlots(),
-      tue: freshSlots(),
-      wed: freshSlots(),
-      thu: freshSlots(),
-      fri: freshSlots(),
-      sat: freshSlots(),
-      sun: freshSlots(),
-    };
-
-    const fill = (day: DayKey, start: string, end: string, v: number) => {
-      const s = timeToSlot(start);
-      const e = timeToSlot(end);
-      week[day] = rangeFill(week[day], s, e, v);
-    };
-
-    for (const d of ["mon", "tue", "wed", "thu", "fri"] as DayKey[]) {
-      fill(d, "08:00", "12:00", 2);
-      fill(d, "12:00", "16:00", 3);
-      fill(d, "16:00", "20:00", 2);
-    }
-    fill("sat", "10:00", "18:00", 2);
-    fill("sun", "11:00", "17:00", 2);
-
-    setDemand30(week);
-    setDayOpen({
-      mon: true,
-      tue: true,
-      wed: true,
-      thu: true,
-      fri: true,
-      sat: true,
-      sun: true,
-    });
-    setSelectedDay("mon");
-    setShowGrid(false);
-
-    setOverlapByDay({
-      mon: "30",
-      tue: "30",
-      wed: "30",
-      thu: "30",
-      fri: "30",
-      sat: "30",
-      sun: "30",
-    });
-    setBreakByDay({
-      mon: "30",
-      tue: "30",
-      wed: "30",
-      thu: "30",
-      fri: "30",
-      sat: "30",
-      sun: "30",
-    });
-
-    setContracts([
-      { name: "44h", hoursPerWeek: "44" },
-      { name: "42h", hoursPerWeek: "42" },
-      { name: "40h", hoursPerWeek: "40" },
-      { name: "30h", hoursPerWeek: "30" },
-      { name: "20h", hoursPerWeek: "20" },
-    ]);
-
-    setPrefs((p) => ({
-      ...p,
-      strategy: "balanced",
-      allow_6x1: true,
-      allow_5x2: true,
-      allow_4x3: true,
-      allow_pt_weekend: true,
-      pt_weekend_strict: true,
-    }));
-
-    setResult(null);
-    setError(null);
-    setReportId(null);
-
-    track("calc_load_example");
+  const updateDay = useCallback((key: DayKey, patch: Partial<DayConfig>) => {
+    setDays((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
   }, []);
 
-  const dayStats = useMemo(() => {
-    const slots = demand30[selectedDay] ?? [];
-    return {
-      baseHours: slotsBaseHours(slots),
-      peak: slotsPeak(slots),
-      segments: slotsToSegments(slots),
-    };
-  }, [demand30, selectedDay]);
+  const copyDayTo = (from: DayKey, to: DayKey) => {
+    setDays((prev) => ({ ...prev, [to]: { ...prev[from] } }));
+  };
 
-  const calcInput = useMemo(() => {
-    const days: any = {};
-    for (const d of DAY_ORDER) {
-      days[d] = {
-        open: !!dayOpen[d],
-        hoursOpen: 0,
-        requiredPeople: 0,
-        overlapMinutes: Number(overlapByDay[d] || 0),
-        breakMinutes: Number(breakByDay[d] || 0),
+  const addContract = () => {
+    setContracts((prev) => [...prev, { id: Date.now().toString(), name: "", hoursPerWeek: 40 }]);
+  };
+  const removeContract = (id: string) => setContracts((prev) => prev.filter((c) => c.id !== id));
+  const updateContract = (id: string, patch: Partial<Contract>) =>
+    setContracts((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+
+  // ── Calcular ──
+
+  const handleCalculate = () => {
+    setLoading(true);
+    setTimeout(() => {
+      const input: CalcInput = {
+        fullHoursPerWeek: fullHours,
+        replacementFactor,
+        ptWeekdaysAllowed: ptWeekdays,
+        contracts: contracts
+          .filter((c) => c.hoursPerWeek > 0 && c.name)
+          .map((c) => ({ name: c.name, hoursPerWeek: c.hoursPerWeek })),
+        days: Object.fromEntries(
+          DAY_KEYS.map((k) => {
+            const d = days[k];
+            const { peak, hoursOpen, personHours } = computeStats(d.slots);
+            return [k, {
+              open: d.open,
+              // hoursOpen ahora viene de la curva real, no de un input manual
+              hoursOpen: hoursOpen > 0 ? hoursOpen : 0,
+              // requiredPeople = peak de la curva (para el proxy dominical)
+              requiredPeople: peak,
+              shiftsPerDay: 1,
+              overlapMinutes: d.overlapMinutes,
+              breakMinutes: d.breakMinutes,
+            }];
+          })
+        ) as CalcInput["days"],
       };
-    }
-
-    const parsedContracts = contracts
-      .map((c) => ({
-        name: String(c.name || "").trim(),
-        hoursPerWeek: Number(c.hoursPerWeek || 0),
-      }))
-      .filter((c) => c.name.length > 0 && Number.isFinite(c.hoursPerWeek) && c.hoursPerWeek > 0);
-
-    return {
-      fullHoursPerWeek: Number(fullHoursPerWeek || 42),
-      fullTimeThresholdHours: Number(fullTimeThresholdHours || 30),
-      days,
-      demand30,
-      contracts: parsedContracts,
-      preferences: prefs,
-      debugNonce: Date.now(),
-    };
-  }, [
-    breakByDay,
-    contracts,
-    dayOpen,
-    demand30,
-    fullHoursPerWeek,
-    fullTimeThresholdHours,
-    overlapByDay,
-    prefs,
-  ]);
-
-  async function runCalculateOnly() {
-    setIsLoading(true);
-    setError(null);
-    setReportId(null);
-
-    try {
-      track("calc_submit", { mode: "retail" });
-      const r = await fetch("/api/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(calcInput),
-      });
-      const json = (await r.json()) as CalcResponse;
-
-      if (!r.ok || !json.ok) {
-        setResult(null);
-        setError((json as any)?.error || "No se pudo calcular.");
-        return;
+      try {
+        const r = calculate(input);
+        setResult(r);
+      } catch (e) {
+        console.error(e);
       }
+      setLoading(false);
+    }, 50);
+  };
 
-      setResult(json.result);
-    } catch (e: any) {
-      setResult(null);
-      setError(e?.message || "Error inesperado.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function runCalculateAndLeadSave() {
-    setIsLoading(true);
-    setError(null);
-    setReportId(null);
-
-    try {
-      track("calc_submit", { mode: "lead" });
-
-      const r = await fetch("/api/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(calcInput),
-      });
-      const json = (await r.json()) as CalcResponse;
-
-      if (!r.ok || !json.ok) {
-        setResult(null);
-        setError((json as any)?.error || "No se pudo calcular.");
-        return;
-      }
-
-      setResult(json.result);
-
-      const leadPayload = {
-        name: lead.name.trim(),
-        email: lead.email.trim(),
-        company: "",
-        phone: "",
-        role: lead.role.trim(),
-        company_size: lead.company_size.trim(),
-        city: "",
-        source: "dotaciones",
-        calc_input: {
-          ...calcInput,
-          meta: { name: lead.name.trim(), industry: lead.industry.trim() },
-        },
-        calc_result: json.result,
-      };
-
-      const leadResp = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(leadPayload),
-      });
-
-      const leadJson: any = await leadResp.json().catch(() => null);
-
-      if (leadResp.ok) {
-        const id = leadJson?.id || leadJson?.leadId || leadJson?.data?.id || null;
-        if (id) setReportId(String(id));
-      }
-    } catch (e: any) {
-      setError(e?.message || "Error inesperado.");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function onSubmitLead() {
-    setLeadError(null);
-
-    if (!lead.name.trim()) return setLeadError("Pon tu nombre (o alias).");
-    if (!lead.role.trim()) return setLeadError("¿Tu cargo?");
-    if (!lead.industry.trim())
-      return setLeadError("¿Industria? (retail / hospital / alimentación / logística)");
-    if (!lead.company_size.trim()) return setLeadError("¿Cantidad aprox. de empleados?");
-    if (!emailLooksOk(lead.email))
-      return setLeadError("Ese email se ve inválido (ej: nombre@dominio.com).");
-
-    setLeadOpen(false);
-    await runCalculateAndLeadSave();
-  }
+  const d = days[activeDay];
+  const activeStats = computeStats(d.slots);
 
   return (
-    <main className="container">
-      {/* Top */}
-      <div className="topbar">
-        <div className="brand">
-          <Link href="/" className="brandMark" aria-label="Ir al inicio">
-            <Image
-              src="/logo.svg"
-              alt="Dotaciones.cl"
-              width={34}
-              height={34}
-              className="logo"
-              priority
-            />
-            <span className="brandName">Dotaciones.cl</span>
+    <div className="min-h-screen bg-white" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+        * { box-sizing: border-box; }
+        .mono { font-family: 'DM Mono', monospace; }
+      `}</style>
+
+      {/* Header */}
+      <header className="border-b border-slate-200 bg-white">
+        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
+          <Link href="/" className="font-bold text-slate-900 text-lg tracking-tight">
+            dotaciones<span className="text-blue-600">.cl</span>
           </Link>
-          <div className="brandSub">
-            Paso 4: Necesidad operativa por tramos (30 min) + mix sugerido
-          </div>
+          <nav className="flex items-center gap-1">
+            <Link href="/san" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">SAN Hospitalaria</Link>
+            <Link href="/blog" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Blog</Link>
+            <Link href="/contacto" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Contacto</Link>
+          </nav>
         </div>
+      </header>
 
-        <div className="actions">
-          <Link className="btn" href="/contacto">
-            Sugerencias
-          </Link>
-          <Link className="btn" href="/">
-            Inicio
-          </Link>
-          <Button variant="ghost" onClick={loadExample} disabled={isLoading}>
-            Cargar ejemplo
-          </Button>
-        </div>
-      </div>
-
-      {/* CTA SAN (empuje de tráfico interno) */}
-      <div className="card" style={{ marginTop: 12 }}>
-        <div
-          className="cardPad"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <div>
-            <div className="h3" style={{ margin: 0 }}>
-              🏥 Nuevo: Calculadora SAN Hospitalaria (PRO)
-            </div>
-            <div className="small" style={{ marginTop: 4 }}>
-              Normativa + operación por día + mix FT primero + Excel PRO.
-            </div>
-          </div>
-
-          <Link
-            className="btn btnPrimary"
-            href="/san"
-            onClick={() => track("cta_san_from_calculadora")}
-          >
-            Ir a SAN →
+      {/* Banner SAN */}
+      <div className="border-b border-blue-100 bg-blue-50">
+        <div className="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-between">
+          <p className="text-xs text-blue-700">
+            <span className="font-semibold">Nuevo:</span> Calculadora SAN Hospitalaria — normativa MINSAL + mix por día + Excel PRO
+          </p>
+          <Link href="/san" className="text-xs font-semibold text-blue-700 hover:text-blue-900 transition-colors flex items-center gap-1">
+            Ir a SAN
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </Link>
         </div>
       </div>
 
-      {/* Hero */}
-      <div style={{ marginTop: 16 }} className="gridMain">
-        <div className="card">
-          <div className="cardPad">
-            <h1 className="h1">Calculadora de Dotación por Tramos (30 min)</h1>
-            <p className="p">
-              Cargas cuánta gente necesitas cada 30 minutos (día por día). Luego
-              te devolvemos <b>horas-persona</b>, <b>FTE</b> y{" "}
-              <b>alternativas de mix</b>.
-            </p>
+      <div className="max-w-6xl mx-auto px-6 py-8">
 
-            <div
-              style={{
-                marginTop: 12,
-                display: "flex",
-                gap: 10,
-                flexWrap: "wrap",
-              }}
-            >
-              <Button
-                variant="primary"
-                onClick={runCalculateOnly}
-                disabled={isLoading}
-              >
-                {isLoading ? "Calculando…" : "Calcular"}
-              </Button>
-
-              <Button
-                variant="secondary"
-                onClick={() => setLeadOpen(true)}
-                disabled={isLoading}
-              >
-                Guardar reporte (gratis)
-              </Button>
-
-              {reportId ? (
-                <Link className="btn" href={`/reporte/${reportId}`}>
-                  Ver reporte →
-                </Link>
-              ) : null}
-            </div>
-
-            {error ? (
-              <div className="alert alertError" style={{ marginTop: 12 }}>
-                ❌ {error}
-              </div>
-            ) : null}
-
-            {result?.warnings?.length ? (
-              <div className="alert" style={{ marginTop: 12 }}>
-                ⚠️ {result.warnings.join(" | ")}
-              </div>
-            ) : null}
-          </div>
+        {/* Título */}
+        <div className="mb-8">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight mb-1">
+            Calculadora de dotación por tramos
+          </h1>
+          <p className="text-sm text-slate-500">
+            Dibuja cuántas personas necesitas en cada tramo de 30 min, día por día. Obtienes horas‑persona, FTE y mix de contratos sugerido.
+          </p>
         </div>
 
-        {/* Sidebar (día) */}
-        <div className="card">
-          <div className="cardPad">
-            <div className="h3" style={{ marginTop: 0 }}>
-              Día / Tramos (30 min)
+        {/* Layout 2 columnas */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+          {/* ── PANEL IZQUIERDO: Demanda por día ── */}
+          <section className="border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-700">Demanda por día</h2>
+              <span className="text-xs text-slate-400">Arrastra para definir personas por tramo</span>
             </div>
 
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {DAY_ORDER.map((d) => (
-                <Button
-                  key={d}
-                  variant={d === selectedDay ? "primary" : "secondary"}
-                  onClick={() => setSelectedDay(d)}
+            {/* Tabs */}
+            <div className="px-5 pt-4">
+              <div className="flex gap-1 flex-wrap">
+                {DAY_KEYS.map((k) => {
+                  const s = computeStats(days[k].slots);
+                  return (
+                    <button
+                      key={k}
+                      onClick={() => setActiveDay(k)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                        activeDay === k
+                          ? "bg-slate-900 text-white"
+                          : days[k].open && s.personHours > 0
+                          ? "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
+                          : days[k].open
+                          ? "bg-white border border-dashed border-slate-200 text-slate-500 hover:border-slate-300"
+                          : "bg-white border border-dashed border-slate-200 text-slate-300"
+                      }`}
+                    >
+                      {DAY_LABELS[k]}
+                      {days[k].open && s.personHours > 0 && (
+                        <span className={`ml-1.5 w-1.5 h-1.5 rounded-full inline-block ${activeDay === k ? "bg-blue-400" : "bg-emerald-400"}`} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Editor del día activo */}
+            <div className="px-5 py-4 space-y-4">
+
+              {/* Toggle abierto/cerrado */}
+              <label className="flex items-center gap-2.5 cursor-pointer">
+                <div
+                  onClick={() => updateDay(activeDay, { open: !d.open })}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${d.open ? "bg-blue-600" : "bg-slate-200"}`}
                 >
-                  {DAY_LABEL[d]}
-                </Button>
+                  <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${d.open ? "translate-x-4" : "translate-x-0.5"}`} />
+                </div>
+                <span className="text-sm text-slate-700 font-medium">
+                  {DAY_LABELS[activeDay]} — {d.open ? "abierto" : "cerrado"}
+                </span>
+              </label>
+
+              {d.open && (
+                <>
+                  {/* Grilla de demanda */}
+                  <SlotDemandGrid
+                    values={d.slots}
+                    onChange={(slots) => updateDay(activeDay, { slots })}
+                    maxPeople={10}
+                    startHour={0}
+                  />
+
+                  {/* Colación + traslape */}
+                  <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1.5">Colación (min)</label>
+                      <input
+                        type="number" min={0} max={120} step={5}
+                        value={d.breakMinutes}
+                        onChange={(e) => updateDay(activeDay, { breakMinutes: parseInt(e.target.value) || 0 })}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-slate-500 mb-1.5">Traslape (min)</label>
+                      <input
+                        type="number" min={0} max={120} step={5}
+                        value={d.overlapMinutes}
+                        onChange={(e) => updateDay(activeDay, { overlapMinutes: parseInt(e.target.value) || 0 })}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Advertencia brecha colación */}
+                  {d.breakMinutes > d.overlapMinutes && (
+                    <p className="text-xs text-amber-600">
+                      ⚠ Brecha colación: {((d.breakMinutes - d.overlapMinutes) / 60).toFixed(1)}h extra a cubrir
+                    </p>
+                  )}
+
+                  {/* Copiar a otros días */}
+                  <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                    <span className="text-xs text-slate-500 shrink-0">Copiar a:</span>
+                    <div className="flex gap-1 flex-wrap">
+                      {DAY_KEYS.filter((k) => k !== activeDay).map((k) => (
+                        <button
+                          key={k}
+                          onClick={() => copyDayTo(activeDay, k)}
+                          className="text-xs px-2 py-1 rounded border border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-600 transition-colors"
+                        >
+                          {DAY_LABELS[k]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Resumen semana */}
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
+              <div className="flex gap-2 items-center flex-wrap">
+                <span className="text-xs text-slate-500 shrink-0">Semana:</span>
+                {DAY_KEYS.map((k) => {
+                  const s = computeStats(days[k].slots);
+                  return days[k].open && s.personHours > 0 ? (
+                    <span key={k} className="text-xs mono px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                      {DAY_LABELS[k]} <span className="font-semibold">{s.personHours}h‑p</span>
+                    </span>
+                  ) : (
+                    <span key={k} className="text-xs text-slate-300">{DAY_LABELS[k]}</span>
+                  );
+                })}
+                {(() => {
+                  const total = DAY_KEYS.reduce((sum, k) => sum + computeStats(days[k].slots).personHours, 0);
+                  return total > 0 ? (
+                    <span className="ml-auto text-xs font-semibold mono text-slate-700">{total}h‑p/sem</span>
+                  ) : null;
+                })()}
+              </div>
+            </div>
+          </section>
+
+          {/* ── PANEL DERECHO: Configuración + Contratos ── */}
+          <div className="space-y-6">
+
+            {/* Configuración */}
+            <section className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+                <h2 className="text-sm font-semibold text-slate-700">Configuración</h2>
+              </div>
+              <div className="px-5 py-4 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1.5">Horas Full (FTE base)</label>
+                    <input
+                      type="number" min={20} max={60} step={1}
+                      value={fullHours}
+                      onChange={(e) => setFullHours(parseInt(e.target.value) || 42)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Ej: 42 ó 44</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1.5">
+                      Factor reemplazo
+                      <span className="ml-1 text-slate-400">(vacac. + lic.)</span>
+                    </label>
+                    <input
+                      type="number" min={1} max={1.5} step={0.01}
+                      value={replacementFactor}
+                      onChange={(e) => setReplacementFactor(parseFloat(e.target.value) || 1.15)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">
+                      {((replacementFactor - 1) * 100).toFixed(0)}% — retail ~12%, salud ~18%
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-slate-500 mb-2">Estrategia de mix</label>
+                  <div className="flex gap-2">
+                    {[
+                      { id: "balanced", label: "Balanceado" },
+                      { id: "lean", label: "Menos personas" },
+                      { id: "stable", label: "Más estable" },
+                    ].map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => setStrategy(s.id)}
+                        className={`flex-1 text-xs py-2 rounded-lg border transition-all font-medium ${
+                          strategy === s.id
+                            ? "bg-slate-900 text-white border-slate-900"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ptWeekdays}
+                    onChange={(e) => setPtWeekdays(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <div>
+                    <span className="text-sm text-slate-700">Permitir PT en días de semana (L–V)</span>
+                    <p className="text-xs text-slate-400">Para servicios sin demanda de fin de semana</p>
+                  </div>
+                </label>
+              </div>
+            </section>
+
+            {/* Contratos */}
+            <section className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+                <h2 className="text-sm font-semibold text-slate-700">Contratos disponibles</h2>
+                <p className="text-xs text-slate-400 mt-0.5">El motor arma combinaciones por jornada (6×1 / 5×2 / 4×3 / PT fin de semana)</p>
+              </div>
+              <div className="px-5 py-4">
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[1fr_100px_32px] gap-2 pb-1 border-b border-slate-100">
+                    <span className="text-xs text-slate-400">Nombre</span>
+                    <span className="text-xs text-slate-400">Horas/sem</span>
+                    <span />
+                  </div>
+                  {contracts.map((c) => (
+                    <div key={c.id} className="grid grid-cols-[1fr_100px_32px] gap-2 items-center">
+                      <input
+                        value={c.name}
+                        onChange={(e) => updateContract(c.id, { name: e.target.value })}
+                        placeholder="Ej: Full time"
+                        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <input
+                        type="number" min={1} max={60}
+                        value={c.hoursPerWeek}
+                        onChange={(e) => updateContract(c.id, { hoursPerWeek: parseInt(e.target.value) || 0 })}
+                        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <button
+                        onClick={() => removeContract(c.id)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={addContract}
+                  className="mt-3 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Agregar contrato
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        {/* Botón calcular */}
+        <div className="flex items-center gap-4 py-2">
+          <button
+            onClick={handleCalculate}
+            disabled={loading}
+            className="px-6 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {loading ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+                Calculando…
+              </>
+            ) : "Calcular"}
+          </button>
+          <Link href="/calculadora/guia" className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
+            Ver guía de uso →
+          </Link>
+        </div>
+
+        {/* ── Resultado ── */}
+        {result && (
+          <section className="mt-6 border border-slate-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-slate-700">Resultado</h2>
+              <button className="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Guardar reporte
+              </button>
+            </div>
+
+            {result.warnings.length > 0 && (
+              <div className="px-5 py-3 bg-amber-50 border-b border-amber-100 space-y-1">
+                {result.warnings.map((w, i) => <p key={i} className="text-xs text-amber-700">{w}</p>)}
+              </div>
+            )}
+
+            {/* KPIs */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-100">
+              {[
+                { label: "Horas‑persona / sem", value: result.requiredHours.toFixed(1), sub: "demanda bruta" },
+                { label: "Horas a contratar", value: result.requiredHoursAdjusted.toFixed(1), sub: `×${result.replacementFactor} reemplazo`, highlight: true },
+                { label: "FTE bruto", value: result.fte.toFixed(2), sub: "sin reemplazo" },
+                { label: "FTE a contratar", value: result.fteAdjusted.toFixed(2), sub: "dotación real", highlight: true },
+              ].map((k) => (
+                <div key={k.label} className={`px-5 py-4 ${k.highlight ? "bg-blue-50" : "bg-white"}`}>
+                  <p className="text-xs text-slate-500 mb-1">{k.label}</p>
+                  <p className={`text-2xl font-bold mono ${k.highlight ? "text-blue-700" : "text-slate-900"}`}>{k.value}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{k.sub}</p>
+                </div>
               ))}
             </div>
 
-            <div className="hr" style={{ marginTop: 12 }} />
-
-            <div className="small">
-              Base horas-persona (día): <b>{dayStats.baseHours}</b>
-              <br />
-              Peak personas: <b>{dayStats.peak}</b>
-            </div>
-
-            <div className="hr" style={{ marginTop: 12 }} />
-
-            <label className="label">Abierto</label>
-            <div className="small" style={{ display: "flex", gap: 10 }}>
-              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={dayOpen[selectedDay]}
-                  onChange={(e) =>
-                    setDayOpen((p) => ({ ...p, [selectedDay]: e.target.checked }))
-                  }
-                />
-                {DAY_LABEL[selectedDay]}
-              </label>
-            </div>
-
-            <div className="grid2" style={{ marginTop: 10 }}>
-              <div className="field">
-                <label className="label">Colación (min)</label>
-                <input
-                  className="input"
-                  value={breakByDay[selectedDay]}
-                  onChange={(e) =>
-                    setBreakByDay((p) => ({ ...p, [selectedDay]: e.target.value }))
-                  }
-                  inputMode="numeric"
-                />
-              </div>
-              <div className="field">
-                <label className="label">Traslape (min)</label>
-                <input
-                  className="input"
-                  value={overlapByDay[selectedDay]}
-                  onChange={(e) =>
-                    setOverlapByDay((p) => ({
-                      ...p,
-                      [selectedDay]: e.target.value,
-                    }))
-                  }
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
-
-            <div className="hr" style={{ marginTop: 12 }} />
-
-            <Button
-              variant="secondary"
-              onClick={() => setShowGrid((v) => !v)}
-            >
-              {showGrid ? "Ocultar grilla" : "Editar grilla 30 min"}
-            </Button>
-
-            <div className="hr" style={{ marginTop: 12 }} />
-
-            <div className="h3" style={{ marginTop: 0 }}>
-              Copiar configuración
-            </div>
-
-            <div className="grid2">
-              <div className="field">
-                <label className="label">Copiar día actual a</label>
-                <select
-                  className="input"
-                  value={copyTarget}
-                  onChange={(e) => setCopyTarget(e.target.value as DayKey)}
-                >
-                  {DAY_ORDER.filter((d) => d !== selectedDay).map((d) => (
-                    <option key={d} value={d}>
-                      {DAY_LABEL[d]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setDemand30((p) => ({ ...p, [copyTarget]: p[selectedDay].slice() }));
-                    setDayOpen((p) => ({ ...p, [copyTarget]: p[selectedDay] }));
-                    setBreakByDay((p) => ({ ...p, [copyTarget]: p[selectedDay] }));
-                    setOverlapByDay((p) => ({ ...p, [copyTarget]: p[selectedDay] }));
-                    track("calc_copy_day");
-                  }}
-                >
-                  Copiar
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Grid editor */}
-      {showGrid ? (
-        <div className="card" style={{ marginTop: 14 }}>
-          <div className="cardPad">
-            <div className="h3" style={{ marginTop: 0 }}>
-              Editar grilla 30 min — {DAY_LABEL[selectedDay]}
-            </div>
-
-            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              <div className="field">
-                <label className="label">Desde</label>
-                <input
-                  className="input"
-                  value={rangeStart}
-                  onChange={(e) => setRangeStart(e.target.value)}
-                  placeholder="08:00"
-                />
-              </div>
-              <div className="field">
-                <label className="label">Hasta</label>
-                <input
-                  className="input"
-                  value={rangeEnd}
-                  onChange={(e) => setRangeEnd(e.target.value)}
-                  placeholder="18:00"
-                />
-              </div>
-            </div>
-
-            <div className="grid2" style={{ marginTop: 10, gridTemplateColumns: "1fr 1fr" }}>
-              <div className="field">
-                <label className="label">Personas</label>
-                <input
-                  className="input"
-                  value={rangeValue}
-                  onChange={(e) => setRangeValue(e.target.value)}
-                  inputMode="numeric"
-                />
-              </div>
-
-              <div className="field" style={{ display: "flex", alignItems: "flex-end" }}>
-                <Button
-                  variant="primary"
-                  onClick={() => {
-                    const s = timeToSlot(rangeStart);
-                    const e = timeToSlot(rangeEnd);
-                    const v = clamp(Number(rangeValue || 0), 0, 999);
-                    setDemand30((p) => ({
-                      ...p,
-                      [selectedDay]: rangeFill(p[selectedDay], s, e, v),
-                    }));
-                    track("calc_fill_range");
-                  }}
-                >
-                  Rellenar rango
-                </Button>
-              </div>
-            </div>
-
-            <div className="hr" style={{ marginTop: 14 }} />
-
-            <div className="gridScroll">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Tramo</th>
-                    <th>Personas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {demand30[selectedDay].map((v, i) => (
-                    <tr key={i}>
-                      <td>{slotLabel(i)}</td>
-                      <td style={{ width: 160 }}>
-                        <input
-                          className="input"
-                          value={String(v)}
-                          onChange={(e) => {
-                            const nv = clamp(Number(e.target.value || 0), 0, 999);
-                            setDemand30((p) => {
-                              const out = p[selectedDay].slice();
-                              out[i] = nv;
-                              return { ...p, [selectedDay]: out };
-                            });
-                          }}
-                          inputMode="numeric"
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setDemand30((p) => ({ ...p, [selectedDay]: freshSlots() }));
-                  track("calc_clear_day");
-                }}
-              >
-                Limpiar día
-              </Button>
-              <Button variant="ghost" onClick={() => setShowGrid(false)}>
-                Listo
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Config */}
-      <div className="grid2" style={{ marginTop: 14, gridTemplateColumns: "1fr 1fr" }}>
-        <div className="card">
-          <div className="cardPad">
-            <div className="h3" style={{ marginTop: 0 }}>
-              Configuración
-            </div>
-
-            <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-              <div className="field">
-                <label className="label">Horas Full (FTE)</label>
-                <input
-                  className="input"
-                  value={fullHoursPerWeek}
-                  onChange={(e) => setFullHoursPerWeek(e.target.value)}
-                  inputMode="numeric"
-                />
-                <div className="small">Ej: 42</div>
-              </div>
-              <div className="field">
-                <label className="label">Umbral Full/Part</label>
-                <input
-                  className="input"
-                  value={fullTimeThresholdHours}
-                  onChange={(e) => setFullTimeThresholdHours(e.target.value)}
-                  inputMode="numeric"
-                />
-                <div className="small">Ej: 30</div>
-              </div>
-            </div>
-
-            <div className="hr" style={{ marginTop: 12 }} />
-
-            <div className="h3" style={{ marginTop: 0 }}>
-              Preferencias
-            </div>
-
-            <div className="field">
-              <label className="label">Estrategia</label>
-              <select
-                className="input"
-                value={prefs.strategy}
-                onChange={(e) =>
-                  setPrefs((p) => ({ ...p, strategy: e.target.value as any }))
-                }
-              >
-                <option value="balanced">Balanceado</option>
-                <option value="min_people">Menos personas</option>
-                <option value="stable">Más estable</option>
-              </select>
-            </div>
-
-            <div className="grid2" style={{ marginTop: 10 }}>
-              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={prefs.allow_6x1}
-                  onChange={(e) => setPrefs((p) => ({ ...p, allow_6x1: e.target.checked }))}
-                />
-                6x1
-              </label>
-
-              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={prefs.allow_5x2}
-                  onChange={(e) => setPrefs((p) => ({ ...p, allow_5x2: e.target.checked }))}
-                />
-                5x2
-              </label>
-
-              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={prefs.allow_4x3}
-                  onChange={(e) => setPrefs((p) => ({ ...p, allow_4x3: e.target.checked }))}
-                />
-                4x3 (solo 40h)
-              </label>
-
-              <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input
-                  type="checkbox"
-                  checked={prefs.allow_pt_weekend}
-                  onChange={(e) =>
-                    setPrefs((p) => ({ ...p, allow_pt_weekend: e.target.checked }))
-                  }
-                />
-                PT fin de semana
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="cardPad">
-            <div className="h3" style={{ marginTop: 0 }}>
-              Contratos
-            </div>
-
-            <div className="small">
-              Define los contratos disponibles. El motor arma combinaciones por jornada (6x1 / 5x2 /
-              4x3 / PT fin de semana).
-            </div>
-
-            <div className="hr" style={{ marginTop: 12 }} />
-
-            <div className="gridScroll">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Nombre</th>
-                    <th>Horas/sem</th>
-                    <th style={{ width: 110 }} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {contracts.map((c, i) => (
-                    <tr key={i}>
-                      <td>
-                        <input
-                          className="input"
-                          value={c.name}
-                          onChange={(e) =>
-                            setContracts((p) => {
-                              const out = p.slice();
-                              out[i] = { ...out[i], name: e.target.value };
-                              return out;
-                            })
-                          }
-                        />
-                      </td>
-                      <td style={{ width: 140 }}>
-                        <input
-                          className="input"
-                          value={c.hoursPerWeek}
-                          inputMode="numeric"
-                          onChange={(e) =>
-                            setContracts((p) => {
-                              const out = p.slice();
-                              out[i] = { ...out[i], hoursPerWeek: e.target.value };
-                              return out;
-                            })
-                          }
-                        />
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <Button
-                          variant="danger"
-                          onClick={() => {
-                            setContracts((p) => p.filter((_, j) => j !== i));
-                            track("calc_remove_contract");
-                          }}
-                        >
-                          Quitar
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setContracts((p) => [...p, { name: "Nuevo", hoursPerWeek: "30" }]);
-                  track("calc_add_contract");
-                }}
-              >
-                Agregar contrato
-              </Button>
-
-              <Button variant="primary" onClick={runCalculateOnly} disabled={isLoading}>
-                {isLoading ? "Calculando…" : "Recalcular"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Resultado */}
-      <div className="card" style={{ marginTop: 14 }}>
-        <div className="cardPad">
-          <div className="h3" style={{ marginTop: 0 }}>
-            Resultado
-          </div>
-
-          {!result ? (
-            <div className="small" style={{ marginTop: 8 }}>
-              Ejecuta <b>Calcular</b> para ver horas, FTE y mixes sugeridos.
-            </div>
-          ) : (
-            <>
-              <div className="grid2" style={{ gridTemplateColumns: "1fr 1fr", marginTop: 10 }}>
-                <div className="card">
-                  <div className="cardPad">
-                    <div className="small">Horas requeridas (semana)</div>
-                    <div className="h2" style={{ marginTop: 6 }}>
-                      {result.requiredHours}
-                    </div>
-                  </div>
+            <div className="grid grid-cols-3 gap-px bg-slate-100">
+              {[
+                { label: "Horas colación", value: result.breakHours.toFixed(1) + "h" },
+                { label: "Horas traslape", value: result.overlapHours.toFixed(1) + "h" },
+                { label: "Brecha neta", value: result.gapHours.toFixed(1) + "h", warn: result.gapHours > 0 },
+              ].map((k) => (
+                <div key={k.label} className="bg-white px-5 py-3">
+                  <p className="text-xs text-slate-500">{k.label}</p>
+                  <p className={`text-base font-semibold mono mt-0.5 ${k.warn ? "text-amber-600" : "text-slate-700"}`}>{k.value}</p>
                 </div>
+              ))}
+            </div>
 
-                <div className="card">
-                  <div className="cardPad">
-                    <div className="small">FTE (sobre {fullHoursPerWeek}h)</div>
-                    <div className="h2" style={{ marginTop: 6 }}>
-                      {result.fte}
+            {/* Mixes */}
+            <div className="px-5 py-5">
+              <h3 className="text-sm font-semibold text-slate-700 mb-4">Mix de contratos sugerido</h3>
+              <div className="grid md:grid-cols-3 gap-4">
+                {result.mixes.map((mix, idx) => (
+                  <div key={idx} className={`rounded-xl border p-4 ${idx === 0 ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"}`}>
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className={`text-xs font-semibold ${idx === 0 ? "text-blue-700" : "text-slate-500"}`}>
+                          {idx === 0 ? "Recomendado" : idx === 1 ? "Alternativa A" : "Alternativa B"}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">{mix.sundayOk ? "✅ domingo OK" : "⚠️ domingo justo"}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-2xl font-bold mono ${idx === 0 ? "text-blue-700" : "text-slate-800"}`}>{mix.headcount}</p>
+                        <p className="text-xs text-slate-400">personas</p>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="hr" style={{ marginTop: 14 }} />
-
-              <div className="h3" style={{ marginTop: 0 }}>
-                Demanda por día (horas-persona)
-              </div>
-
-              <div style={{ overflowX: "auto", marginTop: 8 }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Día</th>
-                      <th style={{ textAlign: "right" }}>Horas-persona</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.demandByDay.map((d, i) => (
-                      <tr key={i}>
-                        <td>{d.day}</td>
-                        <td style={{ textAlign: "right" }}>{d.hours}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="hr" style={{ marginTop: 14 }} />
-
-              <div className="h3" style={{ marginTop: 0 }}>
-                Mixes sugeridos
-              </div>
-
-              <div style={{ display: "grid", gap: 12, marginTop: 10 }}>
-                {result.mixes.map((m, i) => (
-                  <div key={i} className="card">
-                    <div className="cardPad">
-                      <div className="h3" style={{ marginTop: 0 }}>
-                        {m.title}
+                    <div className="space-y-1.5 mb-3">
+                      {mix.items.map((item, j) => (
+                        <div key={j} className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-1.5 h-1.5 rounded-full ${idx === 0 ? "bg-blue-500" : "bg-slate-400"}`} />
+                            <span className="text-xs text-slate-700 font-medium">{item.contractName}</span>
+                            <span className="text-xs text-slate-400 mono">{item.jornadaName}</span>
+                          </div>
+                          <span className={`text-xs font-bold mono ${idx === 0 ? "text-blue-700" : "text-slate-700"}`}>×{item.count}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pt-3 border-t border-slate-200 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <p className="text-slate-400">Total horas</p>
+                        <p className="mono font-semibold text-slate-700">{mix.hoursTotal}h</p>
                       </div>
-                      <div className="small" style={{ marginTop: 6 }}>
-                        Personas: <b>{m.headcount}</b> — Horas totales: <b>{m.hoursTotal}</b> — Holgura:{" "}
-                        <b>{m.slackHours}</b> — PT share: <b>{Math.round(m.ptShare * 100)}%</b>
-                      </div>
-
-                      <div style={{ overflowX: "auto", marginTop: 10 }}>
-                        <table className="table">
-                          <thead>
-                            <tr>
-                              <th>Jornada</th>
-                              <th>Contrato</th>
-                              <th style={{ textAlign: "right" }}>Horas/sem</th>
-                              <th style={{ textAlign: "right" }}>Cantidad</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {m.items.map((it, j) => (
-                              <tr key={j}>
-                                <td>{it.jornadaLabel}</td>
-                                <td>{it.contractName}</td>
-                                <td style={{ textAlign: "right" }}>{it.hoursPerWeek}</td>
-                                <td style={{ textAlign: "right" }}>{it.count}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="small" style={{ marginTop: 10 }}>
-                        Domingo: req {m.sundayReq} / cubre {m.sundayCap} →{" "}
-                        <b>{m.sundayOk ? "OK" : "Revisar"}</b>
+                      <div>
+                        <p className="text-slate-400">Holgura</p>
+                        <p className={`mono font-semibold ${mix.slackPct > 0.3 ? "text-amber-600" : "text-slate-700"}`}>
+                          {mix.slackHours}h ({(mix.slackPct * 100).toFixed(0)}%)
+                        </p>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
-
-              <div className="hr" style={{ marginTop: 14 }} />
-
-              <div className="small">
-                Tip: Si la holgura es alta, agrega un contrato intermedio (ej 36h/30h) o ajusta demanda.
-              </div>
-            </>
-          )}
-        </div>
+            </div>
+          </section>
+        )}
       </div>
 
-      {/* Lead Modal */}
-      <Modal open={leadOpen} title="Guardar reporte (gratis)" onClose={() => setLeadOpen(false)}>
-        <div className="small">
-          Esto genera un reporte compartible (link) y nos ayuda a mejorar la herramienta.
-        </div>
-
-        {leadError ? (
-          <div className="alert alertError" style={{ marginTop: 12 }}>
-            ❌ {leadError}
-          </div>
-        ) : null}
-
-        <div className="grid2" style={{ marginTop: 12 }}>
-          <div className="field">
-            <label className="label">Nombre</label>
-            <input
-              className="input"
-              value={lead.name}
-              onChange={(e) => setLead((p) => ({ ...p, name: e.target.value }))}
-            />
-          </div>
-          <div className="field">
-            <label className="label">Cargo</label>
-            <input
-              className="input"
-              value={lead.role}
-              onChange={(e) => setLead((p) => ({ ...p, role: e.target.value }))}
-            />
+      <footer className="border-t border-slate-100 py-6 px-6 mt-12">
+        <div className="max-w-6xl mx-auto flex items-center justify-between text-xs text-slate-400">
+          <span>© {new Date().getFullYear()} dotaciones.cl</span>
+          <div className="flex gap-4">
+            <Link href="/blog" className="hover:text-slate-600 transition-colors">Blog</Link>
+            <Link href="/contacto" className="hover:text-slate-600 transition-colors">Contacto</Link>
           </div>
         </div>
-
-        <div className="grid2" style={{ marginTop: 12 }}>
-          <div className="field">
-            <label className="label">Industria</label>
-            <input
-              className="input"
-              value={lead.industry}
-              onChange={(e) => setLead((p) => ({ ...p, industry: e.target.value }))}
-              placeholder="retail / hospital / alimentación / logística"
-            />
-          </div>
-          <div className="field">
-            <label className="label">Tamaño empresa</label>
-            <input
-              className="input"
-              value={lead.company_size}
-              onChange={(e) => setLead((p) => ({ ...p, company_size: e.target.value }))}
-              placeholder="Ej: 300"
-            />
-          </div>
-        </div>
-
-        <div className="field" style={{ marginTop: 12 }}>
-          <label className="label">Email</label>
-          <input
-            className="input"
-            value={lead.email}
-            onChange={(e) => setLead((p) => ({ ...p, email: e.target.value }))}
-            placeholder="nombre@dominio.com"
-          />
-        </div>
-
-        <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <Button variant="secondary" onClick={() => setLeadOpen(false)}>
-            Cancelar
-          </Button>
-          <Button variant="primary" onClick={onSubmitLead} disabled={isLoading}>
-            {isLoading ? "Guardando…" : "Guardar y calcular"}
-          </Button>
-        </div>
-      </Modal>
-    </main>
+      </footer>
+    </div>
   );
 }

@@ -18,6 +18,9 @@ type AllowedJornadas = {
   allow_5x2: boolean;
   allow_4x3: boolean;
   allow_pt_weekend: boolean;
+  // Jornadas excepcionales (requieren autorización del establecimiento)
+  allow_2x2: boolean;
+  allow_3x3: boolean;
 };
 
 function n0(x: any) {
@@ -30,6 +33,7 @@ function uniqueSorted(nums: number[]) {
 }
 
 function cutoffRuleFilterContracts(contracts: number[], now = new Date()) {
+  // Ley 21.561: jornada máx baja a 42h el 26 abr 2026
   const cutoff = new Date("2026-04-26T00:00:00-03:00");
   const allow44 = now.getTime() < cutoff.getTime();
   return contracts.filter((h) => (h === 44 ? allow44 : true));
@@ -74,9 +78,13 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const scenarioMaxWeekHours = Math.max(1, n0(body?.scenario?.maxWeekHours ?? 42));
+
     const days = body?.days as Record<DayKey, DayInput>;
     if (!days || typeof days !== "object") {
-      return NextResponse.json({ ok: false, error: "Falta days (horario por día)." }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "Falta days (horario por día)." },
+        { status: 400 }
+      );
     }
 
     const rawContracts = Array.isArray(body?.allowedContracts)
@@ -87,18 +95,20 @@ export async function POST(req: Request) {
 
     const jornadasIn = body?.allowedJornadas ?? {};
     const jornadas: AllowedJornadas = {
-      allow_6x1: !!jornadasIn.allow_6x1,
-      allow_5x2: !!jornadasIn.allow_5x2,
-      allow_4x3: !!jornadasIn.allow_4x3,
-      allow_pt_weekend: !!jornadasIn.allow_pt_weekend,
+      allow_6x1:         !!jornadasIn.allow_6x1,
+      allow_5x2:         !!jornadasIn.allow_5x2,
+      allow_4x3:         !!jornadasIn.allow_4x3,
+      allow_pt_weekend:  !!jornadasIn.allow_pt_weekend,
+      allow_2x2:         !!jornadasIn.allow_2x2,
+      allow_3x3:         !!jornadasIn.allow_3x3,
     };
 
-    // Default si el usuario desmarca todo
-    if (!jornadas.allow_6x1 && !jornadas.allow_5x2 && !jornadas.allow_4x3 && !jornadas.allow_pt_weekend) {
+    // Default: si desmarca todo FT, activar los tres principales
+    const hasAnyFt = jornadas.allow_6x1 || jornadas.allow_5x2 || jornadas.allow_4x3;
+    if (!hasAnyFt && !jornadas.allow_pt_weekend) {
       jornadas.allow_6x1 = true;
       jornadas.allow_5x2 = true;
       jornadas.allow_4x3 = true;
-      jornadas.allow_pt_weekend = true;
     }
 
     const ptMaxShare = Math.max(0, Math.min(1, n0(body?.ptMaxShare ?? 0.25)));
@@ -106,51 +116,59 @@ export async function POST(req: Request) {
 
     const contracts = allowedContracts.map((h: number) => ({ name: `${h}h`, hoursPerWeek: h }));
 
+    // Construir preferences base — jornadas excepcionales se pasan como flags adicionales
+    // que el motor de cálculo puede o no interpretar según versión.
+    const basePreferences = {
+      strategy: "stable",
+      allow_6x1:         jornadas.allow_6x1,
+      allow_5x2:         jornadas.allow_5x2,
+      allow_4x3:         jornadas.allow_4x3,
+      allow_pt_weekend:  false, // FT-only en primera pasada
+      pt_weekend_strict: true,
+      // Excepcionales — pasadas como flags; el motor las ignora si no las conoce
+      allow_2x2: jornadas.allow_2x2,
+      allow_3x3: jornadas.allow_3x3,
+    };
+
     const basePayload = {
       fullHoursPerWeek: scenarioMaxWeekHours,
       fullTimeThresholdHours,
       days,
       contracts,
-      preferences: {
-        strategy: "stable",
-        allow_6x1: jornadas.allow_6x1,
-        allow_5x2: jornadas.allow_5x2,
-        allow_4x3: jornadas.allow_4x3,
-        allow_pt_weekend: false, // FT-only primero
-        pt_weekend_strict: true,
-      },
+      preferences: basePreferences,
       debugNonce: Date.now(),
     };
 
-    // 1) FT-only
+    // ── Pasada 1: FT-only ─────────────────────────────────────────────────
     let first = await callCalculate(req, basePayload);
-
-    // 2) Si no hay mix usable, habilitamos PT (solo si usuario lo permite)
     let usedPt = false;
     let calc = first;
 
-    const firstHasMixes = first.ok && Array.isArray(first.data?.result?.mixes) && first.data.result.mixes.length > 0;
+    const firstHasMixes =
+      first.ok &&
+      Array.isArray(first.data?.result?.mixes) &&
+      first.data.result.mixes.length > 0;
 
+    // ── Pasada 2: habilitar PT si FT-only no produce resultado ────────────
     if (!firstHasMixes) {
       if (!jornadas.allow_pt_weekend) {
         return NextResponse.json(
           {
             ok: false,
             error:
-              "No se encontró un mix FT-only con las jornadas/contratos actuales y PT fin de semana está deshabilitado. Habilita PT o ajusta jornadas/contratos.",
+              "No se encontró mix FT-only con las jornadas/contratos actuales " +
+              "y PT fin de semana está deshabilitado. Habilita PT o ajusta jornadas/contratos.",
           },
           { status: 400 }
         );
       }
 
       usedPt = true;
-      const payloadPt = {
+      calc = await callCalculate(req, {
         ...basePayload,
-        preferences: { ...basePayload.preferences, allow_pt_weekend: true },
+        preferences: { ...basePreferences, allow_pt_weekend: true },
         debugNonce: Date.now(),
-      };
-
-      calc = await callCalculate(req, payloadPt);
+      });
 
       if (!calc.ok) {
         return NextResponse.json(
@@ -161,15 +179,19 @@ export async function POST(req: Request) {
     }
 
     const base = calc.data.result;
-
     const mixesIn = Array.isArray(base?.mixes) ? base.mixes : [];
+
+    // Enriquecer con métricas hospitalarias
     const mixesEnriched = mixesIn.map((m: any) => {
       const ptShare = computePtShareFromItems(m.items ?? [], fullTimeThresholdHours);
       const scoreHosp = scoreHospitalMix(m, ptShare);
       return { ...m, ptShare, scoreHosp };
     });
 
-    const filtered = usedPt ? mixesEnriched.filter((m: any) => m.ptShare <= ptMaxShare) : mixesEnriched;
+    // Filtrar por ptMaxShare si usamos PT
+    const filtered = usedPt
+      ? mixesEnriched.filter((m: any) => m.ptShare <= ptMaxShare)
+      : mixesEnriched;
     const pool = filtered.length ? filtered : mixesEnriched;
 
     pool.sort((a: any, b: any) => a.scoreHosp - b.scoreHosp);
@@ -179,10 +201,18 @@ export async function POST(req: Request) {
       return rest;
     });
 
+    // Warnings
     const warnings: string[] = Array.isArray(base?.warnings) ? [...base.warnings] : [];
-    if (!usedPt) warnings.unshift("Política hospital: mix FT-only (sin PT) encontrado.");
+    if (!usedPt) {
+      warnings.unshift("Mix FT-only encontrado (sin PT).");
+    }
     if (usedPt && !filtered.length) {
-      warnings.unshift(`Política hospital: ningún mix cumple ptShare <= ${(ptMaxShare * 100).toFixed(0)}%.`);
+      warnings.unshift(
+        `Ningún mix cumple ptShare ≤ ${(ptMaxShare * 100).toFixed(0)}% — mostrando todos.`
+      );
+    }
+    if (jornadas.allow_2x2 || jornadas.allow_3x3) {
+      warnings.push("Jornadas excepcionales habilitadas: verificar autorización del establecimiento.");
     }
 
     return NextResponse.json(
@@ -191,7 +221,10 @@ export async function POST(req: Request) {
         result: {
           scenarioMaxWeekHours,
           contractsUsed: contracts,
-          jornadasUsed: { ...jornadas, allow_pt_weekend: usedPt ? true : false },
+          jornadasUsed: {
+            ...jornadas,
+            allow_pt_weekend: usedPt,
+          },
           ptMaxShare,
           requiredHours: base.requiredHours,
           fte: base.fte,

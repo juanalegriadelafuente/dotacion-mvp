@@ -1,47 +1,67 @@
+// src/app/sitemap.ts
 import type { MetadataRoute } from "next";
+
+const BASE = "https://dotaciones.cl";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
 
   return [
+    // ── Páginas principales ──────────────────────────────────────────────
     {
-      url: "https://dotaciones.cl/",
+      url: BASE,
       lastModified: now,
       changeFrequency: "weekly",
-      priority: 1,
+      priority: 1.0,
     },
     {
-      url: "https://dotaciones.cl/calculadora",
+      url: `${BASE}/calculadora`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: `${BASE}/san`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
+      url: `${BASE}/contacto`,
+      lastModified: now,
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+
+    // ── Blog ─────────────────────────────────────────────────────────────
+    {
+      url: `${BASE}/blog`,
       lastModified: now,
       changeFrequency: "weekly",
-      priority: 0.95,
+      priority: 0.8,
     },
     {
-      url: "https://dotaciones.cl/calculadora/guia",
-      lastModified: now,
+      url: `${BASE}/blog/como-calcular-dotacion-personal`,
+      lastModified: new Date("2026-01-10"),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    {
+      url: `${BASE}/blog/mix-contratos-jornada-parcial`,
+      lastModified: new Date("2026-01-18"),
       changeFrequency: "monthly",
       priority: 0.7,
     },
     {
-      url: "https://dotaciones.cl/san",
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.95,
-    },
-    {
-      url: "https://dotaciones.cl/san/guia",
-      lastModified: now,
+      url: `${BASE}/blog/dotacion-hospitalaria-san`,
+      lastModified: new Date("2026-01-25"),
       changeFrequency: "monthly",
-      priority: 0.7,
+      priority: 0.8,
     },
+
+    // ── Recursos ─────────────────────────────────────────────────────────
     {
-      url: "https://dotaciones.cl/san/glosario",
-      lastModified: now,
-      changeFrequency: "monthly",
-      priority: 0.6,
-    },
-    {
-      url: "https://dotaciones.cl/contacto",
+      url: `${BASE}/san/glosario`,
       lastModified: now,
       changeFrequency: "monthly",
       priority: 0.6,

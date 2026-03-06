@@ -250,11 +250,16 @@ function scoreMix(m: Mix) {
   return m.headcount * 10 + slackPenalty + sundayPenalty;
 }
 
-function maxCountByHours(h: number) {
-  if (h >= 40) return 20;
-  if (h >= 30) return 25;
-  if (h >= 20) return 35;
-  return 40;
+/**
+ * Límite dinámico de personas por contrato.
+ * Evita loops exponenciales con hospitales grandes.
+ * Se basa en cuántas personas de ese contrato se necesitarían para cubrir
+ * toda la demanda solos, más un 20% de margen. Tope absoluto: 150.
+ */
+function maxCountByHours(h: number, effectiveRequiredHours: number) {
+  const maxNeeded = Math.ceil(effectiveRequiredHours / Math.max(1, h));
+  const withBuffer = Math.min(150, Math.ceil(maxNeeded * 1.2));
+  return Math.max(2, withBuffer);
 }
 
 /**
@@ -308,15 +313,27 @@ export function calculate(input: CalcInput): CalcResult {
   // Candidatos (top N)
   const CAND = expanded.slice(0, 6);
 
-  // Búsqueda acotada (heurística)
-  const mixesAll: Mix[] = [];
-  const limits = CAND.map((c) => maxCountByHours(c.hoursPerWeek));
+  // Límites dinámicos: máximo de personas por contrato basado en las horas requeridas.
+  // Evita que hospitales grandes (requiredPeople alto) generen loops exponenciales.
+  const limits = CAND.map((c) => maxCountByHours(c.hoursPerWeek, effectiveRequiredHours));
+
+  // Step size: contratos PT se iteran de 2 en 2 (siempre pares por definición de jornada)
   const steps = CAND.map((c) => (c.hoursPerWeek >= 30 ? 1 : 2));
 
+  // Tope duro de iteraciones totales (independiente del tamaño del hospital)
+  const MAX_ITERS = 500_000;
+  let totalIters = 0;
+
+  // Búsqueda acotada (heurística)
+  const mixesAll: Mix[] = [];
+
+  outer:
   for (let a = 0; a <= (limits[0] ?? 0); a += steps[0] ?? 1) {
     for (let b = 0; b <= (limits[1] ?? 0); b += steps[1] ?? 1) {
       for (let c = 0; c <= (limits[2] ?? 0); c += steps[2] ?? 1) {
         for (let d = 0; d <= (limits[3] ?? 0); d += steps[3] ?? 1) {
+          if (++totalIters > MAX_ITERS) break outer;
+
           const counts = [a, b, c, d, 0, 0];
 
           const m = buildMix(
@@ -332,13 +349,14 @@ export function calculate(input: CalcInput): CalcResult {
           if (m.slackPct > 0.6) continue;
 
           mixesAll.push(m);
-          if (mixesAll.length > 2500) break;
+          if (mixesAll.length > 2500) break outer;
         }
-        if (mixesAll.length > 2500) break;
       }
-      if (mixesAll.length > 2500) break;
     }
-    if (mixesAll.length > 2500) break;
+  }
+
+  if (totalIters > MAX_ITERS) {
+    warnings.push("⚠️ Búsqueda acotada por límite de iteraciones — resultado puede no ser óptimo.");
   }
 
   // Fallback si no encuentra nada

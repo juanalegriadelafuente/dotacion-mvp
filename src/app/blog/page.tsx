@@ -1,33 +1,33 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 const posts = [
   {
     slug: "como-calcular-dotacion-personal",
     title: "Cómo calcular la dotación de personal en salud: guía paso a paso",
-    excerpt:
-      "Aprende a calcular cuántos profesionales necesitas según carga asistencial, turnos y normativa vigente. Metodología práctica para jefes de RRHH y supervisores clínicos.",
+    excerpt: "Aprende a calcular cuántos profesionales necesitas según carga asistencial, turnos y normativa vigente. Metodología práctica para jefes de RRHH y supervisores clínicos.",
     category: "Metodología",
-    date: "2025-06-10",
+    date: "2026-01-10",
     readTime: "8 min",
     featured: true,
   },
   {
     slug: "mix-contratos-jornada-parcial",
     title: "Mix de contratos y jornada parcial: cómo optimizar tu dotación sin perder cobertura",
-    excerpt:
-      "Contratos de 22, 33 y 44 horas mezclados con turnantes. Cómo armar una dotación flexible que cumpla la normativa y reduzca el costo por hora trabajada.",
+    excerpt: "Contratos de 42, 30 y 20 horas mezclados con turnantes. Cómo armar una dotación flexible que cumpla la normativa y reduzca el costo por hora trabajada.",
     category: "Planificación",
-    date: "2025-06-18",
+    date: "2026-01-18",
     readTime: "6 min",
     featured: false,
   },
   {
     slug: "dotacion-hospitalaria-san",
     title: "Dotación hospitalaria según el Sistema de Análisis de Necesidades (SAN)",
-    excerpt:
-      "El método SAN es el estándar del Ministerio de Salud para calcular dotación en hospitales públicos. Explicamos cómo aplicarlo, sus indicadores clave y sus limitaciones.",
+    excerpt: "El método SAN es el estándar del Ministerio de Salud para calcular dotación en hospitales públicos. Explicamos cómo aplicarlo, sus indicadores clave y sus limitaciones.",
     category: "Normativa",
-    date: "2025-06-25",
+    date: "2026-01-25",
     readTime: "10 min",
     featured: false,
   },
@@ -39,11 +39,58 @@ const categoryColors: Record<string, string> = {
   Normativa: "bg-amber-50 text-amber-700 border border-amber-200",
 };
 
-export const metadata = {
-  title: "Blog — Dotaciones.cl",
-  description:
-    "Artículos prácticos sobre planificación de dotación, turnos y normativa laboral en salud para Chile.",
-};
+function BlogLeadForm() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email) return;
+    setStatus("loading");
+    try {
+      const r = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, source: "blog-index", role: null }),
+      });
+      const data = await r.json();
+      setStatus(data.ok ? "ok" : "error");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  if (status === "ok") {
+    return (
+      <p className="text-white font-semibold text-sm bg-blue-500 rounded-lg px-6 py-4 inline-block">
+        ✅ ¡Suscrito! Te avisamos con cada nuevo artículo.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+      <input
+        type="email"
+        required
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="tu@correo.cl"
+        className="flex-1 px-4 py-3 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-white"
+      />
+      <button
+        type="submit"
+        disabled={status === "loading"}
+        className="bg-white text-blue-700 font-bold px-6 py-3 rounded-lg text-sm hover:bg-blue-50 transition-colors disabled:opacity-60"
+      >
+        {status === "loading" ? "Enviando…" : "Suscribirme"}
+      </button>
+      {status === "error" && (
+        <p className="text-red-200 text-xs mt-1 w-full text-center">Hubo un error. Intenta de nuevo.</p>
+      )}
+    </form>
+  );
+}
 
 export default function BlogIndex() {
   const [featured, ...rest] = posts;
@@ -59,15 +106,8 @@ export default function BlogIndex() {
             </span>
           </Link>
           <nav className="flex items-center gap-6 text-sm font-medium text-slate-600">
-            <Link href="/blog" className="text-blue-600 font-semibold">
-              Blog
-            </Link>
-            <Link
-              href="/"
-              className="hover:text-slate-900 transition-colors"
-            >
-              Inicio
-            </Link>
+            <Link href="/blog" className="text-blue-600 font-semibold">Blog</Link>
+            <Link href="/" className="hover:text-slate-900 transition-colors">Inicio</Link>
           </nav>
         </div>
       </header>
@@ -98,18 +138,13 @@ export default function BlogIndex() {
           <Link href={`/blog/${featured.slug}`} className="group block">
             <article className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
               <div className="md:flex">
-                {/* Color band */}
                 <div className="md:w-2 bg-blue-600 flex-shrink-0" />
                 <div className="p-8 md:p-10 flex-1">
                   <div className="flex items-center gap-3 mb-4">
-                    <span
-                      className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[featured.category]}`}
-                    >
+                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[featured.category]}`}>
                       {featured.category}
                     </span>
-                    <span className="text-slate-400 text-sm">
-                      {featured.readTime} de lectura
-                    </span>
+                    <span className="text-slate-400 text-sm">{featured.readTime} de lectura</span>
                   </div>
                   <h2 className="text-2xl md:text-3xl font-bold text-slate-900 group-hover:text-blue-700 transition-colors leading-snug mb-3">
                     {featured.title}
@@ -131,17 +166,13 @@ export default function BlogIndex() {
 
         {/* Rest of posts */}
         <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">
-            Más artículos
-          </p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Más artículos</p>
           <div className="grid md:grid-cols-2 gap-6">
             {rest.map((post) => (
               <Link key={post.slug} href={`/blog/${post.slug}`} className="group block">
                 <article className="bg-white rounded-xl border border-gray-200 p-7 h-full hover:shadow-md transition-shadow">
                   <div className="flex items-center gap-3 mb-3">
-                    <span
-                      className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[post.category]}`}
-                    >
+                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[post.category]}`}>
                       {post.category}
                     </span>
                     <span className="text-slate-400 text-xs">{post.readTime}</span>
@@ -149,9 +180,7 @@ export default function BlogIndex() {
                   <h2 className="text-lg font-bold text-slate-900 group-hover:text-blue-700 transition-colors leading-snug mb-2">
                     {post.title}
                   </h2>
-                  <p className="text-slate-500 text-sm leading-relaxed mb-5">
-                    {post.excerpt}
-                  </p>
+                  <p className="text-slate-500 text-sm leading-relaxed mb-5">{post.excerpt}</p>
                   <div className="flex items-center gap-1.5 text-blue-600 font-semibold text-sm mt-auto">
                     Leer
                     <svg className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -166,35 +195,14 @@ export default function BlogIndex() {
 
         {/* CTA suscripción */}
         <div className="mt-16 bg-blue-600 rounded-2xl p-10 text-center text-white">
-          <h2 className="text-2xl font-bold mb-2">
-            ¿Quieres más guías como estas?
-          </h2>
+          <h2 className="text-2xl font-bold mb-2">¿Quieres más guías como estas?</h2>
           <p className="text-blue-100 mb-6 max-w-lg mx-auto">
             Recibe nuevos artículos, plantillas y novedades normativas directo en tu correo. Sin spam.
           </p>
-          <form
-            action="https://formspree.io/f/TU_FORM_ID"
-            method="POST"
-            className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto"
-          >
-            <input
-              type="email"
-              name="email"
-              required
-              placeholder="tu@correo.cl"
-              className="flex-1 px-4 py-3 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-white"
-            />
-            <button
-              type="submit"
-              className="bg-white text-blue-700 font-bold px-6 py-3 rounded-lg text-sm hover:bg-blue-50 transition-colors"
-            >
-              Suscribirme
-            </button>
-          </form>
+          <BlogLeadForm />
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="border-t border-gray-200 py-8 px-6 text-center text-sm text-slate-400">
         © {new Date().getFullYear()} dotaciones.cl — Todos los derechos reservados
       </footer>
