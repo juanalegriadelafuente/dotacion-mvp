@@ -47,7 +47,11 @@ export type CalcResult = {
   overlapHours: number;
   gapHours: number;
   requiredHours: number;
+  requiredHoursAdjusted: number; // requiredHours × replacementFactor
   fte: number;
+  fteAdjusted: number;           // fte × replacementFactor
+  replacementFactor: number;     // factor aplicado (default 1.0)
+  ptShare: number;               // proporción PT del mix recomendado
   sundayReq: number;
   warnings: string[];
   mixes: Mix[];
@@ -405,8 +409,23 @@ export function calculate(input: CalcInput): CalcResult {
     m.title = `${base} — ${tag}`;
   });
 
+  const rf = input.replacementFactor && input.replacementFactor > 0
+    ? input.replacementFactor
+    : 1.0;
+
   const fte =
     fullHoursPerWeek > 0 ? effectiveRequiredHours / fullHoursPerWeek : 0;
+
+  const requiredHoursAdjusted = round2(effectiveRequiredHours * rf);
+  const fteAdjusted = round2(fte * rf);
+
+  // PT share del mix recomendado
+  const bestMix = picked[0];
+  const totalHours = bestMix?.hoursTotal ?? 0;
+  const ptHours = bestMix?.items
+    .filter((it) => it.hoursPerWeek <= 20)
+    .reduce((s, it) => s + it.count * it.hoursPerWeek, 0) ?? 0;
+  const ptShare = totalHours > 0 ? round2(ptHours / totalHours) : 0;
 
   return {
     covHours: picked[0]?.hoursTotal ?? 0,
@@ -414,7 +433,11 @@ export function calculate(input: CalcInput): CalcResult {
     overlapHours: round2(overlapHours),
     gapHours: round2(gapHours),
     requiredHours: round2(effectiveRequiredHours),
+    requiredHoursAdjusted,
     fte: round2(fte),
+    fteAdjusted,
+    replacementFactor: rf,
+    ptShare,
     sundayReq: picked[0]?.sundayReq ?? 0,
     warnings,
     mixes: picked,
