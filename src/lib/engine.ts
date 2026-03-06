@@ -16,6 +16,8 @@ export type CalcInput = {
   fullHoursPerWeek: number; // ej 42
   days: Record<DayKey, DayInput>;
   contracts: ContractType[];
+  replacementFactor?: number; // factor de reemplazo por ausentismo (ej 1.15)
+  ptWeekdaysAllowed?: boolean; // permite PT en días de semana
 };
 
 export type MixItem = {
