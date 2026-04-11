@@ -32,23 +32,15 @@ function makeDefaultDay(open: boolean): DayConfig {
 
 // ─── Selección de los 4 mixes destacados ─────────────────────────────────────
 
-function selectFeatured(mixes: Mix[], hasCosts: boolean): {
-  optimal: Mix | null;
-  cheapest: Mix | null;
-  leanest: Mix | null;
-  mostFull: Mix | null;
-} {
-  const ok = mixes.filter(m => m.sundayOk);
+function selectFeatured(mixes: Mix[], hasCosts: boolean) {
+  const ok  = mixes.filter(m => m.sundayOk);
   const all = ok.length > 0 ? ok : mixes;
 
   const optimal  = all.find(m => m.isOptimal) ?? all[0] ?? null;
-
   const cheapest = hasCosts
     ? (all.find(m => m.isCheapest) ?? [...all].filter(m => m.weeklyCost != null).sort((a, b) => (a.weeklyCost ?? 0) - (b.weeklyCost ?? 0))[0] ?? null)
     : null;
-
   const leanest  = [...all].sort((a, b) => a.slackPct - b.slackPct)[0] ?? null;
-
   const mostFull = [...all].sort((a, b) => a.ptShare - b.ptShare)[0] ?? null;
 
   return { optimal, cheapest, leanest, mostFull };
@@ -56,28 +48,18 @@ function selectFeatured(mixes: Mix[], hasCosts: boolean): {
 
 // ─── Tarjeta de mix destacado ─────────────────────────────────────────────────
 
-function MixCard({
-  mix, label, accent, hasCosts,
-}: {
+function MixCard({ mix, label, accent, hasCosts }: {
   mix: Mix; label: string; accent: boolean; hasCosts: boolean;
 }) {
   return (
-    <div className={`rounded-xl border p-4 flex flex-col gap-3 ${
-      accent ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"
-    }`}>
+    <div className={`rounded-xl border p-4 flex flex-col gap-3 ${accent ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"}`}>
       <div className="flex items-start justify-between">
         <div>
-          <p className={`text-xs font-semibold ${accent ? "text-blue-700" : "text-slate-500"}`}>
-            {label}
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            {mix.sundayOk ? "✅ domingo cubierto" : "⚠️ domingo ajustado"}
-          </p>
+          <p className={`text-xs font-semibold ${accent ? "text-blue-700" : "text-slate-500"}`}>{label}</p>
+          <p className="text-xs text-slate-400 mt-0.5">{mix.sundayOk ? "✅ domingo cubierto" : "⚠️ domingo ajustado"}</p>
         </div>
         <div className="text-right">
-          <p className={`text-2xl font-bold mono ${accent ? "text-blue-700" : "text-slate-800"}`}>
-            {mix.headcount}
-          </p>
+          <p className={`text-2xl font-bold mono ${accent ? "text-blue-700" : "text-slate-800"}`}>{mix.headcount}</p>
           <p className="text-xs text-slate-400">personas</p>
         </div>
       </div>
@@ -90,9 +72,7 @@ function MixCard({
               <span className="text-xs text-slate-700 font-medium">{item.contractName}</span>
               <span className="text-xs text-slate-400 mono">{item.jornadaName}</span>
             </div>
-            <span className={`text-xs font-bold mono ${accent ? "text-blue-700" : "text-slate-700"}`}>
-              ×{item.count}
-            </span>
+            <span className={`text-xs font-bold mono ${accent ? "text-blue-700" : "text-slate-700"}`}>×{item.count}</span>
           </div>
         ))}
       </div>
@@ -112,9 +92,7 @@ function MixCard({
           <>
             <div>
               <p className="text-slate-400">Costo/sem</p>
-              <p className="mono font-semibold text-slate-700">
-                ${mix.weeklyCost.toLocaleString("es-CL")}
-              </p>
+              <p className="mono font-semibold text-slate-700">${mix.weeklyCost.toLocaleString("es-CL")}</p>
             </div>
             <div>
               <p className="text-slate-400">% PT</p>
@@ -133,7 +111,7 @@ function MixCard({
   );
 }
 
-// ─── Tabla de todos los mixes ─────────────────────────────────────────────────
+// ─── Tabla completa de mixes ──────────────────────────────────────────────────
 
 type SortKey = "headcount" | "slackPct" | "weeklyCost" | "ptShare";
 
@@ -142,28 +120,21 @@ function MixTable({ mixes, hasCosts }: { mixes: Mix[]; hasCosts: boolean }) {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   function toggleSort(key: SortKey) {
-    if (sortKey === key) setDir(d => d === "asc" ? "desc" : "asc");
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
     else { setSortKey(key); setSortDir("asc"); }
-  }
-  function setDir(fn: (d: "asc" | "desc") => "asc" | "desc") {
-    setSortDir(prev => fn(prev));
   }
 
   const sorted = [...mixes].sort((a, b) => {
-    const aVal = a[sortKey] ?? Infinity;
-    const bVal = b[sortKey] ?? Infinity;
-    return sortDir === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+    const av = (a[sortKey] ?? Infinity) as number;
+    const bv = (b[sortKey] ?? Infinity) as number;
+    return sortDir === "asc" ? av - bv : bv - av;
   });
 
   function SortBtn({ col, label }: { col: SortKey; label: string }) {
     const active = sortKey === col;
     return (
-      <button
-        onClick={() => toggleSort(col)}
-        className={`flex items-center gap-1 text-xs font-medium transition-colors ${
-          active ? "text-blue-600" : "text-slate-500 hover:text-slate-700"
-        }`}
-      >
+      <button onClick={() => toggleSort(col)}
+        className={`flex items-center gap-1 text-xs font-medium transition-colors ${active ? "text-blue-600" : "text-slate-500 hover:text-slate-700"}`}>
         {label}
         <span className="mono">{active ? (sortDir === "asc" ? "↑" : "↓") : "↕"}</span>
       </button>
@@ -175,45 +146,23 @@ function MixTable({ mixes, hasCosts }: { mixes: Mix[]; hasCosts: boolean }) {
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-200">
-            <th className="px-4 py-3 text-left">
-              <SortBtn col="headcount" label="Personas" />
-            </th>
+            <th className="px-4 py-3 text-left"><SortBtn col="headcount" label="Personas" /></th>
             <th className="px-4 py-3 text-left text-slate-500 font-medium">Composición</th>
             <th className="px-4 py-3 text-left text-slate-500 font-medium">Domingo</th>
-            <th className="px-4 py-3 text-left">
-              <SortBtn col="slackPct" label="Holgura" />
-            </th>
-            <th className="px-4 py-3 text-left">
-              <SortBtn col="ptShare" label="% PT" />
-            </th>
-            {hasCosts && (
-              <th className="px-4 py-3 text-left">
-                <SortBtn col="weeklyCost" label="Costo/sem" />
-              </th>
-            )}
+            <th className="px-4 py-3 text-left"><SortBtn col="slackPct" label="Holgura" /></th>
+            <th className="px-4 py-3 text-left"><SortBtn col="ptShare" label="% PT" /></th>
+            {hasCosts && <th className="px-4 py-3 text-left"><SortBtn col="weeklyCost" label="Costo/sem" /></th>}
           </tr>
         </thead>
         <tbody>
           {sorted.map((mix, i) => (
-            <tr
-              key={mix.id}
-              className={`border-b border-slate-100 transition-colors hover:bg-slate-50 ${
-                mix.isOptimal ? "bg-blue-50/60" : i % 2 === 0 ? "bg-white" : "bg-slate-50/30"
-              }`}
-            >
+            <tr key={mix.id}
+              className={`border-b border-slate-100 transition-colors hover:bg-slate-50 ${mix.isOptimal ? "bg-blue-50/60" : i % 2 === 0 ? "bg-white" : "bg-slate-50/30"}`}>
               <td className="px-4 py-2.5">
                 <div className="flex items-center gap-2">
                   <span className="font-bold mono text-slate-800">{mix.headcount}</span>
-                  {mix.isOptimal && (
-                    <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
-                      óptimo
-                    </span>
-                  )}
-                  {mix.isCheapest && (
-                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                      más barato
-                    </span>
-                  )}
+                  {mix.isOptimal && <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">óptimo</span>}
+                  {mix.isCheapest && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">más barato</span>}
                 </div>
               </td>
               <td className="px-4 py-2.5">
@@ -230,8 +179,7 @@ function MixTable({ mixes, hasCosts }: { mixes: Mix[]; hasCosts: boolean }) {
               <td className="px-4 py-2.5">
                 {mix.sundayOk
                   ? <span className="text-emerald-600 font-medium">✓ OK</span>
-                  : <span className="text-amber-600 font-medium">⚠ Ajustado</span>
-                }
+                  : <span className="text-amber-600 font-medium">⚠ Ajustado</span>}
               </td>
               <td className="px-4 py-2.5">
                 <span className={`mono font-medium ${mix.slackPct > 0.25 ? "text-amber-600" : "text-slate-700"}`}>
@@ -244,10 +192,7 @@ function MixTable({ mixes, hasCosts }: { mixes: Mix[]; hasCosts: boolean }) {
               {hasCosts && (
                 <td className="px-4 py-2.5">
                   <span className="mono text-slate-700">
-                    {mix.weeklyCost != null
-                      ? `$${mix.weeklyCost.toLocaleString("es-CL")}`
-                      : "—"
-                    }
+                    {mix.weeklyCost != null ? `$${mix.weeklyCost.toLocaleString("es-CL")}` : "—"}
                   </span>
                 </td>
               )}
@@ -337,7 +282,7 @@ export default function CalculadoraPage() {
         days: Object.fromEntries(
           DAY_KEYS.map(k => {
             const d = days[k];
-            const { peak, hoursOpen, personHours } = computeStats(d.slots);
+            const { peak, hoursOpen } = computeStats(d.slots);
             return [k, {
               open: d.open,
               hoursOpen: hoursOpen > 0 ? hoursOpen : 0,
@@ -358,13 +303,15 @@ export default function CalculadoraPage() {
     }, 50);
   };
 
-  // ── Análisis IA ──
+  // ── Análisis IA + Lead + Email (todo en una sola llamada) ──
 
   const handleSolicitarAnalisis = async () => {
     if (!result || !leadEmail) return;
     setLoadingIA(true);
     try {
-      await fetch("/api/leads", {
+      const mixOptimo = result.mixes.find(m => m.isOptimal) ?? result.mixes[0];
+
+      const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -374,14 +321,6 @@ export default function CalculadoraPage() {
           sector: "Retail",
           calculadora: "Retail / Servicios",
           fuente: "Calculadora",
-        }),
-      });
-
-      const featured = result.mixes.find(m => m.isOptimal) ?? result.mixes[0];
-      const res = await fetch("/api/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
           resultados: {
             requiredHours: result.requiredHours,
             requiredHoursAdjusted: result.requiredHoursAdjusted,
@@ -391,15 +330,14 @@ export default function CalculadoraPage() {
             gapHours: result.gapHours,
             breakHours: result.breakHours,
             totalMixesEncontrados: result.totalMixes,
-            mixOptimo: featured,
+            mixOptimo,
             advertencias: result.warnings,
           },
-          sector: "Retail / Servicios",
-          calculadora: "Retail / Servicios",
         }),
       });
+
       const data = await res.json();
-      setAnalisisIA(data.analisis);
+      setAnalisisIA(data.analisis ?? null);
       setLeadEnviado(true);
     } catch (e) {
       console.error(e);
@@ -410,19 +348,15 @@ export default function CalculadoraPage() {
 
   const d = days[activeDay];
 
-  // Mixes destacados
-  const featured = result
-    ? selectFeatured(result.mixes, result.hasCosts)
-    : null;
-
+  const featured = result ? selectFeatured(result.mixes, result.hasCosts) : null;
   const featuredMixes = featured
     ? [
-        featured.optimal   ? { mix: featured.optimal,  label: "Óptimo",        accent: true  } : null,
-        featured.cheapest  ? { mix: featured.cheapest, label: "Más económico",  accent: false } : null,
+        featured.optimal  ? { mix: featured.optimal,  label: "Óptimo",                 accent: true  } : null,
+        featured.cheapest ? { mix: featured.cheapest, label: "Más económico",            accent: false } : null,
         featured.leanest && featured.leanest !== featured.optimal
-          ? { mix: featured.leanest, label: "Menor holgura", accent: false } : null,
+          ? { mix: featured.leanest,  label: "Menor holgura",             accent: false } : null,
         featured.mostFull && featured.mostFull !== featured.optimal && featured.mostFull !== featured.leanest
-          ? { mix: featured.mostFull, label: "Más estable (menos PT)", accent: false } : null,
+          ? { mix: featured.mostFull, label: "Más estable (menos PT)",    accent: false } : null,
       ].filter(Boolean)
     : [];
 
@@ -490,19 +424,13 @@ export default function CalculadoraPage() {
                 {DAY_KEYS.map(k => {
                   const s = computeStats(days[k].slots);
                   return (
-                    <button
-                      key={k}
-                      onClick={() => setActiveDay(k)}
+                    <button key={k} onClick={() => setActiveDay(k)}
                       className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                        activeDay === k
-                          ? "bg-slate-900 text-white"
-                          : days[k].open && s.personHours > 0
-                          ? "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
-                          : days[k].open
-                          ? "bg-white border border-dashed border-slate-200 text-slate-500"
-                          : "bg-white border border-dashed border-slate-200 text-slate-300"
-                      }`}
-                    >
+                        activeDay === k ? "bg-slate-900 text-white"
+                        : days[k].open && s.personHours > 0 ? "bg-white border border-slate-200 text-slate-700 hover:border-slate-300"
+                        : days[k].open ? "bg-white border border-dashed border-slate-200 text-slate-500"
+                        : "bg-white border border-dashed border-slate-200 text-slate-300"
+                      }`}>
                       {DAY_LABELS[k]}
                       {days[k].open && s.personHours > 0 && (
                         <span className={`ml-1.5 w-1.5 h-1.5 rounded-full inline-block ${activeDay === k ? "bg-blue-400" : "bg-emerald-400"}`} />
@@ -515,10 +443,8 @@ export default function CalculadoraPage() {
 
             <div className="px-5 py-4 space-y-4">
               <label className="flex items-center gap-2.5 cursor-pointer">
-                <div
-                  onClick={() => updateDay(activeDay, { open: !d.open })}
-                  className={`relative w-9 h-5 rounded-full transition-colors ${d.open ? "bg-blue-600" : "bg-slate-200"}`}
-                >
+                <div onClick={() => updateDay(activeDay, { open: !d.open })}
+                  className={`relative w-9 h-5 rounded-full transition-colors ${d.open ? "bg-blue-600" : "bg-slate-200"}`}>
                   <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${d.open ? "translate-x-4" : "translate-x-0.5"}`} />
                 </div>
                 <span className="text-sm text-slate-700 font-medium">
@@ -534,32 +460,25 @@ export default function CalculadoraPage() {
                     maxPeople={10}
                     startHour={0}
                   />
-
                   <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
                     <div>
                       <label className="block text-xs text-slate-500 mb-1.5">Colación (min)</label>
-                      <input type="number" min={0} max={120} step={5}
-                        value={d.breakMinutes}
+                      <input type="number" min={0} max={120} step={5} value={d.breakMinutes}
                         onChange={e => updateDay(activeDay, { breakMinutes: parseInt(e.target.value) || 0 })}
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                     <div>
                       <label className="block text-xs text-slate-500 mb-1.5">Traslape (min)</label>
-                      <input type="number" min={0} max={120} step={5}
-                        value={d.overlapMinutes}
+                      <input type="number" min={0} max={120} step={5} value={d.overlapMinutes}
                         onChange={e => updateDay(activeDay, { overlapMinutes: parseInt(e.target.value) || 0 })}
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     </div>
                   </div>
-
                   {d.breakMinutes > d.overlapMinutes && (
                     <p className="text-xs text-amber-600">
                       ⚠ Brecha colación: {((d.breakMinutes - d.overlapMinutes) / 60).toFixed(1)}h extra a cubrir
                     </p>
                   )}
-
                   <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
                     <span className="text-xs text-slate-500 shrink-0">Copiar a:</span>
                     <div className="flex gap-1 flex-wrap">
@@ -590,15 +509,13 @@ export default function CalculadoraPage() {
                 })}
                 {(() => {
                   const total = DAY_KEYS.reduce((sum, k) => sum + computeStats(days[k].slots).personHours, 0);
-                  return total > 0 ? (
-                    <span className="ml-auto text-xs font-semibold mono text-slate-700">{total}h‑p/sem</span>
-                  ) : null;
+                  return total > 0 ? <span className="ml-auto text-xs font-semibold mono text-slate-700">{total}h‑p/sem</span> : null;
                 })()}
               </div>
             </div>
           </section>
 
-          {/* ── PANEL DERECHO: Configuración + Contratos ── */}
+          {/* ── PANEL DERECHO ── */}
           <div className="space-y-6">
 
             {/* Configuración */}
@@ -610,33 +527,22 @@ export default function CalculadoraPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs text-slate-500 mb-1.5">Horas Full (FTE base)</label>
-                    <input type="number" min={20} max={60} step={1}
-                      value={fullHours}
+                    <input type="number" min={20} max={60} step={1} value={fullHours}
                       onChange={e => setFullHours(parseInt(e.target.value) || 42)}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                     <p className="text-xs text-slate-400 mt-1">Ej: 42 ó 44</p>
                   </div>
                   <div>
-                    <label className="block text-xs text-slate-500 mb-1.5">
-                      Factor reemplazo
-                      <span className="ml-1 text-slate-400">(vacac. + lic.)</span>
-                    </label>
-                    <input type="number" min={1} max={1.5} step={0.01}
-                      value={replacementFactor}
+                    <label className="block text-xs text-slate-500 mb-1.5">Factor reemplazo <span className="text-slate-400">(vacac. + lic.)</span></label>
+                    <input type="number" min={1} max={1.5} step={0.01} value={replacementFactor}
                       onChange={e => setReplacementFactor(parseFloat(e.target.value) || 1.15)}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <p className="text-xs text-slate-400 mt-1">
-                      {((replacementFactor - 1) * 100).toFixed(0)}% — retail ~12%, salud ~18%
-                    </p>
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p className="text-xs text-slate-400 mt-1">{((replacementFactor - 1) * 100).toFixed(0)}% — retail ~12%, salud ~18%</p>
                   </div>
                 </div>
-
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={ptWeekdays} onChange={e => setPtWeekdays(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                  />
+                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
                   <div>
                     <span className="text-sm text-slate-700">Permitir PT en días de semana (L–V)</span>
                     <p className="text-xs text-slate-400">Para servicios sin demanda de fin de semana</p>
@@ -654,8 +560,7 @@ export default function CalculadoraPage() {
                 </div>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="checkbox" checked={showCosts} onChange={e => setShowCosts(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600"
-                  />
+                    className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600" />
                   <span className="text-xs text-slate-500">Agregar costos</span>
                 </label>
               </div>
@@ -669,24 +574,17 @@ export default function CalculadoraPage() {
                   </div>
                   {contracts.map(c => (
                     <div key={c.id} className={`grid gap-2 items-center ${showCosts ? "grid-cols-[1fr_80px_100px_32px]" : "grid-cols-[1fr_100px_32px]"}`}>
-                      <input type="text"
-                        value={c.name}
-                        onChange={e => updateContract(c.id, { name: e.target.value })}
+                      <input type="text" value={c.name} onChange={e => updateContract(c.id, { name: e.target.value })}
                         placeholder="Ej: Full time"
-                        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                      <input type="number" min={1} max={60}
-                        value={c.hoursPerWeek}
+                        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <input type="number" min={1} max={60} value={c.hoursPerWeek}
                         onChange={e => updateContract(c.id, { hoursPerWeek: parseInt(e.target.value) || 0 })}
-                        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
+                        className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       {showCosts && (
-                        <input type="number" min={0} step={100}
-                          value={c.costPerHour ?? ""}
+                        <input type="number" min={0} step={100} value={c.costPerHour ?? ""}
                           onChange={e => updateContract(c.id, { costPerHour: parseFloat(e.target.value) || undefined })}
                           placeholder="0"
-                          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
+                          className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       )}
                       <button onClick={() => removeContract(c.id)}
                         className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors">
@@ -760,9 +658,9 @@ export default function CalculadoraPage() {
 
             <div className="grid grid-cols-3 gap-px bg-slate-100">
               {[
-                { label: "Horas colación", value: result.breakHours.toFixed(1) + "h" },
-                { label: "Horas traslape", value: result.overlapHours.toFixed(1) + "h" },
-                { label: "Brecha neta", value: result.gapHours.toFixed(1) + "h", warn: result.gapHours > 0 },
+                { label: "Horas colación",  value: result.breakHours.toFixed(1) + "h" },
+                { label: "Horas traslape",  value: result.overlapHours.toFixed(1) + "h" },
+                { label: "Brecha neta",     value: result.gapHours.toFixed(1) + "h", warn: result.gapHours > 0 },
               ].map(k => (
                 <div key={k.label} className="bg-white px-5 py-3">
                   <p className="text-xs text-slate-500">{k.label}</p>
@@ -771,52 +669,33 @@ export default function CalculadoraPage() {
               ))}
             </div>
 
-            {/* ── 4 tarjetas destacadas ── */}
+            {/* 4 tarjetas destacadas */}
             <div className="px-5 py-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-700">
-                  Mix de contratos sugerido
-                </h3>
-                <span className="text-xs text-slate-400 mono">
-                  {result.totalMixes} combinaciones válidas encontradas
-                </span>
+                <h3 className="text-sm font-semibold text-slate-700">Mix de contratos sugerido</h3>
+                <span className="text-xs text-slate-400 mono">{result.totalMixes} combinaciones válidas</span>
               </div>
 
               {featuredMixes.length > 0 ? (
                 <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
                   {featuredMixes.map((f, i) => f && (
-                    <MixCard
-                      key={i}
-                      mix={f.mix}
-                      label={f.label}
-                      accent={f.accent}
-                      hasCosts={result.hasCosts}
-                    />
+                    <MixCard key={i} mix={f.mix} label={f.label} accent={f.accent} hasCosts={result.hasCosts} />
                   ))}
                 </div>
               ) : (
                 <p className="text-sm text-slate-500">No se encontraron mixes válidos para esta configuración.</p>
               )}
 
-              {/* Botón ver todos */}
               {result.totalMixes > 1 && (
                 <div className="mt-4">
-                  <button
-                    onClick={() => setShowAllMixes(v => !v)}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5"
-                  >
-                    <svg
-                      className={`w-3.5 h-3.5 transition-transform ${showAllMixes ? "rotate-90" : ""}`}
-                      fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                    >
+                  <button onClick={() => setShowAllMixes(v => !v)}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5">
+                    <svg className={`w-3.5 h-3.5 transition-transform ${showAllMixes ? "rotate-90" : ""}`}
+                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    {showAllMixes
-                      ? "Ocultar tabla completa"
-                      : `Ver todas las ${result.totalMixes} combinaciones`
-                    }
+                    {showAllMixes ? "Ocultar tabla completa" : `Ver todas las ${result.totalMixes} combinaciones`}
                   </button>
-
                   {showAllMixes && (
                     <div className="mt-4">
                       <MixTable mixes={result.mixes} hasCosts={result.hasCosts} />
@@ -826,18 +705,16 @@ export default function CalculadoraPage() {
               )}
             </div>
 
-            {/* ── Panel IA Nexwork ── */}
+            {/* Panel IA Nexwork */}
             <div className="mx-5 mb-5 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-slate-50 overflow-hidden">
               <div className="px-5 py-4 border-b border-blue-100 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Análisis IA de tu dotación</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Interpretación experta, alertas legales y cómo presentarlo a gerencia — gratis
+                    Interpretación experta, alertas legales y cómo presentarlo a gerencia — gratis. Te lo enviamos también por email.
                   </p>
                 </div>
-                <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
-                  Nexwork SpA
-                </span>
+                <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">Nexwork SpA</span>
               </div>
 
               {!leadEnviado ? (
@@ -857,25 +734,20 @@ export default function CalculadoraPage() {
                           <label className="block text-xs text-slate-500 mb-1">Nombre</label>
                           <input type="text" value={leadNombre} onChange={e => setLeadNombre(e.target.value)}
                             placeholder="Tu nombre"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                         <div>
                           <label className="block text-xs text-slate-500 mb-1">Empresa</label>
                           <input type="text" value={leadEmpresa} onChange={e => setLeadEmpresa(e.target.value)}
                             placeholder="Tu empresa"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs text-slate-500 mb-1">
-                          Email <span className="text-blue-600">*</span>
-                        </label>
+                        <label className="block text-xs text-slate-500 mb-1">Email <span className="text-blue-600">*</span></label>
                         <input type="email" value={leadEmail} onChange={e => setLeadEmail(e.target.value)}
                           placeholder="tu@empresa.cl"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                       </div>
                       <button onClick={handleSolicitarAnalisis} disabled={!leadEmail || loadingIA}
                         className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
@@ -885,11 +757,11 @@ export default function CalculadoraPage() {
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                             </svg>
-                            Analizando con IA…
+                            Analizando y enviando…
                           </>
                         ) : "Ver mi análisis →"}
                       </button>
-                      <p className="text-xs text-slate-400 text-center">Sin spam. Solo usamos tu email para el análisis.</p>
+                      <p className="text-xs text-slate-400 text-center">Sin spam. Te enviamos el análisis a tu email.</p>
                     </div>
                   )}
                 </div>
@@ -899,7 +771,7 @@ export default function CalculadoraPage() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    <span className="text-xs font-medium">Análisis generado por Nexwork SpA</span>
+                    <span className="text-xs font-medium">Análisis generado y enviado a {leadEmail}</span>
                   </div>
                   {analisisIA && (
                     <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-white rounded-lg p-4 border border-slate-100">
@@ -909,6 +781,7 @@ export default function CalculadoraPage() {
                 </div>
               )}
             </div>
+
           </section>
         )}
       </div>
