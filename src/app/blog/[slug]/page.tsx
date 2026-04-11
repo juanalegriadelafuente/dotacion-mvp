@@ -33,159 +33,170 @@ export async function generateMetadata(
 
 export async function generateStaticParams() {
   const slugs = await getBlogSlugs();
-  return slugs.map(slug => ({ slug }));
+  return slugs.map((slug) => ({ slug }));
+}
+
+// ─── Renderizador de texto con formato ───────────────────────────────────────
+
+function RichText({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|`[^`]+`)/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <strong key={i}>{part.slice(2, -2)}</strong>;
+        }
+        if (part.startsWith("`") && part.endsWith("`")) {
+          return (
+            <code key={i} className="bg-slate-100 px-1.5 py-0.5 rounded text-sm font-mono">
+              {part.slice(1, -1)}
+            </code>
+          );
+        }
+        const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (linkMatch) {
+          return (
+            <a key={i} href={linkMatch[2]} className="text-blue-600 hover:underline">
+              {linkMatch[1]}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </>
+  );
 }
 
 // ─── Renderizador de bloques Notion ──────────────────────────────────────────
 
-function renderBoldAndLinks(text: string) {
-  // Convierte **texto** y [texto](url) a JSX
-  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|`[^`]+`)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return <strong key={i}>{part.slice(2, -2)}</strong>;
-    }
-    if (part.startsWith("`") && part.endsWith("`")) {
-      return <code key={i} className="bg-slate-100 px-1.5 py-0.5 rounded text-sm font-mono">{part.slice(1, -1)}</code>;
-    }
-    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-    if (linkMatch) {
-      return <a key={i} href={linkMatch[2]} className="text-blue-600 hover:underline">{linkMatch[1]}</a>;
-    }
-    return part;
-  });
-}
-
 function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
-  const rendered: JSX.Element[] = [];
-  let bulletBuffer: string[]   = [];
-  let numberedBuffer: string[] = [];
-  let i = 0;
-
-  function flushBullets() {
-    if (!bulletBuffer.length) return;
-    rendered.push(
-      <ul key={`ul-${i}`} className="list-disc pl-6 space-y-1.5 my-4 text-slate-700">
-        {bulletBuffer.map((item, j) => (
-          <li key={j} className="text-base leading-relaxed">{renderBoldAndLinks(item)}</li>
-        ))}
-      </ul>
-    );
-    bulletBuffer = [];
-  }
-
-  function flushNumbered() {
-    if (!numberedBuffer.length) return;
-    rendered.push(
-      <ol key={`ol-${i}`} className="list-decimal pl-6 space-y-1.5 my-4 text-slate-700">
-        {numberedBuffer.map((item, j) => (
-          <li key={j} className="text-base leading-relaxed">{renderBoldAndLinks(item)}</li>
-        ))}
-      </ol>
-    );
-    numberedBuffer = [];
-  }
+  // Agrupa bullets y numbered consecutivos
+  const groups: Array<{ type: string; items: NotionBlock[] } | NotionBlock> = [];
 
   for (const block of blocks) {
-    i++;
-
-    if (block.type === "bullet") {
-      flushNumbered();
-      bulletBuffer.push(block.text ?? "");
-      continue;
-    }
-    if (block.type === "numbered") {
-      flushBullets();
-      numberedBuffer.push(block.text ?? "");
-      continue;
-    }
-
-    flushBullets();
-    flushNumbered();
-
-    switch (block.type) {
-      case "heading":
-        if (block.level === 1) {
-          rendered.push(
-            <h2 key={i} className="text-2xl font-bold text-slate-900 mt-10 mb-4 tracking-tight">
-              {block.text}
-            </h2>
-          );
-        } else if (block.level === 2) {
-          rendered.push(
-            <h3 key={i} className="text-xl font-bold text-slate-800 mt-8 mb-3">
-              {block.text}
-            </h3>
-          );
-        } else {
-          rendered.push(
-            <h4 key={i} className="text-lg font-semibold text-slate-800 mt-6 mb-2">
-              {block.text}
-            </h4>
-          );
-        }
-        break;
-
-      case "paragraph":
-        if (!block.text?.trim()) break;
-        rendered.push(
-          <p key={i} className="text-base text-slate-700 leading-relaxed my-4">
-            {renderBoldAndLinks(block.text)}
-          </p>
-        );
-        break;
-
-      case "code":
-        rendered.push(
-          <div key={i} className="my-5 rounded-xl bg-slate-900 overflow-hidden">
-            <div className="px-4 py-2 bg-slate-800 text-xs text-slate-400 font-mono">{block.language}</div>
-            <pre className="px-5 py-4 text-sm text-slate-200 overflow-x-auto font-mono leading-relaxed">
-              {block.text}
-            </pre>
-          </div>
-        );
-        break;
-
-      case "quote":
-        rendered.push(
-          <blockquote key={i} className="border-l-4 border-blue-500 pl-5 my-5 text-slate-600 italic">
-            {block.text}
-          </blockquote>
-        );
-        break;
-
-      case "callout":
-        rendered.push(
-          <div key={i} className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 my-5 text-sm text-slate-700 leading-relaxed">
-            {renderBoldAndLinks(block.text ?? "")}
-          </div>
-        );
-        break;
-
-      case "divider":
-        rendered.push(<hr key={i} className="border-slate-200 my-8" />);
-        break;
-
-      case "image":
-        rendered.push(
-          <figure key={i} className="my-6">
-            <img src={block.url} alt={block.caption ?? ""} className="w-full rounded-xl border border-slate-200" />
-            {block.caption && (
-              <figcaption className="text-center text-xs text-slate-400 mt-2">{block.caption}</figcaption>
-            )}
-          </figure>
-        );
-        break;
-
-      default:
-        break;
+    if (block.type === "bullet" || block.type === "numbered") {
+      const last = groups[groups.length - 1];
+      if (last && typeof last === "object" && "items" in last && last.type === block.type) {
+        last.items.push(block);
+      } else {
+        groups.push({ type: block.type, items: [block] });
+      }
+    } else {
+      groups.push(block);
     }
   }
 
-  flushBullets();
-  flushNumbered();
+  return (
+    <>
+      {groups.map((group, i) => {
+        // Grupos de listas
+        if ("items" in group) {
+          if (group.type === "bullet") {
+            return (
+              <ul key={i} className="list-disc pl-6 space-y-1.5 my-4 text-slate-700">
+                {group.items.map((item, j) => (
+                  <li key={j} className="text-base leading-relaxed">
+                    <RichText text={item.text ?? ""} />
+                  </li>
+                ))}
+              </ul>
+            );
+          }
+          return (
+            <ol key={i} className="list-decimal pl-6 space-y-1.5 my-4 text-slate-700">
+              {group.items.map((item, j) => (
+                <li key={j} className="text-base leading-relaxed">
+                  <RichText text={item.text ?? ""} />
+                </li>
+              ))}
+            </ol>
+          );
+        }
 
-  return <>{rendered}</>;
+        // Bloques individuales
+        const block = group as NotionBlock;
+
+        switch (block.type) {
+          case "heading":
+            if (block.level === 1) {
+              return (
+                <h2 key={i} className="text-2xl font-bold text-slate-900 mt-10 mb-4 tracking-tight">
+                  {block.text}
+                </h2>
+              );
+            }
+            if (block.level === 2) {
+              return (
+                <h3 key={i} className="text-xl font-bold text-slate-800 mt-8 mb-3">
+                  {block.text}
+                </h3>
+              );
+            }
+            return (
+              <h4 key={i} className="text-lg font-semibold text-slate-800 mt-6 mb-2">
+                {block.text}
+              </h4>
+            );
+
+          case "paragraph":
+            if (!block.text?.trim()) return null;
+            return (
+              <p key={i} className="text-base text-slate-700 leading-relaxed my-4">
+                <RichText text={block.text} />
+              </p>
+            );
+
+          case "code":
+            return (
+              <div key={i} className="my-5 rounded-xl bg-slate-900 overflow-hidden">
+                <div className="px-4 py-2 bg-slate-800 text-xs text-slate-400 font-mono">
+                  {block.language}
+                </div>
+                <pre className="px-5 py-4 text-sm text-slate-200 overflow-x-auto font-mono leading-relaxed">
+                  {block.text}
+                </pre>
+              </div>
+            );
+
+          case "quote":
+            return (
+              <blockquote key={i} className="border-l-4 border-blue-500 pl-5 my-5 text-slate-600 italic">
+                {block.text}
+              </blockquote>
+            );
+
+          case "callout":
+            return (
+              <div key={i} className="bg-blue-50 border border-blue-200 rounded-xl px-5 py-4 my-5 text-sm text-slate-700 leading-relaxed">
+                <RichText text={block.text ?? ""} />
+              </div>
+            );
+
+          case "divider":
+            return <hr key={i} className="border-slate-200 my-8" />;
+
+          case "image":
+            return (
+              <figure key={i} className="my-6">
+                <img
+                  src={block.url}
+                  alt={block.caption ?? ""}
+                  className="w-full rounded-xl border border-slate-200"
+                />
+                {block.caption && (
+                  <figcaption className="text-center text-xs text-slate-400 mt-2">
+                    {block.caption}
+                  </figcaption>
+                )}
+              </figure>
+            );
+
+          default:
+            return null;
+        }
+      })}
+    </>
+  );
 }
 
 // ─── Página del artículo ──────────────────────────────────────────────────────
@@ -212,22 +223,42 @@ export default async function BlogArticle(
     headline: post.title,
     description: post.metaDescription,
     datePublished: post.date,
-    author: { "@type": "Organization", name: "dotaciones.cl — Nexwork SpA", url: "https://dotaciones.cl" },
-    publisher: { "@type": "Organization", name: "dotaciones.cl", url: "https://dotaciones.cl" },
-    mainEntityOfPage: { "@type": "WebPage", "@id": `https://dotaciones.cl/blog/${slug}` },
+    author: {
+      "@type": "Organization",
+      name: "dotaciones.cl — Nexwork SpA",
+      url: "https://dotaciones.cl",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "dotaciones.cl",
+      url: "https://dotaciones.cl",
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `https://dotaciones.cl/blog/${slug}`,
+    },
   };
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="text-xl font-extrabold tracking-tight text-slate-900 hover:text-blue-600 transition-colors">
+          <Link
+            href="/"
+            className="text-xl font-extrabold tracking-tight text-slate-900 hover:text-blue-600 transition-colors"
+          >
             dotaciones<span className="text-blue-600">.cl</span>
           </Link>
-          <Link href="/blog" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+          <Link
+            href="/blog"
+            className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors flex items-center gap-1.5"
+          >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
@@ -240,7 +271,11 @@ export default async function BlogArticle(
 
         {/* Meta */}
         <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[post.category] ?? "bg-slate-100 text-slate-600"}`}>
+          <span
+            className={`text-xs font-semibold px-3 py-1 rounded-full ${
+              categoryColors[post.category] ?? "bg-slate-100 text-slate-600"
+            }`}
+          >
             {post.category}
           </span>
           <span className="text-slate-400 text-sm">{post.date}</span>
@@ -262,8 +297,10 @@ export default async function BlogArticle(
             <p className="font-bold text-sm">¿Prefieres calcularlo directo?</p>
             <p className="text-blue-100 text-xs mt-0.5">Sin registro. El resultado en segundos.</p>
           </div>
-          <Link href="/calculadora"
-            className="shrink-0 bg-white text-blue-700 font-bold text-sm px-5 py-2.5 rounded-lg hover:bg-blue-50 transition-colors">
+          <Link
+            href="/calculadora"
+            className="shrink-0 bg-white text-blue-700 font-bold text-sm px-5 py-2.5 rounded-lg hover:bg-blue-50 transition-colors"
+          >
             Ir a la calculadora →
           </Link>
         </div>
@@ -280,21 +317,27 @@ export default async function BlogArticle(
             Sin registro. El motor propone todas las combinaciones válidas de contratos en segundos.
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
-            <Link href="/calculadora"
-              className="bg-white text-blue-700 font-bold px-6 py-3 rounded-lg text-sm hover:bg-blue-50 transition-colors text-center">
+            <Link
+              href="/calculadora"
+              className="bg-white text-blue-700 font-bold px-6 py-3 rounded-lg text-sm hover:bg-blue-50 transition-colors text-center"
+            >
               Calculadora Retail / Servicios →
             </Link>
-            <Link href="/san"
-              className="bg-blue-500 text-white font-bold px-6 py-3 rounded-lg text-sm hover:bg-blue-400 transition-colors text-center border border-blue-400">
+            <Link
+              href="/san"
+              className="bg-blue-500 text-white font-bold px-6 py-3 rounded-lg text-sm hover:bg-blue-400 transition-colors text-center border border-blue-400"
+            >
               Calculadora SAN Hospitalaria →
             </Link>
           </div>
         </div>
 
         {/* Navegación */}
-        <div className="border-t border-gray-200 pt-8 mt-8 flex justify-between">
-          <Link href="/blog"
-            className="inline-flex items-center gap-2 text-blue-600 font-semibold text-sm hover:text-blue-700 transition-colors">
+        <div className="border-t border-gray-200 pt-8 mt-8">
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-2 text-blue-600 font-semibold text-sm hover:text-blue-700 transition-colors"
+          >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
