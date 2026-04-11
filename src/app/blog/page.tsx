@@ -1,102 +1,27 @@
-"use client";
-
+// src/app/blog/page.tsx
 import Link from "next/link";
-import { useState } from "react";
+import { getBlogPosts, type BlogPost } from "@/lib/notion-blog";
 
-const posts = [
-  {
-    slug: "como-calcular-dotacion-personal",
-    title: "Cómo calcular la dotación de personal en salud: guía paso a paso",
-    excerpt: "Aprende a calcular cuántos profesionales necesitas según carga asistencial, turnos y normativa vigente. Metodología práctica para jefes de RRHH y supervisores clínicos.",
-    category: "Metodología",
-    date: "2026-01-10",
-    readTime: "8 min",
-    featured: true,
-  },
-  {
-    slug: "mix-contratos-jornada-parcial",
-    title: "Mix de contratos y jornada parcial: cómo optimizar tu dotación sin perder cobertura",
-    excerpt: "Contratos de 42, 30 y 20 horas mezclados con turnantes. Cómo armar una dotación flexible que cumpla la normativa y reduzca el costo por hora trabajada.",
-    category: "Planificación",
-    date: "2026-01-18",
-    readTime: "6 min",
-    featured: false,
-  },
-  {
-    slug: "dotacion-hospitalaria-san",
-    title: "Dotación hospitalaria según el Sistema de Análisis de Necesidades (SAN)",
-    excerpt: "El método SAN es el estándar del Ministerio de Salud para calcular dotación en hospitales públicos. Explicamos cómo aplicarlo, sus indicadores clave y sus limitaciones.",
-    category: "Normativa",
-    date: "2026-01-25",
-    readTime: "10 min",
-    featured: false,
-  },
-];
+export const revalidate = 3600; // revalidar cada hora
 
 const categoryColors: Record<string, string> = {
-  Metodología: "bg-blue-50 text-blue-700 border border-blue-200",
-  Planificación: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  Normativa: "bg-amber-50 text-amber-700 border border-amber-200",
+  Metodología:      "bg-blue-50 text-blue-700 border border-blue-200",
+  Planificación:    "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  Normativa:        "bg-amber-50 text-amber-700 border border-amber-200",
+  Retail:           "bg-purple-50 text-purple-700 border border-purple-200",
+  Salud:            "bg-red-50 text-red-700 border border-red-200",
+  "Casos prácticos": "bg-pink-50 text-pink-700 border border-pink-200",
 };
 
-function BlogLeadForm() {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+export default async function BlogIndex() {
+  const posts = await getBlogPosts();
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email) return;
-    setStatus("loading");
-    try {
-      const r = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, source: "blog-index", role: null }),
-      });
-      const data = await r.json();
-      setStatus(data.ok ? "ok" : "error");
-    } catch {
-      setStatus("error");
-    }
-  }
-
-  if (status === "ok") {
-    return (
-      <p className="text-white font-semibold text-sm bg-blue-500 rounded-lg px-6 py-4 inline-block">
-        ✅ ¡Suscrito! Te avisamos con cada nuevo artículo.
-      </p>
-    );
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
-      <input
-        type="email"
-        required
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        placeholder="tu@correo.cl"
-        className="flex-1 px-4 py-3 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-white"
-      />
-      <button
-        type="submit"
-        disabled={status === "loading"}
-        className="bg-white text-blue-700 font-bold px-6 py-3 rounded-lg text-sm hover:bg-blue-50 transition-colors disabled:opacity-60"
-      >
-        {status === "loading" ? "Enviando…" : "Suscribirme"}
-      </button>
-      {status === "error" && (
-        <p className="text-red-200 text-xs mt-1 w-full text-center">Hubo un error. Intenta de nuevo.</p>
-      )}
-    </form>
-  );
-}
-
-export default function BlogIndex() {
-  const [featured, ...rest] = posts;
+  const featured = posts.find(p => p.featured) ?? posts[0];
+  const rest     = posts.filter(p => p.id !== featured?.id);
 
   return (
     <main className="min-h-screen bg-gray-50">
+
       {/* Header */}
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -119,92 +44,110 @@ export default function BlogIndex() {
             Recursos gratuitos
           </p>
           <h1 className="text-4xl md:text-5xl font-extrabold leading-tight mb-4 tracking-tight">
-            Todo lo que necesitas saber<br />
-            sobre <span className="text-blue-400">dotación en salud</span>
+            Guías de dotación para<br />
+            <span className="text-blue-400">RRHH en Chile</span>
           </h1>
           <p className="text-slate-300 text-lg max-w-2xl">
-            Guías prácticas, metodologías y normativa para jefes de RRHH,
-            supervisores y directivos de centros de salud en Chile.
+            Metodologías, normativa y casos prácticos para jefes de RRHH,
+            consultores y directivos en retail, salud y servicios.
           </p>
         </div>
       </section>
 
       <div className="max-w-5xl mx-auto px-6 py-16">
-        {/* Featured post */}
-        <div className="mb-12">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">
-            Artículo destacado
+
+        {/* Sin artículos */}
+        {posts.length === 0 && (
+          <p className="text-center text-slate-500 py-20">
+            No hay artículos publicados todavía.
           </p>
-          <Link href={`/blog/${featured.slug}`} className="group block">
-            <article className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-              <div className="md:flex">
-                <div className="md:w-2 bg-blue-600 flex-shrink-0" />
-                <div className="p-8 md:p-10 flex-1">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[featured.category]}`}>
-                      {featured.category}
-                    </span>
-                    <span className="text-slate-400 text-sm">{featured.readTime} de lectura</span>
-                  </div>
-                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900 group-hover:text-blue-700 transition-colors leading-snug mb-3">
-                    {featured.title}
-                  </h2>
-                  <p className="text-slate-500 text-base leading-relaxed mb-6 max-w-2xl">
-                    {featured.excerpt}
-                  </p>
-                  <div className="flex items-center gap-2 text-blue-600 font-semibold text-sm">
-                    Leer artículo
-                    <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
+        )}
+
+        {/* Artículo destacado */}
+        {featured && (
+          <div className="mb-12">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">
+              Artículo destacado
+            </p>
+            <Link href={`/blog/${featured.slug}`} className="group block">
+              <article className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                <div className="md:flex">
+                  <div className="md:w-2 bg-blue-600 flex-shrink-0" />
+                  <div className="p-8 md:p-10 flex-1">
+                    <div className="flex items-center gap-3 mb-4">
+                      <span className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[featured.category] ?? "bg-slate-100 text-slate-600"}`}>
+                        {featured.category}
+                      </span>
+                      <span className="text-slate-400 text-sm">{featured.readTime} de lectura</span>
+                    </div>
+                    <h2 className="text-2xl md:text-3xl font-bold text-slate-900 group-hover:text-blue-700 transition-colors leading-snug mb-3">
+                      {featured.title}
+                    </h2>
+                    <p className="text-slate-500 text-base leading-relaxed mb-6 max-w-2xl">
+                      {featured.excerpt}
+                    </p>
+                    <div className="flex items-center gap-2 text-blue-600 font-semibold text-sm">
+                      Leer artículo
+                      <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </article>
-          </Link>
-        </div>
-
-        {/* Rest of posts */}
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Más artículos</p>
-          <div className="grid md:grid-cols-2 gap-6">
-            {rest.map((post) => (
-              <Link key={post.slug} href={`/blog/${post.slug}`} className="group block">
-                <article className="bg-white rounded-xl border border-gray-200 p-7 h-full hover:shadow-md transition-shadow">
-                  <div className="flex items-center gap-3 mb-3">
-                    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[post.category]}`}>
-                      {post.category}
-                    </span>
-                    <span className="text-slate-400 text-xs">{post.readTime}</span>
-                  </div>
-                  <h2 className="text-lg font-bold text-slate-900 group-hover:text-blue-700 transition-colors leading-snug mb-2">
-                    {post.title}
-                  </h2>
-                  <p className="text-slate-500 text-sm leading-relaxed mb-5">{post.excerpt}</p>
-                  <div className="flex items-center gap-1.5 text-blue-600 font-semibold text-sm mt-auto">
-                    Leer
-                    <svg className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                  </div>
-                </article>
-              </Link>
-            ))}
+              </article>
+            </Link>
           </div>
-        </div>
+        )}
 
-        {/* CTA suscripción */}
+        {/* Resto de artículos */}
+        {rest.length > 0 && (
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Más artículos</p>
+            <div className="grid md:grid-cols-2 gap-6">
+              {rest.map((post: BlogPost) => (
+                <Link key={post.id} href={`/blog/${post.slug}`} className="group block">
+                  <article className="bg-white rounded-xl border border-gray-200 p-7 h-full hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[post.category] ?? "bg-slate-100 text-slate-600"}`}>
+                        {post.category}
+                      </span>
+                      <span className="text-slate-400 text-xs">{post.readTime}</span>
+                    </div>
+                    <h2 className="text-lg font-bold text-slate-900 group-hover:text-blue-700 transition-colors leading-snug mb-2">
+                      {post.title}
+                    </h2>
+                    <p className="text-slate-500 text-sm leading-relaxed mb-5">{post.excerpt}</p>
+                    <div className="flex items-center gap-1.5 text-blue-600 font-semibold text-sm">
+                      Leer
+                      <svg className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </article>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* CTA */}
         <div className="mt-16 bg-blue-600 rounded-2xl p-10 text-center text-white">
           <h2 className="text-2xl font-bold mb-2">¿Quieres más guías como estas?</h2>
           <p className="text-blue-100 mb-6 max-w-lg mx-auto">
             Recibe nuevos artículos, plantillas y novedades normativas directo en tu correo. Sin spam.
           </p>
-          <BlogLeadForm />
+          <div className="flex flex-col sm:flex-row gap-3 max-w-md mx-auto">
+            <input type="email" placeholder="tu@correo.cl"
+              className="flex-1 px-4 py-3 rounded-lg text-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-white" />
+            <button className="bg-white text-blue-700 font-bold px-6 py-3 rounded-lg text-sm hover:bg-blue-50 transition-colors">
+              Suscribirme
+            </button>
+          </div>
         </div>
       </div>
 
       <footer className="border-t border-gray-200 py-8 px-6 text-center text-sm text-slate-400">
-        © {new Date().getFullYear()} dotaciones.cl — Todos los derechos reservados
+        © {new Date().getFullYear()} dotaciones.cl · Nexwork SpA
       </footer>
     </main>
   );
