@@ -1,4 +1,3 @@
-// src/app/api/analyze/route.ts
 import { NextRequest, NextResponse } from "next/server";
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY!;
@@ -7,27 +6,33 @@ export async function POST(req: NextRequest) {
   try {
     const { resultados, sector, calculadora } = await req.json();
 
-    // resultados = el output de la calculadora (mix contratos, cobertura, etc.)
     if (!resultados) {
       return NextResponse.json({ error: "Sin datos" }, { status: 400 });
     }
 
     const prompt = `Eres un experto en gestión de personas y legislación laboral chilena, parte del equipo de Nexwork SpA.
 
-Un profesional de RRHH acaba de calcular su dotación usando dotaciones.cl.
+Un profesional de RRHH acaba de calcular su dotación en dotaciones.cl.
 Sector: ${sector || "no especificado"}
-Calculadora usada: ${calculadora || "Retail / Servicios"}
+Calculadora: ${calculadora || "Retail / Servicios"}
 
-Resultados del cálculo:
+Estos son los datos EXACTOS del cálculo. Analiza ÚNICAMENTE lo que está aquí — no inventes datos, ratios, porcentajes ni situaciones que no estén en este JSON:
+
 ${JSON.stringify(resultados, null, 2)}
 
-Entrega un análisis ejecutivo breve (máximo 4 párrafos) que incluya:
-1. Qué significa este mix de contratos en términos prácticos
-2. Riesgos o alertas legales relevantes (Código del Trabajo Chile)
-3. Cómo presentar y defender esta dotación ante gerencia o directorio
-4. Una recomendación concreta de próximo paso
+Escribe un análisis ejecutivo en exactamente 3 párrafos, en prosa corrida sin títulos ni bullet points:
 
-Escribe en tono profesional pero cercano, en español chileno formal. No uses listas con bullet points, escribe en prosa fluida.`;
+PÁRRAFO 1 — Qué dice el resultado: Describe el mix sugerido usando solo los números del JSON. Menciona headcount, tipo de contratos, horas totales y holgura tal como aparecen. Nada más.
+
+PÁRRAFO 2 — Alertas legales: Menciona solo los riesgos del Código del Trabajo que sean directamente aplicables al tipo de contrato y jornada que aparece en el mix. Si el mix es correcto y no hay alertas evidentes, dilo brevemente. No inventes riesgos hipotéticos.
+
+PÁRRAFO 3 — Cómo presentarlo: Una recomendación concreta y breve de cómo defender esta dotación ante gerencia o directorio, basada en los números reales del cálculo.
+
+Reglas de formato:
+- Sin títulos, sin #, sin **, sin bullet points
+- Máximo 120 palabras por párrafo
+- Tono profesional y directo, español chileno formal
+- Si un dato no está en el JSON, no lo menciones`;
 
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -37,7 +42,7 @@ Escribe en tono profesional pero cercano, en español chileno formal. No uses li
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001", // Haiku: rápido y barato (~$0.001 por análisis)
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 800,
         messages: [{ role: "user", content: prompt }],
       }),
