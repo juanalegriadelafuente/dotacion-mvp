@@ -357,6 +357,8 @@ export default function CalculadoraPage() {
           sector: "Retail",
           calculadora: "Retail / Servicios",
           fuente: "Calculadora",
+          mixes: result.mixes,
+          hasCosts: result.hasCosts,
           resultados: {
             requiredHours: result.requiredHours,
             requiredHoursAdjusted: result.requiredHoursAdjusted,
