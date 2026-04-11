@@ -9,7 +9,7 @@ import { SlotDemandGrid, computeStats } from "@/components/SlotDemandGrid";
 
 type DayConfig = {
   open: boolean;
-  slots: number[]; // 48 tramos × personas requeridas
+  slots: number[];
   breakMinutes: number;
   overlapMinutes: number;
 };
@@ -60,6 +60,15 @@ export default function CalculadoraPage() {
   const [result, setResult] = useState<CalcResult | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Estados para captura IA
+  const [showLeadForm, setShowLeadForm] = useState(false);
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadNombre, setLeadNombre] = useState("");
+  const [leadEmpresa, setLeadEmpresa] = useState("");
+  const [leadEnviado, setLeadEnviado] = useState(false);
+  const [analisisIA, setAnalisisIA] = useState<string | null>(null);
+  const [loadingIA, setLoadingIA] = useState(false);
+
   // ── Helpers ──
 
   const updateDay = useCallback((key: DayKey, patch: Partial<DayConfig>) => {
@@ -81,6 +90,10 @@ export default function CalculadoraPage() {
 
   const handleCalculate = () => {
     setLoading(true);
+    // Resetear estado IA al recalcular
+    setShowLeadForm(false);
+    setLeadEnviado(false);
+    setAnalisisIA(null);
     setTimeout(() => {
       const input: CalcInput = {
         fullHoursPerWeek: fullHours,
@@ -95,9 +108,7 @@ export default function CalculadoraPage() {
             const { peak, hoursOpen, personHours } = computeStats(d.slots);
             return [k, {
               open: d.open,
-              // hoursOpen ahora viene de la curva real, no de un input manual
               hoursOpen: hoursOpen > 0 ? hoursOpen : 0,
-              // requiredPeople = peak de la curva (para el proxy dominical)
               requiredPeople: peak,
               shiftsPerDay: 1,
               overlapMinutes: d.overlapMinutes,
@@ -114,6 +125,58 @@ export default function CalculadoraPage() {
       }
       setLoading(false);
     }, 50);
+  };
+
+  // ── Análisis IA ──
+
+  const handleSolicitarAnalisis = async () => {
+    if (!result || !leadEmail) return;
+    setLoadingIA(true);
+
+    try {
+      // Guardar lead en Notion
+      await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: leadNombre || leadEmail,
+          email: leadEmail,
+          empresa: leadEmpresa,
+          sector: "Retail",
+          calculadora: "Retail / Servicios",
+          fuente: "Calculadora",
+        }),
+      });
+
+      // Pedir análisis IA
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resultados: {
+            requiredHours: result.requiredHours,
+            requiredHoursAdjusted: result.requiredHoursAdjusted,
+            fte: result.fte,
+            fteAdjusted: result.fteAdjusted,
+            replacementFactor: result.replacementFactor,
+            gapHours: result.gapHours,
+            breakHours: result.breakHours,
+            mixRecomendado: result.mixes[0],
+            advertencias: result.warnings,
+          },
+          sector: "Retail / Servicios",
+          calculadora: "Retail / Servicios",
+        }),
+      });
+
+      const data = await res.json();
+      setAnalisisIA(data.analisis);
+      setLeadEnviado(true);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingIA(false);
+    }
   };
 
   const d = days[activeDay];
@@ -396,6 +459,7 @@ export default function CalculadoraPage() {
                   {contracts.map((c) => (
                     <div key={c.id} className="grid grid-cols-[1fr_100px_32px] gap-2 items-center">
                       <input
+                        type="text"
                         value={c.name}
                         onChange={(e) => updateContract(c.id, { name: e.target.value })}
                         placeholder="Ej: Full time"
@@ -459,12 +523,7 @@ export default function CalculadoraPage() {
           <section className="mt-6 border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
               <h2 className="text-sm font-semibold text-slate-700">Resultado</h2>
-              <button className="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Guardar reporte
-              </button>
+              <span className="text-xs text-slate-400">Powered by Nexwork SpA</span>
             </div>
 
             {result.warnings.length > 0 && (
@@ -548,13 +607,116 @@ export default function CalculadoraPage() {
                 ))}
               </div>
             </div>
+
+            {/* ── PANEL IA NEXWORK ── */}
+            <div className="mx-5 mb-5 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-slate-50 overflow-hidden">
+              <div className="px-5 py-4 border-b border-blue-100 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    Análisis IA de tu dotación
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Interpretación experta, alertas legales y cómo presentarlo a gerencia — gratis
+                  </p>
+                </div>
+                <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                  Nexwork SpA
+                </span>
+              </div>
+
+              {!leadEnviado ? (
+                <div className="px-5 py-4">
+                  {!showLeadForm ? (
+                    <button
+                      onClick={() => setShowLeadForm(true)}
+                      className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Obtener análisis IA gratuito
+                    </button>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Nombre</label>
+                          <input
+                            type="text"
+                            value={leadNombre}
+                            onChange={(e) => setLeadNombre(e.target.value)}
+                            placeholder="Tu nombre"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Empresa</label>
+                          <input
+                            type="text"
+                            value={leadEmpresa}
+                            onChange={(e) => setLeadEmpresa(e.target.value)}
+                            placeholder="Tu empresa"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">
+                          Email <span className="text-blue-600">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={leadEmail}
+                          onChange={(e) => setLeadEmail(e.target.value)}
+                          placeholder="tu@empresa.cl"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSolicitarAnalisis}
+                        disabled={!leadEmail || loadingIA}
+                        className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {loadingIA ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                            </svg>
+                            Analizando con IA…
+                          </>
+                        ) : "Ver mi análisis →"}
+                      </button>
+                      <p className="text-xs text-slate-400 text-center">
+                        Sin spam. Solo usamos tu email para enviarte el análisis.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="px-5 py-4 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-xs font-medium">Análisis generado por Nexwork SpA</span>
+                  </div>
+                  {analisisIA && (
+                    <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-white rounded-lg p-4 border border-slate-100">
+                      {analisisIA}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
           </section>
         )}
       </div>
 
       <footer className="border-t border-slate-100 py-6 px-6 mt-12">
         <div className="max-w-6xl mx-auto flex items-center justify-between text-xs text-slate-400">
-          <span>© {new Date().getFullYear()} dotaciones.cl</span>
+          <span>© {new Date().getFullYear()} dotaciones.cl — <span className="text-slate-500 font-medium">Nexwork SpA</span></span>
           <div className="flex gap-4">
             <Link href="/blog" className="hover:text-slate-600 transition-colors">Blog</Link>
             <Link href="/contacto" className="hover:text-slate-600 transition-colors">Contacto</Link>

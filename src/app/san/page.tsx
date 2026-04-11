@@ -85,7 +85,6 @@ export default function SanPage() {
   const [useMeals, setUseMeals] = useState(false);
   const [rtdPatients, setRtdPatients] = useState(0);
   const [rtdCasino, setRtdCasino] = useState(0);
-  // RTD por tiempos de comida
   const [pDes, setPDes] = useState(0);
   const [pColAm, setPColAm] = useState(0);
   const [pAlm, setPAlm] = useState(0);
@@ -115,14 +114,12 @@ export default function SanPage() {
   // ── Etapa 2: Perfil operacional ──────────────────────────────────────────
 
   const [weekendMode, setWeekendMode] = useState<"percent" | "rtd">("percent");
-  const [weekendReduction, setWeekendReduction] = useState(30); // % reducción sáb-dom
-  // RTD diferenciado (modo avanzado)
+  const [weekendReduction, setWeekendReduction] = useState(30);
   const [rtdPatientsWeekend, setRtdPatientsWeekend] = useState(0);
   const [rtdCasinoWeekend, setRtdCasinoWeekend] = useState(0);
-  // Horario operacional
   const [hoursPerShift, setHoursPerShift] = useState(10);
   const [shiftsPerDay, setShiftsPerDay] = useState(1);
-  const [replacementFactor, setReplacementFactor] = useState(1.18); // salud pública ~18%
+  const [replacementFactor, setReplacementFactor] = useState(1.18);
   const [breakMinutes, setBreakMinutes] = useState(30);
   const [overlapMinutes, setOverlapMinutes] = useState(30);
 
@@ -153,6 +150,16 @@ export default function SanPage() {
   const [mixResp, setMixResp] = useState<MixApiResp | null>(null);
   const [exporting, setExporting] = useState(false);
 
+  // ── Estados IA ───────────────────────────────────────────────────────────
+
+  const [showLeadForm, setShowLeadForm] = useState(false);
+  const [leadEmail, setLeadEmail] = useState("");
+  const [leadNombre, setLeadNombre] = useState("");
+  const [leadEmpresa, setLeadEmpresa] = useState("");
+  const [leadEnviado, setLeadEnviado] = useState(false);
+  const [analisisIA, setAnalisisIA] = useState<string | null>(null);
+  const [loadingIA, setLoadingIA] = useState(false);
+
   const sanPayload = useMemo(() => ({
     scenario: { maxWeekHours, roundingMode },
     rtdPatients: useMeals ? undefined : rtdPatients,
@@ -175,6 +182,8 @@ export default function SanPage() {
 
   async function runSan() {
     setLoading(true); setResp(null);
+    // Reset IA al recalcular
+    setShowLeadForm(false); setLeadEnviado(false); setAnalisisIA(null);
     try {
       const r = await fetch("/api/san", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sanPayload) });
       setResp(await r.json());
@@ -187,16 +196,10 @@ export default function SanPage() {
     setMixLoading(true); setMixResp(null);
 
     const sanResult = resp?.ok ? resp.result : null;
-
-    // requiredPeople = total personas simultáneas según Tablas 4+5 (Etapa 1)
-    // Es la suma de dotación por área de la UCP.
     const ucpAreas: any[] = sanResult?.ucpStaffByArea ?? [];
     const peopleFromSan = ucpAreas.reduce((sum: number, a: any) => sum + (Number(a.applied) || 0), 0);
-
-    // Si no hay resultado SAN todavía, usar shiftsPerDay como fallback razonable
     const peopleLV = peopleFromSan > 0 ? peopleFromSan : shiftsPerDay;
 
-    // Factor de reducción fin de semana
     const weekendFactor = weekendMode === "percent"
       ? (1 - weekendReduction / 100)
       : (rtdPatientsWeekend + rtdCasinoWeekend) / Math.max(1, rtdPatients + rtdCasino);
@@ -204,40 +207,18 @@ export default function SanPage() {
     const peopleWeekend = Math.max(0, Math.round(peopleLV * weekendFactor));
 
     const daysPayload: any = {};
-    const weekdays = ["mon", "tue", "wed", "thu", "fri"];
-    const weekend = ["sat", "sun"];
-
-    for (const d of weekdays) {
-      daysPayload[d] = {
-        open: true,
-        hoursOpen: hoursPerShift,
-        requiredPeople: peopleLV,
-        overlapMinutes,
-        breakMinutes,
-      };
+    for (const d of ["mon", "tue", "wed", "thu", "fri"]) {
+      daysPayload[d] = { open: true, hoursOpen: hoursPerShift, requiredPeople: peopleLV, overlapMinutes, breakMinutes };
     }
-    for (const d of weekend) {
-      daysPayload[d] = {
-        open: peopleWeekend > 0,
-        hoursOpen: hoursPerShift,
-        requiredPeople: peopleWeekend,
-        overlapMinutes,
-        breakMinutes,
-      };
+    for (const d of ["sat", "sun"]) {
+      daysPayload[d] = { open: peopleWeekend > 0, hoursOpen: hoursPerShift, requiredPeople: peopleWeekend, overlapMinutes, breakMinutes };
     }
 
     try {
       const r = await fetch("/api/san/mix", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          scenario: { maxWeekHours },
-          days: daysPayload,
-          allowedContracts,
-          allowedJornadas,
-          ptMaxShare,
-          replacementFactor,
-        }),
+        body: JSON.stringify({ scenario: { maxWeekHours }, days: daysPayload, allowedContracts, allowedJornadas, ptMaxShare, replacementFactor }),
       });
       setMixResp(await r.json());
     } catch (e: any) {
@@ -257,6 +238,56 @@ export default function SanPage() {
       document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
     } catch (e: any) { alert(e?.message ?? "Error descargando Excel"); }
     finally { setExporting(false); }
+  }
+
+  async function handleSolicitarAnalisis() {
+    if (!leadEmail) return;
+    setLoadingIA(true);
+
+    try {
+      const sanResult = resp?.ok ? resp.result : null;
+      const mixResult = mixResp?.ok ? mixResp.result : null;
+
+      await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre: leadNombre || leadEmail,
+          email: leadEmail,
+          empresa: leadEmpresa,
+          sector: "Hospitalario/SAN",
+          calculadora: "SAN Hospitalaria",
+          fuente: "Calculadora",
+        }),
+      });
+
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resultados: {
+            totalHorasSemanales: sanResult?.totalHoursPerWeek_required,
+            fteEquivalente: sanResult?.totalFte_equivalent,
+            complejidadUCP: sanResult?.ucpComplexity,
+            nutricionistasCli: sanResult?.clinicaNutricionistas,
+            dotacionPorArea: sanResult?.ucpStaffByArea,
+            replacementFactor,
+            mixRecomendado: mixResult?.mixes?.[0] ?? null,
+            advertencias: mixResult?.warnings ?? [],
+          },
+          sector: "Hospitalario / SAN",
+          calculadora: "SAN Hospitalaria",
+        }),
+      });
+
+      const data = await res.json();
+      setAnalisisIA(data.analisis);
+      setLeadEnviado(true);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingIA(false);
+    }
   }
 
   const sanResult = resp?.ok ? resp.result : null;
@@ -572,7 +603,7 @@ export default function SanPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="RTD pacientes sáb-dom" hint="vs L-V: {rtdPatients}">
+                  <Field label="RTD pacientes sáb-dom" hint={`vs L-V: ${rtdPatients}`}>
                     <NumInput value={rtdPatientsWeekend} onChange={setRtdPatientsWeekend} />
                   </Field>
                   <Field label="RTD casino sáb-dom">
@@ -633,8 +664,8 @@ export default function SanPage() {
                       ? (1 - weekendReduction / 100)
                       : (rtdPatientsWeekend + rtdCasinoWeekend) / Math.max(1, rtdPatients + rtdCasino);
                     const pWE = Math.round(pLV * wFactor);
-                    const hpLV  = pLV  * hoursPerShift * 5;
-                    const hpWE  = pWE  * hoursPerShift * 2;
+                    const hpLV = pLV * hoursPerShift * 5;
+                    const hpWE = pWE * hoursPerShift * 2;
                     const totalAdj = (hpLV + hpWE) * replacementFactor;
                     return [
                       { label: `Horas-persona L-V (${pLV}p × ${hoursPerShift}h × 5d)`, value: `${hpLV}h` },
@@ -816,12 +847,115 @@ export default function SanPage() {
               )}
             </div>
           )}
+
+          {/* ── PANEL IA NEXWORK ── */}
+          {resp?.ok && (
+            <div className="mx-5 mb-5 mt-2 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-slate-50 overflow-hidden">
+              <div className="px-5 py-4 border-b border-blue-100 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Análisis IA de tu dotación SAN</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Interpretación normativa, alertas legales y cómo presentarlo ante el directorio — gratis
+                  </p>
+                </div>
+                <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                  Nexwork SpA
+                </span>
+              </div>
+
+              {!leadEnviado ? (
+                <div className="px-5 py-4">
+                  {!showLeadForm ? (
+                    <button
+                      onClick={() => setShowLeadForm(true)}
+                      className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                      </svg>
+                      Obtener análisis IA gratuito
+                    </button>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Nombre</label>
+                          <input
+                            type="text"
+                            value={leadNombre}
+                            onChange={(e) => setLeadNombre(e.target.value)}
+                            placeholder="Tu nombre"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-slate-500 mb-1">Hospital / Clínica</label>
+                          <input
+                            type="text"
+                            value={leadEmpresa}
+                            onChange={(e) => setLeadEmpresa(e.target.value)}
+                            placeholder="Nombre del establecimiento"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-slate-500 mb-1">
+                          Email <span className="text-blue-600">*</span>
+                        </label>
+                        <input
+                          type="email"
+                          value={leadEmail}
+                          onChange={(e) => setLeadEmail(e.target.value)}
+                          placeholder="tu@hospital.cl"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                      </div>
+                      <button
+                        onClick={handleSolicitarAnalisis}
+                        disabled={!leadEmail || loadingIA}
+                        className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {loadingIA ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                            </svg>
+                            Analizando con IA…
+                          </>
+                        ) : "Ver mi análisis →"}
+                      </button>
+                      <p className="text-xs text-slate-400 text-center">
+                        Sin spam. Solo usamos tu email para enviarte el análisis.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="px-5 py-4 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-xs font-medium">Análisis generado por Nexwork SpA</span>
+                  </div>
+                  {analisisIA && (
+                    <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-white rounded-lg p-4 border border-slate-100">
+                      {analisisIA}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
       </div>
 
       <footer className="border-t border-slate-100 py-6 px-6 mt-8">
         <div className="max-w-5xl mx-auto flex items-center justify-between text-xs text-slate-400">
-          <span>© {new Date().getFullYear()} dotaciones.cl</span>
+          <span>© {new Date().getFullYear()} dotaciones.cl — <span className="text-slate-500 font-medium">Nexwork SpA</span></span>
           <div className="flex gap-4">
             <Link href="/blog" className="hover:text-slate-600 transition-colors">Blog</Link>
             <Link href="/san/glosario" className="hover:text-slate-600 transition-colors">Glosario</Link>
