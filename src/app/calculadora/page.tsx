@@ -30,11 +30,11 @@ function makeDefaultDay(open: boolean): DayConfig {
   return { open, slots: Array(48).fill(0), breakMinutes: 30, overlapMinutes: 30 };
 }
 
-// ─── Selección de los 4 mixes destacados ─────────────────────────────────────
+// ─── Selección de 4 mixes destacados ─────────────────────────────────────────
 
 function selectFeatured(mixes: Mix[], hasCosts: boolean) {
-  const ok  = mixes.filter(m => m.sundayOk);
-  const all = ok.length > 0 ? ok : mixes;
+  const ok  = mixes.filter(m => m.sundayOk && m.coverageOk);
+  const all = ok.length > 0 ? ok : mixes.filter(m => m.coverageOk).length > 0 ? mixes.filter(m => m.coverageOk) : mixes;
 
   const optimal  = all.find(m => m.isOptimal) ?? all[0] ?? null;
   const cheapest = hasCosts
@@ -46,7 +46,7 @@ function selectFeatured(mixes: Mix[], hasCosts: boolean) {
   return { optimal, cheapest, leanest, mostFull };
 }
 
-// ─── Tarjeta de mix destacado ─────────────────────────────────────────────────
+// ─── Tarjeta de mix ───────────────────────────────────────────────────────────
 
 function MixCard({ mix, label, accent, hasCosts }: {
   mix: Mix; label: string; accent: boolean; hasCosts: boolean;
@@ -111,7 +111,7 @@ function MixCard({ mix, label, accent, hasCosts }: {
   );
 }
 
-// ─── Tabla completa de mixes ──────────────────────────────────────────────────
+// ─── Tabla completa ───────────────────────────────────────────────────────────
 
 type SortKey = "headcount" | "slackPct" | "weeklyCost" | "ptShare";
 
@@ -157,7 +157,9 @@ function MixTable({ mixes, hasCosts }: { mixes: Mix[]; hasCosts: boolean }) {
         <tbody>
           {sorted.map((mix, i) => (
             <tr key={mix.id}
-              className={`border-b border-slate-100 transition-colors hover:bg-slate-50 ${mix.isOptimal ? "bg-blue-50/60" : i % 2 === 0 ? "bg-white" : "bg-slate-50/30"}`}>
+              className={`border-b border-slate-100 transition-colors hover:bg-slate-50 ${
+                mix.isOptimal ? "bg-blue-50/60" : i % 2 === 0 ? "bg-white" : "bg-slate-50/30"
+              }`}>
               <td className="px-4 py-2.5">
                 <div className="flex items-center gap-2">
                   <span className="font-bold mono text-slate-800">{mix.headcount}</span>
@@ -231,6 +233,7 @@ export default function CalculadoraPage() {
   const [result, setResult] = useState<CalcResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [showAllMixes, setShowAllMixes] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   // Estados IA
   const [showLeadForm, setShowLeadForm] = useState(false);
@@ -303,14 +306,47 @@ export default function CalculadoraPage() {
     }, 50);
   };
 
-  // ── Análisis IA + Lead + Email (todo en una sola llamada) ──
+  // ── Exportar Excel ──
+
+  const handleExportExcel = async () => {
+    if (!result) return;
+    setExportingExcel(true);
+    try {
+      const res = await fetch("/api/export-mixes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mixes: result.mixes,
+          hasCosts: result.hasCosts,
+          requiredHours: result.requiredHours,
+          requiredHoursAdjusted: result.requiredHoursAdjusted,
+          fte: result.fte,
+          fteAdjusted: result.fteAdjusted,
+          replacementFactor: result.replacementFactor,
+        }),
+      });
+      if (!res.ok) throw new Error("Error generando Excel");
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `dotaciones_mixes_${new Date().toISOString().slice(0,10)}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  // ── Análisis IA + Lead + Email ──
 
   const handleSolicitarAnalisis = async () => {
     if (!result || !leadEmail) return;
     setLoadingIA(true);
     try {
       const mixOptimo = result.mixes.find(m => m.isOptimal) ?? result.mixes[0];
-
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -335,7 +371,6 @@ export default function CalculadoraPage() {
           },
         }),
       });
-
       const data = await res.json();
       setAnalisisIA(data.analisis ?? null);
       setLeadEnviado(true);
@@ -351,12 +386,12 @@ export default function CalculadoraPage() {
   const featured = result ? selectFeatured(result.mixes, result.hasCosts) : null;
   const featuredMixes = featured
     ? [
-        featured.optimal  ? { mix: featured.optimal,  label: "Óptimo",                 accent: true  } : null,
-        featured.cheapest ? { mix: featured.cheapest, label: "Más económico",            accent: false } : null,
+        featured.optimal  ? { mix: featured.optimal,  label: "Óptimo",              accent: true  } : null,
+        featured.cheapest ? { mix: featured.cheapest, label: "Más económico",        accent: false } : null,
         featured.leanest && featured.leanest !== featured.optimal
-          ? { mix: featured.leanest,  label: "Menor holgura",             accent: false } : null,
+          ? { mix: featured.leanest,  label: "Menor holgura",          accent: false } : null,
         featured.mostFull && featured.mostFull !== featured.optimal && featured.mostFull !== featured.leanest
-          ? { mix: featured.mostFull, label: "Más estable (menos PT)",    accent: false } : null,
+          ? { mix: featured.mostFull, label: "Más estable (menos PT)", accent: false } : null,
       ].filter(Boolean)
     : [];
 
@@ -644,9 +679,9 @@ export default function CalculadoraPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-100">
               {[
                 { label: "Horas‑persona / sem", value: result.requiredHours.toFixed(1), sub: "demanda bruta" },
-                { label: "Horas a contratar", value: result.requiredHoursAdjusted.toFixed(1), sub: `×${result.replacementFactor} reemplazo`, highlight: true },
-                { label: "FTE bruto", value: result.fte.toFixed(2), sub: "sin reemplazo" },
-                { label: "FTE a contratar", value: result.fteAdjusted.toFixed(2), sub: "dotación real", highlight: true },
+                { label: "Horas a contratar",   value: result.requiredHoursAdjusted.toFixed(1), sub: `×${result.replacementFactor} reemplazo`, highlight: true },
+                { label: "FTE bruto",           value: result.fte.toFixed(2), sub: "sin reemplazo" },
+                { label: "FTE a contratar",     value: result.fteAdjusted.toFixed(2), sub: "dotación real", highlight: true },
               ].map(k => (
                 <div key={k.label} className={`px-5 py-4 ${k.highlight ? "bg-blue-50" : "bg-white"}`}>
                   <p className="text-xs text-slate-500 mb-1">{k.label}</p>
@@ -658,9 +693,9 @@ export default function CalculadoraPage() {
 
             <div className="grid grid-cols-3 gap-px bg-slate-100">
               {[
-                { label: "Horas colación",  value: result.breakHours.toFixed(1) + "h" },
-                { label: "Horas traslape",  value: result.overlapHours.toFixed(1) + "h" },
-                { label: "Brecha neta",     value: result.gapHours.toFixed(1) + "h", warn: result.gapHours > 0 },
+                { label: "Horas colación", value: result.breakHours.toFixed(1) + "h" },
+                { label: "Horas traslape", value: result.overlapHours.toFixed(1) + "h" },
+                { label: "Brecha neta",    value: result.gapHours.toFixed(1) + "h", warn: result.gapHours > 0 },
               ].map(k => (
                 <div key={k.label} className="bg-white px-5 py-3">
                   <p className="text-xs text-slate-500">{k.label}</p>
@@ -683,24 +718,46 @@ export default function CalculadoraPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">No se encontraron mixes válidos para esta configuración.</p>
+                <p className="text-sm text-slate-500">No se encontraron mixes válidos. Revisa que los contratos puedan cubrir todos los días abiertos.</p>
               )}
 
-              {result.totalMixes > 1 && (
-                <div className="mt-4">
+              {/* Botones: ver tabla + exportar Excel */}
+              {result.totalMixes > 0 && (
+                <div className="mt-4 flex items-center gap-5 flex-wrap">
                   <button onClick={() => setShowAllMixes(v => !v)}
                     className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5">
                     <svg className={`w-3.5 h-3.5 transition-transform ${showAllMixes ? "rotate-90" : ""}`}
                       fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                    {showAllMixes ? "Ocultar tabla completa" : `Ver todas las ${result.totalMixes} combinaciones`}
+                    {showAllMixes ? "Ocultar tabla" : `Ver todas las ${result.totalMixes} combinaciones`}
                   </button>
-                  {showAllMixes && (
-                    <div className="mt-4">
-                      <MixTable mixes={result.mixes} hasCosts={result.hasCosts} />
-                    </div>
-                  )}
+
+                  <button onClick={handleExportExcel} disabled={exportingExcel}
+                    className="text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                    {exportingExcel ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                        </svg>
+                        Generando Excel…
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Exportar todas las combinaciones a Excel
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {showAllMixes && result.totalMixes > 0 && (
+                <div className="mt-4">
+                  <MixTable mixes={result.mixes} hasCosts={result.hasCosts} />
                 </div>
               )}
             </div>
