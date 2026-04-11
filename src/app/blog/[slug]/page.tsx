@@ -67,34 +67,39 @@ function RichText({ text }: { text: string }) {
   );
 }
 
+// ─── Tipos para agrupación de listas ─────────────────────────────────────────
+
+type ListGroup = { kind: "list"; type: "bullet" | "numbered"; items: NotionBlock[] };
+type SingleBlock = { kind: "block"; block: NotionBlock };
+type GroupEntry = ListGroup | SingleBlock;
+
 // ─── Renderizador de bloques Notion ──────────────────────────────────────────
 
 function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
-  // Agrupa bullets y numbered consecutivos
-  const groups: Array<{ type: string; items: NotionBlock[] } | NotionBlock> = [];
+  // Agrupa bullets y numbered consecutivos con tipos explícitos
+  const groups: GroupEntry[] = [];
 
   for (const block of blocks) {
     if (block.type === "bullet" || block.type === "numbered") {
       const last = groups[groups.length - 1];
-      if (last && typeof last === "object" && "items" in last && last.type === block.type) {
+      if (last && last.kind === "list" && last.type === block.type) {
         last.items.push(block);
       } else {
-        groups.push({ type: block.type, items: [block] });
+        groups.push({ kind: "list", type: block.type, items: [block] });
       }
     } else {
-      groups.push(block);
+      groups.push({ kind: "block", block });
     }
   }
 
   return (
     <>
-      {groups.map((group, i) => {
-        // Grupos de listas
-        if ("items" in group) {
-          if (group.type === "bullet") {
+      {groups.map((entry, i) => {
+        if (entry.kind === "list") {
+          if (entry.type === "bullet") {
             return (
               <ul key={i} className="list-disc pl-6 space-y-1.5 my-4 text-slate-700">
-                {group.items.map((item, j) => (
+                {entry.items.map((item, j) => (
                   <li key={j} className="text-base leading-relaxed">
                     <RichText text={item.text ?? ""} />
                   </li>
@@ -104,7 +109,7 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
           }
           return (
             <ol key={i} className="list-decimal pl-6 space-y-1.5 my-4 text-slate-700">
-              {group.items.map((item, j) => (
+              {entry.items.map((item, j) => (
                 <li key={j} className="text-base leading-relaxed">
                   <RichText text={item.text ?? ""} />
                 </li>
@@ -113,8 +118,8 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
           );
         }
 
-        // Bloques individuales
-        const block = group as NotionBlock;
+        // Bloque individual
+        const { block } = entry;
 
         switch (block.type) {
           case "heading":
@@ -199,7 +204,7 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
   );
 }
 
-// ─── Página del artículo ──────────────────────────────────────────────────────
+// ─── Colores de categorías ────────────────────────────────────────────────────
 
 const categoryColors: Record<string, string> = {
   Metodología:       "bg-blue-50 text-blue-700 border border-blue-200",
@@ -209,6 +214,8 @@ const categoryColors: Record<string, string> = {
   Salud:             "bg-red-50 text-red-700 border border-red-200",
   "Casos prácticos": "bg-pink-50 text-pink-700 border border-pink-200",
 };
+
+// ─── Página del artículo ──────────────────────────────────────────────────────
 
 export default async function BlogArticle(
   { params }: { params: Promise<{ slug: string }> }
@@ -271,11 +278,7 @@ export default async function BlogArticle(
 
         {/* Meta */}
         <div className="flex items-center gap-3 mb-6 flex-wrap">
-          <span
-            className={`text-xs font-semibold px-3 py-1 rounded-full ${
-              categoryColors[post.category] ?? "bg-slate-100 text-slate-600"
-            }`}
-          >
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${categoryColors[post.category] ?? "bg-slate-100 text-slate-600"}`}>
             {post.category}
           </span>
           <span className="text-slate-400 text-sm">{post.date}</span>
@@ -305,7 +308,7 @@ export default async function BlogArticle(
           </Link>
         </div>
 
-        {/* Contenido Notion */}
+        {/* Contenido desde Notion */}
         <div className="min-h-[200px]">
           <NotionContent blocks={post.content} />
         </div>
