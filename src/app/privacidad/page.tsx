@@ -1,6 +1,8 @@
 // src/app/privacidad/page.tsx
 import Link from "next/link";
 import type { Metadata } from "next";
+import SiteNav from "@/components/SiteNav";
+import SiteFooter from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Política de Privacidad — dotaciones.cl",
@@ -8,165 +10,145 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://dotaciones.cl/privacidad" },
 };
 
+const S = `
+  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Sora',sans-serif;background:#FAFAF7;}
+  a{text-decoration:none;color:inherit;}
+
+  .hero{background:#0C1F15;padding:56px 40px 64px;}
+  .hero-in{max-width:760px;margin:0 auto;}
+  .h1{font-size:clamp(28px,4vw,44px);font-weight:800;color:#fff;letter-spacing:-.03em;margin-bottom:10px;}
+  .updated{font-size:12px;color:rgba(255,255,255,.35);margin-top:8px;}
+
+  .body{max-width:760px;margin:0 auto;padding:56px 40px;}
+  .doc{background:#fff;border:1.5px solid #E5E3DB;border-radius:16px;padding:48px;gap:32px;display:flex;flex-direction:column;}
+  .sec h2{font-size:15px;font-weight:700;color:#111;margin-bottom:10px;}
+  .sec p,.sec li{font-size:14px;color:#374151;line-height:1.7;font-weight:300;}
+  .sec ul{padding-left:20px;margin:8px 0;}
+  .sec li{margin:5px 0;}
+  .sec a{color:#2D6A4F;text-decoration:underline;text-underline-offset:3px;}
+  .divider{height:1px;background:#E5E3DB;}
+  .contact-box{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:16px 20px;margin-top:10px;}
+  .contact-box p{font-size:13px;color:#166534;line-height:1.65;}
+
+  @media(max-width:768px){
+    .hero,.body{padding-left:20px;padding-right:20px;}
+    .doc{padding:28px 22px;}
+  }
+`;
+
 export default function Privacidad() {
-  const updated = "12 de abril de 2026";
+  const sections = [
+    {
+      title: "1. Responsable del tratamiento",
+      content: (
+        <p>El sitio dotaciones.cl es operado por <strong>Nexwork SpA</strong>, empresa constituida en Chile. Para consultas sobre privacidad escríbenos a <a href="mailto:contacto@dotaciones.cl">contacto@dotaciones.cl</a>.</p>
+      ),
+    },
+    {
+      title: "2. Datos que recopilamos",
+      content: (
+        <>
+          <p style={{ marginBottom: 8 }}>Solo los datos que tú nos proporcionas voluntariamente:</p>
+          <ul>
+            <li><strong>Email y nombre</strong> — cuando solicitas un análisis IA o te suscribes al blog.</li>
+            <li><strong>Empresa y cargo</strong> — opcionales, en el formulario de análisis.</li>
+            <li><strong>Datos del cálculo</strong> — parámetros ingresados en la calculadora para generar el análisis. No se asocian a tu identidad sin consentimiento.</li>
+          </ul>
+          <p style={{ marginTop: 8 }}>No recopilamos cookies de seguimiento ni información de dispositivos más allá de lo estrictamente necesario.</p>
+        </>
+      ),
+    },
+    {
+      title: "3. Finalidad del tratamiento",
+      content: (
+        <ul>
+          <li>Enviarte el análisis IA de tu dotación por correo electrónico.</li>
+          <li>Enviarte nuevos artículos del blog si te suscribiste (cancelable en cualquier momento).</li>
+          <li>Mejorar la herramienta a partir del uso agregado y anónimo.</li>
+          <li>Contactarte si expresaste interés en consultoría o servicios de Nexwork SpA.</li>
+        </ul>
+      ),
+    },
+    {
+      title: "4. Servicios de terceros",
+      content: (
+        <ul>
+          <li><strong>Vercel</strong> — hosting y despliegue del sitio web.</li>
+          <li><strong>Resend</strong> — envío de correos electrónicos transaccionales.</li>
+          <li><strong>Anthropic (Claude)</strong> — generación del análisis IA.</li>
+          <li><strong>Notion</strong> — almacenamiento interno de leads y gestión de contenido.</li>
+        </ul>
+      ),
+    },
+    {
+      title: "5. Base legal",
+      content: (
+        <p>El tratamiento se basa en tu consentimiento explícito al ingresar tu email. En Chile nos regimos por la <strong>Ley N° 19.628 sobre Protección de la Vida Privada</strong> y sus modificaciones.</p>
+      ),
+    },
+    {
+      title: "6. Retención de datos",
+      content: (
+        <p>Conservamos tus datos mientras mantengas una relación activa con dotaciones.cl. Puedes solicitar la eliminación en cualquier momento escribiéndonos a <a href="mailto:contacto@dotaciones.cl">contacto@dotaciones.cl</a>.</p>
+      ),
+    },
+    {
+      title: "7. Tus derechos",
+      content: (
+        <ul>
+          <li>Acceder a los datos que tenemos sobre ti.</li>
+          <li>Solicitar la corrección de datos incorrectos.</li>
+          <li>Solicitar la eliminación de tus datos.</li>
+          <li>Revocar tu consentimiento en cualquier momento.</li>
+          <li>Oponerte al uso de tus datos con fines de marketing.</li>
+        </ul>
+      ),
+    },
+    {
+      title: "8. Cookies",
+      content: (
+        <p>dotaciones.cl no utiliza cookies de seguimiento ni de publicidad. Podemos usar cookies técnicas estrictamente necesarias para el funcionamiento del sitio.</p>
+      ),
+    },
+    {
+      title: "9. Contacto",
+      content: (
+        <div className="contact-box">
+          <p><strong>Nexwork SpA · dotaciones.cl</strong><br />Chile<br /><a href="mailto:contacto@dotaciones.cl">contacto@dotaciones.cl</a></p>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <main className="min-h-screen bg-gray-50" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div style={{ fontFamily: "'Sora', sans-serif", background: "#FAFAF7" }}>
+      <style dangerouslySetInnerHTML={{ __html: S }} />
+      <SiteNav />
 
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="font-bold text-slate-900 text-lg tracking-tight">
-            dotaciones<span className="text-blue-600">.cl</span>
-          </Link>
-          <Link href="/" className="text-sm text-slate-500 hover:text-slate-700 transition-colors">
-            ← Volver al inicio
-          </Link>
+      <div className="hero">
+        <div className="hero-in">
+          <h1 className="h1">Política de Privacidad</h1>
+          <div className="updated">Última actualización: 12 de abril de 2026</div>
         </div>
-      </header>
+      </div>
 
-      <article className="max-w-3xl mx-auto px-6 py-12">
-
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Política de Privacidad</h1>
-          <p className="text-sm text-slate-400">Última actualización: {updated}</p>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-8 space-y-8 text-sm text-slate-700 leading-relaxed">
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">1. Responsable del tratamiento</h2>
-            <p>
-              El sitio dotaciones.cl es operado por <strong>Nexwork SpA</strong>, empresa constituida en Chile
-              (RUT en proceso de inscripción). Para consultas sobre privacidad puedes escribirnos a{" "}
-              <a href="mailto:contacto@dotaciones.cl" className="text-blue-600 hover:underline">
-                contacto@dotaciones.cl
-              </a>.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">2. Datos que recopilamos</h2>
-            <p className="mb-3">Recopilamos únicamente los datos que tú nos proporcionas voluntariamente:</p>
-            <ul className="list-disc pl-5 space-y-1.5">
-              <li><strong>Email y nombre</strong> — cuando solicitas un análisis IA o te suscribes al blog.</li>
-              <li><strong>Nombre de empresa y cargo</strong> — opcionales, cuando los ingresas en el formulario de análisis.</li>
-              <li><strong>Datos del cálculo</strong> — los parámetros que ingresas en la calculadora (horas, contratos, días) para generar el análisis. No los asociamos a tu identidad sin tu consentimiento.</li>
-            </ul>
-            <p className="mt-3">
-              No recopilamos datos de navegación, cookies de seguimiento, ni información de dispositivos más allá
-              de lo estrictamente necesario para operar el sitio.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">3. Finalidad del tratamiento</h2>
-            <ul className="list-disc pl-5 space-y-1.5">
-              <li>Enviarte el análisis IA de tu dotación por correo electrónico.</li>
-              <li>Enviarte nuevos artículos del blog si te suscribiste (puedes cancelar en cualquier momento).</li>
-              <li>Mejorar la herramienta a partir del uso agregado y anónimo.</li>
-              <li>Contactarte si expresaste interés en consultoría o en nuestros servicios.</li>
-            </ul>
-            <p className="mt-3">
-              No usamos tus datos para publicidad de terceros ni los cedemos a otras empresas sin tu autorización explícita.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">4. Servicios de terceros</h2>
-            <p className="mb-3">Para operar el sitio utilizamos los siguientes servicios:</p>
-            <ul className="list-disc pl-5 space-y-1.5">
-              <li><strong>Vercel</strong> — hosting y despliegue del sitio web.</li>
-              <li><strong>Resend</strong> — envío de correos electrónicos transaccionales.</li>
-              <li><strong>Anthropic (Claude)</strong> — generación del análisis IA a partir de los datos del cálculo.</li>
-              <li><strong>Notion</strong> — almacenamiento interno de leads y gestión de contenido.</li>
-            </ul>
-            <p className="mt-3">
-              Cada uno de estos proveedores tiene sus propias políticas de privacidad y están sujetos a contratos
-              de procesamiento de datos conforme a la normativa vigente.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">5. Base legal</h2>
-            <p>
-              El tratamiento de tus datos se basa en tu consentimiento explícito al ingresar tu email y en la
-              ejecución de la prestación que solicitas (análisis IA, suscripción al blog). En Chile, nos regimos
-              por la <strong>Ley N° 19.628 sobre Protección de la Vida Privada</strong> y sus modificaciones.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">6. Retención de datos</h2>
-            <p>
-              Conservamos tu email y los datos asociados mientras mantengas una relación activa con dotaciones.cl
-              (suscripción vigente o interés en nuestros servicios). Puedes solicitar la eliminación de tus datos
-              en cualquier momento escribiéndonos a{" "}
-              <a href="mailto:contacto@dotaciones.cl" className="text-blue-600 hover:underline">
-                contacto@dotaciones.cl
-              </a>.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">7. Tus derechos</h2>
-            <p className="mb-3">Tienes derecho a:</p>
-            <ul className="list-disc pl-5 space-y-1.5">
-              <li>Acceder a los datos que tenemos sobre ti.</li>
-              <li>Solicitar la corrección de datos incorrectos.</li>
-              <li>Solicitar la eliminación de tus datos.</li>
-              <li>Revocar tu consentimiento en cualquier momento.</li>
-              <li>Oponerte al uso de tus datos con fines de marketing.</li>
-            </ul>
-            <p className="mt-3">
-              Para ejercer cualquiera de estos derechos, escríbenos a{" "}
-              <a href="mailto:contacto@dotaciones.cl" className="text-blue-600 hover:underline">
-                contacto@dotaciones.cl
-              </a>{" "}
-              y respondemos en un plazo máximo de 10 días hábiles.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">8. Cookies</h2>
-            <p>
-              dotaciones.cl no utiliza cookies de seguimiento ni de publicidad. Podemos usar cookies técnicas
-              estrictamente necesarias para el funcionamiento del sitio (por ejemplo, para el funcionamiento
-              del servidor), pero no rastreamos tu comportamiento entre sesiones.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">9. Cambios a esta política</h2>
-            <p>
-              Podemos actualizar esta política ocasionalmente. Cuando lo hagamos, actualizaremos la fecha al
-              inicio del documento. Si los cambios son significativos, te informaremos por correo electrónico
-              si tienes una suscripción activa.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-base font-semibold text-slate-900 mb-3">10. Contacto</h2>
-            <p>
-              Para cualquier consulta sobre esta política o el tratamiento de tus datos:
-            </p>
-            <div className="mt-3 bg-slate-50 rounded-lg p-4 text-sm">
-              <p className="font-medium text-slate-800">Nexwork SpA</p>
-              <p className="text-slate-600">dotaciones.cl</p>
-              <p className="text-slate-600">Chile</p>
-              <a href="mailto:contacto@dotaciones.cl" className="text-blue-600 hover:underline">
-                contacto@dotaciones.cl
-              </a>
+      <div className="body">
+        <div className="doc">
+          {sections.map((sec, i) => (
+            <div key={i}>
+              <div className="sec">
+                <h2>{sec.title}</h2>
+                {sec.content}
+              </div>
+              {i < sections.length - 1 && <div className="divider" />}
             </div>
-          </section>
-
+          ))}
         </div>
-      </article>
+      </div>
 
-      <footer className="border-t border-gray-200 py-6 px-6 text-center text-xs text-slate-400 mt-8">
-        © {new Date().getFullYear()} dotaciones.cl · Nexwork SpA ·{" "}
-        <Link href="/privacidad" className="hover:text-slate-600 transition-colors">Política de Privacidad</Link>
-      </footer>
-    </main>
+      <SiteFooter />
+    </div>
   );
 }
