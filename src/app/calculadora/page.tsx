@@ -2,6 +2,8 @@
 
 import { useState, useCallback } from "react";
 import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
+import SiteFooter from "@/components/SiteFooter";
 import { calculate, type CalcInput, type CalcResult, type Mix, type DayKey } from "@/lib/engine";
 import { SlotDemandGrid, computeStats } from "@/components/SlotDemandGrid";
 
@@ -398,34 +400,22 @@ export default function CalculadoraPage() {
     : [];
 
   return (
-    <div className="min-h-screen bg-white" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+    <div className="min-h-screen bg-[#FAFAF7]" style={{ fontFamily: "'Sora', sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap');
         * { box-sizing: border-box; }
         .mono { font-family: 'DM Mono', monospace; }
       `}</style>
 
-      {/* Header */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="font-bold text-slate-900 text-lg tracking-tight">
-            dotaciones<span className="text-blue-600">.cl</span>
-          </Link>
-          <nav className="flex items-center gap-1">
-            <Link href="/san" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">SAN Hospitalaria</Link>
-            <Link href="/blog" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Blog</Link>
-            <Link href="/contacto" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Contacto</Link>
-          </nav>
-        </div>
-      </header>
+      <SiteNav />
 
       {/* Banner SAN */}
-      <div className="border-b border-blue-100 bg-blue-50">
+      <div className="border-b border-[#52B788]/20 bg-[#D8F3DC]">
         <div className="max-w-6xl mx-auto px-6 py-2.5 flex items-center justify-between">
-          <p className="text-xs text-blue-700">
+          <p className="text-xs text-[#1B4332]">
             <span className="font-semibold">Nuevo:</span> Calculadora SAN Hospitalaria — normativa MINSAL + mix por día + Excel PRO
           </p>
-          <Link href="/san" className="text-xs font-semibold text-blue-700 hover:text-blue-900 transition-colors flex items-center gap-1">
+          <Link href="/san" className="text-xs font-semibold text-[#1B4332] hover:text-[#2D6A4F] transition-colors flex items-center gap-1">
             Ir a SAN
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -765,22 +755,22 @@ export default function CalculadoraPage() {
             </div>
 
             {/* Panel IA Nexwork */}
-            <div className="mx-5 mb-5 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-slate-50 overflow-hidden">
-              <div className="px-5 py-4 border-b border-blue-100 flex items-center justify-between">
+            <div className="mx-5 mb-5 rounded-xl border border-[#52B788]/30 bg-gradient-to-br from-[#D8F3DC] to-[#F0FDF4] overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#52B788]/20 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Análisis IA de tu dotación</p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Interpretación experta, alertas legales y cómo presentarlo a gerencia — gratis. Te lo enviamos también por email.
                   </p>
                 </div>
-                <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">Nexwork SpA</span>
+                <span className="text-xs font-medium text-[#1B4332] bg-[#D8F3DC] px-2 py-1 rounded-full">Nexwork SpA</span>
               </div>
 
               {!leadEnviado ? (
                 <div className="px-5 py-4">
                   {!showLeadForm ? (
                     <button onClick={() => setShowLeadForm(true)}
-                      className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                      className="w-full py-2.5 bg-[#1B4332] text-white text-sm font-semibold rounded-lg hover:bg-[#2D6A4F] transition-colors flex items-center justify-center gap-2">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
@@ -793,23 +783,23 @@ export default function CalculadoraPage() {
                           <label className="block text-xs text-slate-500 mb-1">Nombre</label>
                           <input type="text" value={leadNombre} onChange={e => setLeadNombre(e.target.value)}
                             placeholder="Tu nombre"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#52B788]" />
                         </div>
                         <div>
                           <label className="block text-xs text-slate-500 mb-1">Empresa</label>
                           <input type="text" value={leadEmpresa} onChange={e => setLeadEmpresa(e.target.value)}
                             placeholder="Tu empresa"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#52B788]" />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs text-slate-500 mb-1">Email <span className="text-blue-600">*</span></label>
+                        <label className="block text-xs text-slate-500 mb-1">Email <span className="text-[#52B788]">*</span></label>
                         <input type="email" value={leadEmail} onChange={e => setLeadEmail(e.target.value)}
                           placeholder="tu@empresa.cl"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#52B788]" />
                       </div>
                       <button onClick={handleSolicitarAnalisis} disabled={!leadEmail || loadingIA}
-                        className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                        className="w-full py-2.5 bg-[#1B4332] text-white text-sm font-semibold rounded-lg hover:bg-[#2D6A4F] transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                         {loadingIA ? (
                           <>
                             <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -845,15 +835,7 @@ export default function CalculadoraPage() {
         )}
       </div>
 
-      <footer className="border-t border-slate-100 py-6 px-6 mt-12">
-        <div className="max-w-6xl mx-auto flex items-center justify-between text-xs text-slate-400">
-          <span>© {new Date().getFullYear()} dotaciones.cl — <span className="text-slate-500 font-medium">Nexwork SpA</span></span>
-          <div className="flex gap-4">
-            <Link href="/blog" className="hover:text-slate-600 transition-colors">Blog</Link>
-            <Link href="/contacto" className="hover:text-slate-600 transition-colors">Contacto</Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

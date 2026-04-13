@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import SiteNav from "@/components/SiteNav";
+import SiteFooter from "@/components/SiteFooter";
 import { useMemo, useState } from "react";
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
@@ -296,22 +298,10 @@ export default function SanPage() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-white" style={{ fontFamily: "'DM Sans', system-ui, sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap'); * { box-sizing: border-box; } .mono { font-family: 'DM Mono', monospace; }`}</style>
+    <div className="min-h-screen bg-[#FAFAF7]" style={{ fontFamily: "'Sora', sans-serif" }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap'); * { box-sizing: border-box; } .mono { font-family: 'DM Mono', monospace; }`}</style>
 
-      {/* Header */}
-      <header className="border-b border-slate-200 bg-white">
-        <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
-          <Link href="/" className="font-bold text-slate-900 text-lg tracking-tight">
-            dotaciones<span className="text-blue-600">.cl</span>
-          </Link>
-          <nav className="flex items-center gap-1">
-            <Link href="/calculadora" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Calculadora</Link>
-            <Link href="/blog" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Blog</Link>
-            <Link href="/san/glosario" className="text-xs font-medium text-slate-500 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors">Glosario</Link>
-          </nav>
-        </div>
-      </header>
+      <SiteNav />
 
       <div className="max-w-5xl mx-auto px-6 py-8">
 
@@ -850,15 +840,15 @@ export default function SanPage() {
 
           {/* ── PANEL IA NEXWORK ── */}
           {resp?.ok && (
-            <div className="mx-5 mb-5 mt-2 rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-slate-50 overflow-hidden">
-              <div className="px-5 py-4 border-b border-blue-100 flex items-center justify-between">
+            <div className="mx-5 mb-5 mt-2 rounded-xl border border-[#52B788]/30 bg-gradient-to-br from-[#D8F3DC] to-[#F0FDF4] overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#52B788]/20 flex items-center justify-between">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Análisis IA de tu dotación SAN</p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Interpretación normativa, alertas legales y cómo presentarlo ante el directorio — gratis
                   </p>
                 </div>
-                <span className="text-xs font-medium text-blue-600 bg-blue-100 px-2 py-1 rounded-full">
+                <span className="text-xs font-medium text-[#1B4332] bg-[#D8F3DC] px-2 py-1 rounded-full">
                   Nexwork SpA
                 </span>
               </div>
@@ -868,7 +858,7 @@ export default function SanPage() {
                   {!showLeadForm ? (
                     <button
                       onClick={() => setShowLeadForm(true)}
-                      className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                      className="w-full py-2.5 bg-[#1B4332] text-white text-sm font-semibold rounded-lg hover:bg-[#2D6A4F] transition-colors flex items-center justify-center gap-2"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -885,7 +875,7 @@ export default function SanPage() {
                             value={leadNombre}
                             onChange={(e) => setLeadNombre(e.target.value)}
                             placeholder="Tu nombre"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#52B788] focus:border-transparent"
                           />
                         </div>
                         <div>
@@ -895,26 +885,26 @@ export default function SanPage() {
                             value={leadEmpresa}
                             onChange={(e) => setLeadEmpresa(e.target.value)}
                             placeholder="Nombre del establecimiento"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#52B788] focus:border-transparent"
                           />
                         </div>
                       </div>
                       <div>
                         <label className="block text-xs text-slate-500 mb-1">
-                          Email <span className="text-blue-600">*</span>
+                          Email <span className="text-[#52B788]">*</span>
                         </label>
                         <input
                           type="email"
                           value={leadEmail}
                           onChange={(e) => setLeadEmail(e.target.value)}
                           placeholder="tu@hospital.cl"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#52B788] focus:border-transparent"
                         />
                       </div>
                       <button
                         onClick={handleSolicitarAnalisis}
                         disabled={!leadEmail || loadingIA}
-                        className="w-full py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="w-full py-2.5 bg-[#1B4332] text-white text-sm font-semibold rounded-lg hover:bg-[#2D6A4F] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {loadingIA ? (
                           <>
@@ -953,15 +943,7 @@ export default function SanPage() {
 
       </div>
 
-      <footer className="border-t border-slate-100 py-6 px-6 mt-8">
-        <div className="max-w-5xl mx-auto flex items-center justify-between text-xs text-slate-400">
-          <span>© {new Date().getFullYear()} dotaciones.cl — <span className="text-slate-500 font-medium">Nexwork SpA</span></span>
-          <div className="flex gap-4">
-            <Link href="/blog" className="hover:text-slate-600 transition-colors">Blog</Link>
-            <Link href="/san/glosario" className="hover:text-slate-600 transition-colors">Glosario</Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
