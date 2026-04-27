@@ -57,8 +57,8 @@ function calcular({ sueldo, anios, meses, dias, causal, avisoPrevio, diasVacacio
 }
 
 // ── Formateadores ─────────────────────────────────────────────────────────────
-const clp = (n) => Math.round(n).toLocaleString("es-CL", { style:"currency", currency:"CLP", maximumFractionDigits:0 });
-const pct = (n) => `${(n * 100).toFixed(2)}%`;
+const clp = (n: number) => Math.round(n).toLocaleString("es-CL", { style:"currency", currency:"CLP", maximumFractionDigits:0 });
+const pct = (n: number) => `${(n * 100).toFixed(2)}%`;
 
 // ── Pasos del wizard ──────────────────────────────────────────────────────────
 const CAUSALES = [
