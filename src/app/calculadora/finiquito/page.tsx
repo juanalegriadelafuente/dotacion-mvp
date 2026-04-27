@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import { useState, useEffect, useCallback } from "react";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -20,7 +21,8 @@ async function fetchUF() {
 }
 
 // ── Motor de cálculo ──────────────────────────────────────────────────────────
-function calcular({ sueldo, anios, meses, dias, causal, avisoPrevio, diasVacaciones, uf }) {
+interface CalcInput { sueldo:string; anios:string; meses:string; dias:string; causal:string; avisoPrevio:boolean|null; diasVacaciones:string; uf:number }
+function calcular({ sueldo, anios, meses, dias, causal, avisoPrevio, diasVacaciones, uf }:CalcInput) {
   const sb = Number(sueldo) || 0;
   const a  = Number(anios)  || 0;
   const m  = Number(meses)  || 0;
@@ -579,7 +581,8 @@ export default function CalculadoraFiniquito() {
 
 // ── Sub-componentes ───────────────────────────────────────────────────────────
 
-function Pregunta({ numero, titulo, desc, children, t1, t2, t3, g }) {
+interface PreguntaProps { numero:string; titulo:string; desc:string; children:React.ReactNode; t1:string; t2:string; t3:string; g:string }
+function Pregunta({ numero, titulo, desc, children, t1, t2, t3, g }:PreguntaProps) {
   return (
     <div>
       <div style={{ fontSize:11, fontWeight:800, letterSpacing:"0.12em", color:g, marginBottom:16 }}>
@@ -596,7 +599,8 @@ function Pregunta({ numero, titulo, desc, children, t1, t2, t3, g }) {
   );
 }
 
-function FilaDetalle({ label, sub, monto, negativo, g, t1, t2, t3, b }) {
+interface FilaProps { label:string; sub:string; monto:number; negativo?:boolean; g:string; t1:string; t2:string; t3:string; b:string }
+function FilaDetalle({ label, sub, monto, negativo, g, t1, t2, t3, b }:FilaProps) {
   return (
     <div style={{ padding:"14px 20px", borderBottom:`1px solid ${b}`, display:"flex", justifyContent:"space-between", alignItems:"center", gap:12 }}>
       <div style={{ flex:1 }}>
@@ -610,7 +614,8 @@ function FilaDetalle({ label, sub, monto, negativo, g, t1, t2, t3, b }) {
   );
 }
 
-function Alerta({ children, color, bg, border }) {
+interface AlertaProps { children:React.ReactNode; color:string; bg:string; border:string }
+function Alerta({ children, color, bg, border }:AlertaProps) {
   return (
     <div style={{ marginBottom:14, padding:"14px 16px", background:bg, border:`1.5px solid ${border}`, borderRadius:10, fontSize:13, color, lineHeight:1.7 }}>
       {children}
