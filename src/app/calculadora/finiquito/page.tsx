@@ -1,7 +1,10 @@
+Calculadorafiniquito · TSX
+Copiar
+
 "use client";
-
+ 
 import React, { useState, useEffect, useCallback, ReactNode } from "react";
-
+ 
 // ─── Constantes legales Chile 2026 ───────────────────────────────────────────
 const AFP_RATE           = 0.1045;   // tasa promedio AFP (10% + comisión ~0.45%)
 const SALUD_RATE         = 0.07;     // 7% salud (Fonasa/Isapre)
@@ -13,48 +16,49 @@ const SUELDO_MINIMO_2026 = 539000;   // IMM vigente 2026
 const GRATIF_TOPE_MES    = Math.round((SUELDO_MINIMO_2026 * 4.75) / 12); // ~$213.354
 const UF_FALLBACK        = 38500;
 const TOPE_UF            = 90;       // tope 90 UF para indemnización art.163
-
+ 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 type TipoRemuneracion = "fija" | "variable" | "mixta";
 type Causal = "161" | "mutuoAcuerdo" | "renuncia" | "vencimiento" | "160" | "obraFaena";
-
+ 
 interface FormState {
   // Tipo de remuneración
   tipoRemuneracion: TipoRemuneracion;
-
+ 
   // Remuneración fija
   sueldoBase:       string;  // sueldo base del contrato
   gratificacion:    string;  // gratificación mensual si la pagan (art.50)
   colacion:         string;  // asignación colación mensual
   movilizacion:     string;  // asignación movilización mensual
   otrosHaberes:     string;  // otros haberes fijos imponibles
-
+ 
   // Remuneración variable (promedio 3 meses)
   mes1: string;
   mes2: string;
   mes3: string;
-
+ 
   // Antigüedad
   fechaIngreso:   string;
   fechaTermino:   string;
   aniosTotales:   string;  // años totales empleadores anteriores (para vacaciones progresivas)
-
+ 
   // Causal
   causal:         Causal;
   avisoPrevio:    boolean | null;  // ¿dieron aviso 30 días?
-
+ 
   // Vacaciones
   diasVacPendientes: string;  // días hábiles pendientes de períodos anteriores
   diasVacTomados:    string;  // días hábiles tomados del período en curso
-
+ 
   // Extras
   horasExtra:        string;  // horas extra adeudadas
-  gratifPropPendiente: string; // meses de gratificación no pagada en el año
+  pagoGratif: "mensual" | "anual" | "no";  // cómo paga la empresa la gratificación
+  gratifPropPendiente: string; // meses del año en curso sin gratificación (solo si pagoGratif = "anual")
   descontarCIC:      boolean | null;
   saldoCIC:          string;  // saldo real CIC si lo sabe
   otrosConceptos:    string;  // bonos u otros adeudados
 }
-
+ 
 interface DesgloseFeriado {
   diasHabilesAnio:    number;  // 15 + progresivos
   diasProgresivos:    number;
@@ -65,12 +69,12 @@ interface DesgloseFeriado {
   montoFeriado:      number;   // solo días hábiles × valor diario
   // No sumamos inhábiles en este modelo simplificado
 }
-
+ 
 interface CalcResult {
   // Base de cálculo art.172
   baseCalculo:          number;  // remuneración íntegra para indemnizaciones
   baseCalculoFeriado:   number;  // base para feriado (puede incluir colación/mov en criterio DT)
-
+ 
   // Conceptos imponibles (AFP+salud+AFC trabajador aplican)
   remPeriodo:           number;  // días trabajados del mes
   diasTrabajadosMes:    number;
@@ -78,23 +82,23 @@ interface CalcResult {
   gratifProporcional:   number;  // gratificación proporcional no pagada
   horasExtraMonto:      number;
   otrosConceptos:       number;
-
+ 
   // Indemnizaciones (no imponibles — sin AFP/salud)
   indemAnios:           number;
   avisoPrevioMonto:     number;
   aniosEfectivos:       number;  // años usados para indemnización (con redondeo)
-
+ 
   // Descuentos
   descAfpSalud:         number;  // sobre conceptos imponibles
   descAfcTrabajador:    number;  // 0.6% sobre imponibles
   descCIC:              number;  // imputación empleador sobre indemnización
-
+ 
   // Totales
   totalHaberes:         number;
   totalDescuentos:      number;
   totalLiquido:         number;
 }
-
+ 
 // ─── Causales ─────────────────────────────────────────────────────────────────
 const CAUSALES = [
   { value:"161"         as Causal, short:"Art. 161",      label:"Necesidades de la empresa",        desc:"Razones económicas o de organización. Da derecho a indemnización por años." },
@@ -104,7 +108,7 @@ const CAUSALES = [
   { value:"obraFaena"   as Causal, short:"Obra/Faena",     label:"Conclusión de obra/faena (art. 159 nº5)",desc:"2,5 días por mes trabajado. Aplica indemnización especial." },
   { value:"160"         as Causal, short:"Art. 160",       label:"Despido con causa grave (art. 160)", desc:"Sin indemnización. Si es falsa, tienes 60 días hábiles para impugnar." },
 ];
-
+ 
 const MOTIVOS_RESERVA = [
   { id:"despido",  label:"Despido injustificado",          texto:"despido injustificado, indebido o improcedente, junto con el recargo legal correspondiente" },
   { id:"feriado",  label:"Diferencias en feriado",         texto:"diferencias en el cálculo del feriado proporcional" },
@@ -114,7 +118,7 @@ const MOTIVOS_RESERVA = [
   { id:"cic",      label:"Imputación CIC incorrecta",      texto:"descuento indebido o mal calculado del seguro de cesantía (imputación CIC)" },
   { id:"bonos",    label:"Bonos o beneficios no pagados",  texto:"no pago de bonos, beneficios o asignaciones adeudadas" },
 ];
-
+ 
 // ─── Fetch UF ─────────────────────────────────────────────────────────────────
 async function fetchUF(): Promise<number> {
   try {
@@ -123,7 +127,7 @@ async function fetchUF(): Promise<number> {
     return (d.serie?.[0]?.valor as number) ?? UF_FALLBACK;
   } catch { return UF_FALLBACK; }
 }
-
+ 
 // ─── Utilidades de fecha ──────────────────────────────────────────────────────
 function calcularAntiguedad(ingreso: string, termino: string): { anios: number; meses: number; dias: number; totalMeses: number; aniosEfectivos: number } {
   if (!ingreso || !termino) return { anios:0, meses:0, dias:0, totalMeses:0, aniosEfectivos:0 };
@@ -138,16 +142,16 @@ function calcularAntiguedad(ingreso: string, termino: string): { anios: number; 
   const aniosEfectivos = meses >= 6 ? anios + 1 : anios;
   return { anios, meses, dias, totalMeses: anios*12 + meses, aniosEfectivos };
 }
-
+ 
 // ─── Motor de cálculo ─────────────────────────────────────────────────────────
 function calcular(form: FormState, uf: number): CalcResult {
   const n = (s: string) => Number(s) || 0;
-
+ 
   // 1) BASE DE CÁLCULO ART. 172
   // Última remuneración = todo lo que el trabajador percibe regularmente
   let baseCalculo = 0;
   let baseCalculoFeriado = 0;
-
+ 
   if (form.tipoRemuneracion === "fija") {
     // Remuneración fija: sueldo base + gratificación + colación + movilización + otros
     const gratifMes = Math.min(n(form.gratificacion), GRATIF_TOPE_MES);
@@ -167,38 +171,44 @@ function calcular(form: FormState, uf: number): CalcResult {
     baseCalculo = n(form.sueldoBase) + gratifMes + n(form.colacion) + n(form.movilizacion) + n(form.otrosHaberes) + promVar;
     baseCalculoFeriado = n(form.sueldoBase) + gratifMes + n(form.otrosHaberes) + promVar;
   }
-
+ 
   // Tope 90 UF para indemnizaciones
   const baseCapada = Math.min(baseCalculo, TOPE_UF * uf);
-
+ 
   // 2) ANTIGÜEDAD
   const { anios, meses, totalMeses, aniosEfectivos } = calcularAntiguedad(form.fechaIngreso, form.fechaTermino);
-
+ 
   // Días trabajados del mes de despido
   let diasTrabajadosMes = 0;
   if (form.fechaTermino) {
     diasTrabajadosMes = new Date(form.fechaTermino).getDate();
   }
-
+ 
   // 3) REMUNERACIÓN DEL PERÍODO (días trabajados en el mes de despido)
   // Siempre corresponde en todo finiquito
   const remPeriodo = baseCalculoFeriado > 0
     ? (baseCalculoFeriado / 30) * diasTrabajadosMes
     : (n(form.sueldoBase) / 30) * diasTrabajadosMes;
-
+ 
   // 4) FERIADO PROPORCIONAL (art. 73 CT)
-  // Días anuales base = 15 + progresivos
-  const aniosTotalesPrevisionales = Math.max(
-    anios + n(form.aniosTotales),
-    anios
-  );
+  // Días anuales base = 15 + progresivos (art. 68)
+  //
+  // LÓGICA CORRECTA vacaciones progresivas (art. 68 CT):
+  //   Requisito 1: 10 años totales cotizados en AFP (uno o más empleadores)
+  //                → aniosTotalesAFP = años con empleador actual + años con anteriores
+  //   Requisito 2: cada 3 años con el MISMO empleador actual generan 1 día extra
+  //
+  // Ejemplos:
+  //   10 años AFP totales + 3 años mismo empleador → 1 día progresivo (16 días base)
+  //   10 años AFP totales + 6 años mismo empleador → 2 días progresivos (17 días base)
+  //   8 años AFP totales + 5 años mismo empleador  → 0 días (no cumple requisito base)
+  const aniosTotalesAFP = anios + n(form.aniosTotales);
   let diasProgresivos = 0;
-  if (aniosTotalesPrevisionales >= 10) {
-    // 1 día adicional por cada 3 años sobre los 10, con el mismo empleador
+  if (aniosTotalesAFP >= 10 && anios >= 3) {
     diasProgresivos = Math.floor(anios / 3);
   }
   const diasVacAnuales = DIAS_VACACIONES + diasProgresivos;
-
+ 
   // Días acumulados período en curso
   const diasAcumPeriodo = (diasVacAnuales / 12) * meses + (diasVacAnuales / 12 / 30) * (totalMeses > 0 ? 0 : 0);
   // Cálculo más preciso: meses completos + fracción del mes parcial
@@ -206,12 +216,12 @@ function calcular(form: FormState, uf: number): CalcResult {
   const diasPendientes  = n(form.diasVacPendientes);
   const diasTomados     = n(form.diasVacTomados);
   const totalDiasHabiles = Math.max(0, diasHabilesAcum + diasPendientes - diasTomados);
-
+ 
   const valorDiarioFeriado = baseCalculoFeriado / 30;
   // Feriado = días hábiles × valor diario (simplificado — el cálculo exacto requiere contar inhábiles en calendario)
   // Multiplicamos por factor 1.4 aprox para incluir fines de semana (metodología DT)
   const montoFeriado = valorDiarioFeriado * totalDiasHabiles * (30 / DIAS_VACACIONES); // equivalente corrido
-
+ 
   const feriado: DesgloseFeriado = {
     diasHabilesAnio: diasVacAnuales,
     diasProgresivos,
@@ -221,44 +231,54 @@ function calcular(form: FormState, uf: number): CalcResult {
     valorDiario: valorDiarioFeriado,
     montoFeriado,
   };
-
-  // 5) GRATIFICACIÓN PROPORCIONAL
-  // Si la empresa no ha pagado gratificación en el año en curso
-  const mesesSinGratif = n(form.gratifPropPendiente);
+ 
+  // 5) GRATIFICACIÓN PROPORCIONAL (art. 47/50 CT)
+  // Solo corresponde calcularla si la empresa NO la paga mensualmente.
+  // - pagoGratif = "mensual": ya está incluida en el sueldo → no hay deuda adicional
+  // - pagoGratif = "anual":   la empresa acumula y paga al año → hay proporcional pendiente
+  //                           por los meses del año en curso no pagados
+  // - pagoGratif = "no":      no pagan → estimamos proporcional por meses trabajados desde
+  //                           enero (o desde ingreso si fue este año)
   let gratifProporcional = 0;
-  if (mesesSinGratif > 0 && form.tipoRemuneracion === "fija") {
-    // Art.50: 25% del sueldo base (sin otras asignaciones), tope mensual
-    const gratifMesProp = Math.min(n(form.sueldoBase) * 0.25, GRATIF_TOPE_MES);
-    gratifProporcional = gratifMesProp * mesesSinGratif;
+  if (form.pagoGratif === "anual" || form.pagoGratif === "no") {
+    const mesesSinGratif = form.pagoGratif === "anual"
+      ? n(form.gratifPropPendiente)
+      : meses + 1; // estimación: meses desde inicio del año en curso
+    if (mesesSinGratif > 0) {
+      // Base: sueldo base (art.50 usa la remuneración mensual imponible)
+      const sueldoBase = form.tipoRemuneracion === "fija" ? n(form.sueldoBase) : baseCalculoFeriado;
+      const gratifMesProp = Math.min(sueldoBase * 0.25, GRATIF_TOPE_MES);
+      gratifProporcional = gratifMesProp * Math.min(mesesSinGratif, 12);
+    }
   }
-
+ 
   // 6) HORAS EXTRA ADEUDADAS
   // Valor hora extra = (sueldo base / jornada horas) × 1.5
   // Usamos divisor 168 (jornada 42h × 4 semanas) vigente desde 26/04/2026
   const divisorHoras = 168;
   const valorHoraExtra = (n(form.sueldoBase) / divisorHoras) * 1.5;
   const horasExtraMonto = valorHoraExtra * n(form.horasExtra);
-
+ 
   // 7) OTROS CONCEPTOS
   const otrosConceptos = n(form.otrosConceptos);
-
+ 
   // 8) INDEMNIZACIONES (no imponibles)
   let indemAnios = 0;
   let avisoPrevioMonto = 0;
-
+ 
   if (["161", "mutuoAcuerdo"].includes(form.causal)) {
     indemAnios = Math.min(aniosEfectivos, TOPE_ANIOS) * baseCapada;
   }
-
+ 
   // Obra/Faena: 2.5 días por mes trabajado (contratos post 31/12/2021)
   if (form.causal === "obraFaena") {
     indemAnios = (baseCapada / 30) * 2.5 * totalMeses;
   }
-
+ 
   if (form.causal === "161" && form.avisoPrevio === false) {
     avisoPrevioMonto = baseCapada;
   }
-
+ 
   // 9) DESCUENTO CIC
   let descCIC = 0;
   if (form.causal === "161" && form.descontarCIC === true && indemAnios > 0) {
@@ -270,18 +290,18 @@ function calcular(form: FormState, uf: number): CalcResult {
       descCIC = Math.min(n(form.sueldoBase) * AFC_EMPLEADOR_INDEF * aniosParaCIC, indemAnios);
     }
   }
-
+ 
   // 10) CONCEPTOS IMPONIBLES (AFP + Salud + AFC trabajador)
   // AFP y salud aplican sobre: rem. período + feriado + gratif. proporcional + horas extra
   const baseImponible = remPeriodo + montoFeriado + gratifProporcional + horasExtraMonto + otrosConceptos;
   const descAfpSalud    = baseImponible * (AFP_RATE + SALUD_RATE);
   const descAfcTrabajador = baseImponible * AFC_TRABAJADOR;
-
+ 
   // 11) TOTALES
   const totalHaberes    = remPeriodo + montoFeriado + gratifProporcional + horasExtraMonto + otrosConceptos + indemAnios + avisoPrevioMonto;
   const totalDescuentos = descAfpSalud + descAfcTrabajador + descCIC;
   const totalLiquido    = totalHaberes - totalDescuentos;
-
+ 
   return {
     baseCalculo,
     baseCalculoFeriado,
@@ -302,17 +322,17 @@ function calcular(form: FormState, uf: number): CalcResult {
     totalLiquido,
   };
 }
-
+ 
 // ─── Utilidades de formato ────────────────────────────────────────────────────
 function clp(n: number): string {
   return Math.round(n).toLocaleString("es-CL", { style:"currency", currency:"CLP", maximumFractionDigits:0 });
 }
 function pct(n: number): string { return `${(n * 100).toFixed(2)}%`; }
-
+ 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
 const G = "#3ddc84", BG = "#0a1f12", C1 = "#0f2b1a", B = "#1e3d29";
 const T1 = "#e8f5e9", T2 = "#8aab96", T3 = "#5a8070", DK = "#07160d";
-
+ 
 function Pregunta({ numero, titulo, desc, children }: { numero:string; titulo:string; desc:string; children:ReactNode }) {
   return (
     <div>
@@ -323,7 +343,7 @@ function Pregunta({ numero, titulo, desc, children }: { numero:string; titulo:st
     </div>
   );
 }
-
+ 
 function Fila({ label, sub, monto, negativo, highlight }: { label:string; sub?:string; monto:number; negativo?:boolean; highlight?:boolean }) {
   if (Math.abs(monto) < 1) return null;
   return (
@@ -338,7 +358,7 @@ function Fila({ label, sub, monto, negativo, highlight }: { label:string; sub?:s
     </div>
   );
 }
-
+ 
 function Campo({ label, hint, children }: { label:string; hint?:string; children:ReactNode }) {
   return (
     <div style={{ marginBottom:20 }}>
@@ -348,7 +368,7 @@ function Campo({ label, hint, children }: { label:string; hint?:string; children
     </div>
   );
 }
-
+ 
 function Nota({ children, tipo = "info" }: { children:ReactNode; tipo?:"info"|"warn"|"ok" }) {
   const col = tipo === "warn" ? "#c8a84b" : tipo === "ok" ? G : T2;
   const bg  = tipo === "warn" ? "#1a1200" : tipo === "ok" ? "#0d2a1a" : "#0d1a10";
@@ -359,7 +379,7 @@ function Nota({ children, tipo = "info" }: { children:ReactNode; tipo?:"info"|"w
     </div>
   );
 }
-
+ 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function CalculadoraFiniquito() {
   const [uf,        setUf]        = useState<number>(UF_FALLBACK);
@@ -374,7 +394,7 @@ export default function CalculadoraFiniquito() {
   const [motivos,   setMotivos]   = useState<string[]>([]);
   const [showRes,   setShowRes]   = useState<boolean>(false);
   const [copiado,   setCopiado]   = useState<boolean>(false);
-
+ 
   const [form, setForm] = useState<FormState>({
     tipoRemuneracion:"fija",
     sueldoBase:"", gratificacion:"", colacion:"", movilizacion:"", otrosHaberes:"",
@@ -383,23 +403,23 @@ export default function CalculadoraFiniquito() {
     causal:"161", avisoPrevio:null,
     diasVacPendientes:"0", diasVacTomados:"0",
     horasExtra:"0",
-    gratifPropPendiente:"0",
+    pagoGratif:"mensual", gratifPropPendiente:"0",
     descontarCIC:null, saldoCIC:"",
     otrosConceptos:"",
   });
-
+ 
   useEffect(() => { fetchUF().then(setUf); }, []);
-
+ 
   const sf = useCallback((k: keyof FormState, v: string | boolean | null) => {
     setForm(p => ({ ...p, [k]: v }));
   }, []);
-
+ 
   const irA = useCallback((destino: number) => {
     setAnimDir(destino > paso ? "forward" : "back");
     setVisible(false);
     setTimeout(() => { setPaso(destino); setVisible(true); setErr(""); }, 200);
   }, [paso]);
-
+ 
   const validarPaso = useCallback((): string => {
     if (paso === 0) {
       if (form.tipoRemuneracion === "fija" && !form.sueldoBase) return "Ingresa tu sueldo base.";
@@ -412,9 +432,9 @@ export default function CalculadoraFiniquito() {
     if (paso === 4 && form.causal === "161" && form.descontarCIC === null) return "Indica si el empleador descontará la CIC.";
     return "";
   }, [paso, form]);
-
+ 
   const TOTAL_PASOS = form.causal === "161" ? 5 : 4;
-
+ 
   const siguiente = useCallback(() => {
     const e = validarPaso();
     if (e) { setErr(e); return; }
@@ -430,16 +450,16 @@ export default function CalculadoraFiniquito() {
     }
     irA(paso + 1);
   }, [paso, form, uf, validarPaso, irA]);
-
+ 
   const anterior = useCallback(() => {
     if (paso === 5) { irA(form.causal === "161" ? 4 : 2); return; }
     irA(paso - 1);
   }, [paso, form, irA]);
-
+ 
   const recalcular = useCallback(() => {
     if (resultado) setResultado(calcular(form, uf));
   }, [form, uf, resultado]);
-
+ 
   const enviarLead = useCallback(async () => {
     if (!lead.nombre || !lead.email) return;
     setLeadLoad(true);
@@ -453,35 +473,35 @@ export default function CalculadoraFiniquito() {
     setLeadLoad(false);
     setLeadOk(true);
   }, [lead]);
-
+ 
   const resetear = useCallback(() => {
     setResultado(null); setLeadOk(false); setMotivos([]); setShowRes(false);
-    setForm({ tipoRemuneracion:"fija", sueldoBase:"", gratificacion:"", colacion:"", movilizacion:"", otrosHaberes:"", mes1:"", mes2:"", mes3:"", fechaIngreso:"", fechaTermino:"", aniosTotales:"0", causal:"161", avisoPrevio:null, diasVacPendientes:"0", diasVacTomados:"0", horasExtra:"0", gratifPropPendiente:"0", descontarCIC:null, saldoCIC:"", otrosConceptos:"" });
+    setForm({ tipoRemuneracion:"fija", sueldoBase:"", gratificacion:"", colacion:"", movilizacion:"", otrosHaberes:"", mes1:"", mes2:"", mes3:"", fechaIngreso:"", fechaTermino:"", aniosTotales:"0", causal:"161", avisoPrevio:null, diasVacPendientes:"0", diasVacTomados:"0", horasExtra:"0", pagoGratif:"mensual", gratifPropPendiente:"0", descontarCIC:null, saldoCIC:"", otrosConceptos:"" });
     irA(0);
   }, [irA]);
-
+ 
   const toggleMotivo = (id: string) =>
     setMotivos(prev => prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id]);
-
+ 
   const textoReserva = motivos.length > 0
     ? `"Me reservo el derecho de demandar por ${MOTIVOS_RESERVA.filter(m => motivos.includes(m.id)).map(m => m.texto).join(", ")}."`
     : "";
-
+ 
   const copiarTexto = () => {
     if (textoReserva) navigator.clipboard.writeText(textoReserva).then(() => { setCopiado(true); setTimeout(() => setCopiado(false), 2500); });
   };
-
+ 
   const progreso  = paso >= 5 ? 100 : Math.round((paso / TOTAL_PASOS) * 100);
   const causalObj = CAUSALES.find(c => c.value === form.causal);
   const antig     = calcularAntiguedad(form.fechaIngreso, form.fechaTermino);
   const animClass = visible ? (animDir === "forward" ? "anim-fw" : "anim-bk") : "";
-
+ 
   const inBase: React.CSSProperties = { width:"100%", padding:"12px 16px", background:DK, border:`1.5px solid ${B}`, borderRadius:8, color:T1, fontSize:16, fontFamily:"inherit", outline:"none", transition:"border-color .15s" };
   const inSm:   React.CSSProperties = { ...inBase, padding:"10px 14px", fontSize:14 };
   const btnP:   React.CSSProperties = { width:"100%", padding:"14px", background:G, color:"#0a1f12", border:"none", borderRadius:10, fontSize:15, fontWeight:800, cursor:"pointer", fontFamily:"inherit" };
   const btnS:   React.CSSProperties = { background:"transparent", border:`1.5px solid ${B}`, color:T2, borderRadius:8, padding:"9px 18px", fontSize:13, fontWeight:500, cursor:"pointer", fontFamily:"inherit" };
   const tab:    React.CSSProperties = { flex:1, padding:"9px 0", border:"none", cursor:"pointer", fontFamily:"inherit", fontSize:13, fontWeight:600, transition:"all .15s" };
-
+ 
   return (
     <div style={{ fontFamily:"'DM Sans', sans-serif", background:BG, minHeight:"100vh", padding:"0 0 80px" }}>
       <style>{`
@@ -503,7 +523,7 @@ export default function CalculadoraFiniquito() {
         input[type=date]{color-scheme:dark}
         input[type=number]::-webkit-inner-spin-button{opacity:.3}
       `}</style>
-
+ 
       {/* Barra de progreso */}
       <div style={{ position:"sticky", top:0, zIndex:10, background:BG, borderBottom:`1px solid ${B}`, padding:"14px 24px" }}>
         <div style={{ maxWidth:680, margin:"0 auto" }}>
@@ -516,13 +536,13 @@ export default function CalculadoraFiniquito() {
           </div>
         </div>
       </div>
-
+ 
       <div style={{ maxWidth:680, margin:"0 auto", padding:"44px 24px 0" }}>
-
+ 
         {/* ── PASOS ── */}
         {paso < 5 && (
           <div className={animClass}>
-
+ 
             {/* PASO 0 — Remuneración */}
             {paso === 0 && (
               <Pregunta numero="01" titulo="¿Cómo es tu remuneración?" desc="El tipo de remuneración determina la base de cálculo para indemnizaciones y feriado (art. 172 CT).">
@@ -535,7 +555,7 @@ export default function CalculadoraFiniquito() {
                     </button>
                   ))}
                 </div>
-
+ 
                 {/* Fija */}
                 {(form.tipoRemuneracion === "fija" || form.tipoRemuneracion === "mixta") && (
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
@@ -561,7 +581,7 @@ export default function CalculadoraFiniquito() {
                     </Campo>
                   </div>
                 )}
-
+ 
                 {/* Variable / Mixta — promedio 3 meses */}
                 {(form.tipoRemuneracion === "variable" || form.tipoRemuneracion === "mixta") && (
                   <div>
@@ -585,7 +605,7 @@ export default function CalculadoraFiniquito() {
                 )}
               </Pregunta>
             )}
-
+ 
             {/* PASO 1 — Fechas y antigüedad */}
             {paso === 1 && (
               <Pregunta numero="02" titulo="¿Cuánto tiempo llevas en la empresa?" desc="Las fechas exactas permiten calcular la antigüedad con el redondeo correcto: fracciones sobre 6 meses se cuentan como 1 año (art. 163).">
@@ -599,19 +619,19 @@ export default function CalculadoraFiniquito() {
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => sf("fechaTermino", e.target.value)} style={inSm} />
                   </Campo>
                 </div>
-
+ 
                 {form.fechaIngreso && form.fechaTermino && (
                   <Nota tipo="ok">
                     Antigüedad: <strong>{antig.anios} año(s) y {antig.meses} mes(es)</strong>
                     {antig.meses >= 6 && <> — redondea a <strong>{antig.aniosEfectivos} años</strong> para efectos de indemnización</>}
                   </Nota>
                 )}
-
-                <Campo label="Años trabajados para otros empleadores anteriores (opcional)" hint="Necesario para calcular vacaciones progresivas (art. 68). Si llevas >10 años en total, corresponden días adicionales.">
+ 
+                <Campo label="Años cotizados con empleadores anteriores (opcional)" hint="Art. 68: necesitas 10 años totales de cotizaciones AFP para acceder a progresivos. Ingresa los años con empleadores ANTERIORES — los de este empleador se calculan automáticamente.">
                   <input className="fq-in" type="number" placeholder="0" min="0" value={form.aniosTotales}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => sf("aniosTotales", e.target.value)} style={inSm} />
                 </Campo>
-
+ 
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12 }}>
                   <Campo label="Días vacaciones pendientes" hint="Períodos anteriores sin tomar">
                     <input className="fq-in" type="number" placeholder="0" min="0" value={form.diasVacPendientes}
@@ -621,12 +641,45 @@ export default function CalculadoraFiniquito() {
                     <input className="fq-in" type="number" placeholder="0" min="0" value={form.diasVacTomados}
                       onChange={(e: React.ChangeEvent<HTMLInputElement>) => sf("diasVacTomados", e.target.value)} style={inSm} />
                   </Campo>
-                  <Campo label="Meses sin gratificación" hint="Si la empresa no pagó gratificación mensual en el año en curso">
-                    <input className="fq-in" type="number" placeholder="0" min="0" max="12" value={form.gratifPropPendiente}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => sf("gratifPropPendiente", e.target.value)} style={inSm} />
+                  <Campo label="¿Cómo paga la empresa la gratificación legal?"
+                    hint="La gratificación es un derecho irrenunciable (art. 47/50 CT). Si hay meses sin pagar, se incluyen en el finiquito.">
+                    <div style={{ display:"flex", border:`1.5px solid ${B}`, borderRadius:8, overflow:"hidden", marginBottom:form.pagoGratif !== "mensual" ? 10 : 0 }}>
+                      {([
+                        { v:"mensual", label:"Mensual (ya incluida)", hint:"" },
+                        { v:"anual",   label:"Anual / pendiente",    hint:"" },
+                        { v:"no",      label:"No me la pagan",       hint:"" },
+                      ] as Array<{ v:string; label:string; hint:string }>).map(opt => (
+                        <button key={opt.v} type="button" onClick={() => sf("pagoGratif", opt.v)}
+                          style={{ flex:1, padding:"9px 4px", border:"none", cursor:"pointer", fontFamily:"inherit", fontSize:12, fontWeight:600, transition:"all .15s",
+                            background: form.pagoGratif === opt.v ? G : "transparent",
+                            color: form.pagoGratif === opt.v ? "#0a1f12" : T3 }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    {form.pagoGratif === "mensual" && (
+                      <p style={{ fontSize:11, color:T3, lineHeight:1.5, marginTop:6 }}>
+                        Ya está considerada en tu sueldo — no hay monto adicional pendiente.
+                      </p>
+                    )}
+                    {form.pagoGratif === "anual" && (
+                      <div>
+                        <p style={{ fontSize:11, color:T2, lineHeight:1.5, marginBottom:8, marginTop:6 }}>
+                          ¿Cuántos meses del año en curso no te han pagado?
+                        </p>
+                        <input className="fq-in" type="number" placeholder="Ej: 4" min="0" max="12"
+                          value={form.gratifPropPendiente}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => sf("gratifPropPendiente", e.target.value)} style={inSm} />
+                      </div>
+                    )}
+                    {form.pagoGratif === "no" && (
+                      <p style={{ fontSize:11, color:"#c8a84b", lineHeight:1.5, marginTop:6 }}>
+                        Estimaremos la gratificación proporcional por los meses trabajados. Es un derecho que siempre corresponde si la empresa tuvo utilidades.
+                      </p>
+                    )}
                   </Campo>
                 </div>
-
+ 
                 <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
                   <Campo label="Horas extra adeudadas" hint="Horas no pagadas durante el contrato">
                     <input className="fq-in" type="number" placeholder="0" min="0" value={form.horasExtra}
@@ -639,7 +692,7 @@ export default function CalculadoraFiniquito() {
                 </div>
               </Pregunta>
             )}
-
+ 
             {/* PASO 2 — Causal */}
             {paso === 2 && (
               <Pregunta numero="03" titulo="¿Por qué termina el contrato?" desc="La causal determina si tienes derecho a indemnización por años de servicio. Debe coincidir con la carta de aviso.">
@@ -661,7 +714,7 @@ export default function CalculadoraFiniquito() {
                 </div>
               </Pregunta>
             )}
-
+ 
             {/* PASO 3 — Aviso previo (solo art.161) */}
             {paso === 3 && form.causal === "161" && (
               <Pregunta numero="04" titulo="¿La empresa te avisó con 30 días de anticipación?" desc="El aviso debe ser escrito y con al menos 30 días de anticipación. Si no lo hicieron, corresponde indemnización sustitutiva equivalente a 1 mes de remuneración (art. 162).">
@@ -676,7 +729,7 @@ export default function CalculadoraFiniquito() {
                 </div>
               </Pregunta>
             )}
-
+ 
             {/* PASO 4 — CIC (solo art.161) */}
             {paso === 4 && form.causal === "161" && (
               <Pregunta numero="05" titulo="¿El empleador descontará el seguro de cesantía (CIC)?" desc="En despidos art. 161, el empleador puede descontar de la indemnización el saldo que él aportó a tu Cuenta Individual de Cesantía (1,6% mensual).">
@@ -700,7 +753,7 @@ export default function CalculadoraFiniquito() {
                 )}
               </Pregunta>
             )}
-
+ 
             {/* Navegación */}
             <div style={{ marginTop:28, display:"flex", flexDirection:"column", gap:10 }}>
               {err && <p style={{ color:"#ff6b6b", fontSize:13, textAlign:"center" }}>{err}</p>}
@@ -711,11 +764,11 @@ export default function CalculadoraFiniquito() {
             </div>
           </div>
         )}
-
+ 
         {/* ── RESULTADO ── */}
         {paso === 5 && resultado && (
           <div className="anim-fade">
-
+ 
             {/* Total destacado */}
             <div style={{ textAlign:"center", marginBottom:36 }}>
               <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.12em", color:G, marginBottom:14 }}>RESULTADO DEL CÁLCULO</div>
@@ -726,13 +779,13 @@ export default function CalculadoraFiniquito() {
                 {form.fechaIngreso && form.fechaTermino && ` · ${antig.anios} año(s) y ${antig.meses} mes(es)`}
               </div>
             </div>
-
+ 
             {/* Base de cálculo */}
             <Nota tipo="info">
               <strong style={{ color:T1 }}>Base de cálculo art. 172:</strong> {clp(resultado.baseCalculo)}
               {resultado.baseCalculo > TOPE_UF * uf && <span style={{ color:"#c8a84b" }}> — aplicado tope 90 UF ({clp(TOPE_UF * uf)})</span>}
             </Nota>
-
+ 
             {/* Desglose */}
             <div style={{ background:C1, border:`1.5px solid ${B}`, borderRadius:14, overflow:"hidden", marginBottom:16 }}>
               <div style={{ padding:"14px 20px", borderBottom:`1px solid ${B}`, display:"flex", justifyContent:"space-between" }}>
@@ -744,47 +797,47 @@ export default function CalculadoraFiniquito() {
                 <Fila label="Remuneración del período"
                   sub={`${resultado.diasTrabajadosMes} días trabajados en el mes de despido · imponible`}
                   monto={resultado.remPeriodo} />
-
+ 
                 {/* Feriado proporcional */}
                 <Fila label="Feriado proporcional"
                   sub={`${resultado.feriado.totalDiasHabiles.toFixed(1)} días hábiles (${resultado.feriado.diasHabilesAnio} días/año${resultado.feriado.diasProgresivos > 0 ? ` + ${resultado.feriado.diasProgresivos} progresivos` : ""}) · imponible`}
                   monto={resultado.feriado.montoFeriado} />
-
+ 
                 {/* Gratificación proporcional */}
                 {resultado.gratifProporcional > 0 && (
                   <Fila label="Gratificación proporcional"
                     sub={`${form.gratifPropPendiente} mes(es) no pagados · art. 50 · imponible`}
                     monto={resultado.gratifProporcional} />
                 )}
-
+ 
                 {/* Horas extra */}
                 {resultado.horasExtraMonto > 0 && (
                   <Fila label="Horas extra adeudadas"
                     sub={`${form.horasExtra} hrs × valor hora (+50% recargo art. 32) · imponible`}
                     monto={resultado.horasExtraMonto} />
                 )}
-
+ 
                 {/* Otros conceptos */}
                 {resultado.otrosConceptos > 0 && (
                   <Fila label="Otros conceptos adeudados"
                     sub="Bonos, asignaciones u otros pendientes"
                     monto={resultado.otrosConceptos} />
                 )}
-
+ 
                 {/* Indemnización años */}
                 {resultado.indemAnios > 0 && (
                   <Fila label="Indemnización por años de servicio"
                     sub={`${resultado.aniosEfectivos} año(s) × ${clp(Math.min(resultado.baseCalculo, TOPE_UF * uf))} · NO imponible`}
                     monto={resultado.indemAnios} highlight />
                 )}
-
+ 
                 {/* Aviso previo */}
                 {resultado.avisoPrevioMonto > 0 && (
                   <Fila label="Indemnización sustitutiva aviso previo"
                     sub="Empresa no avisó con 30 días · equivale a 1 remuneración · NO imponible"
                     monto={resultado.avisoPrevioMonto} highlight />
                 )}
-
+ 
                 {/* Descuentos */}
                 {resultado.descAfpSalud > 0 && (
                   <Fila label="Descuentos AFP + Salud"
@@ -802,7 +855,7 @@ export default function CalculadoraFiniquito() {
                     monto={resultado.descCIC} negativo />
                 )}
               </div>
-
+ 
               {/* Pie del desglose */}
               <div style={{ padding:"16px 20px", borderTop:`1px solid ${B}`, display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:12 }}>
                 <div><div style={{ fontSize:11, color:T3, marginBottom:3 }}>Total haberes brutos</div><div style={{ fontSize:14, fontWeight:600, color:T2 }}>{clp(resultado.totalHaberes)}</div></div>
@@ -810,7 +863,7 @@ export default function CalculadoraFiniquito() {
                 <div style={{ textAlign:"right" }}><div style={{ fontSize:11, color:T3, marginBottom:3 }}>Líquido estimado</div><div style={{ fontSize:18, fontWeight:800, color:G }}>{clp(resultado.totalLiquido)}</div></div>
               </div>
             </div>
-
+ 
             {/* Alertas contextuales */}
             {form.causal === "160" && (
               <Nota tipo="warn">
@@ -829,10 +882,10 @@ export default function CalculadoraFiniquito() {
             )}
             {resultado.feriado.diasProgresivos > 0 && (
               <Nota tipo="ok">
-                <strong>Vacaciones progresivas incluidas:</strong> con tu antigüedad, corresponden {resultado.feriado.diasProgresivos} día(s) adicional(es) por cada 3 nuevos años sobre los 10 (art. 68 CT).
+                <strong>Vacaciones progresivas incluidas (art. 68 CT):</strong> tienes {resultado.feriado.diasProgresivos} día(s) adicional(es) porque acreditas 10+ años totales de cotizaciones AFP y llevas {antig.anios} año(s) con este empleador (1 día extra por cada 3 años con el mismo empleador).
               </Nota>
             )}
-
+ 
             {/* Reserva de derechos */}
             <div style={{ background:"#071a10", border:"1.5px solid #1e5a35", borderRadius:14, padding:"20px", marginBottom:16 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
@@ -881,7 +934,7 @@ export default function CalculadoraFiniquito() {
                 </div>
               )}
             </div>
-
+ 
             {/* Lead capture */}
             {!leadOk ? (
               <div style={{ background:C1, border:`1.5px solid ${B}`, borderRadius:14, padding:"20px", marginBottom:16 }}>
@@ -906,13 +959,13 @@ export default function CalculadoraFiniquito() {
                 <div style={{ fontSize:13, color:T3 }}>Revisa tu correo en <strong style={{ color:T2 }}>{lead.email}</strong></div>
               </div>
             )}
-
+ 
             <button className="fq-bs" type="button" onClick={resetear} style={{ ...btnS, width:"100%", padding:"13px" }}>
               Hacer un nuevo cálculo
             </button>
           </div>
         )}
-
+ 
         <p style={{ textAlign:"center", fontSize:11, color:T3, marginTop:36, lineHeight:1.8 }}>
           UF: ${uf.toLocaleString("es-CL")} · Código del Trabajo Chile · Actualizado abril 2026 ·{" "}
           <a href="https://dotaciones.cl" style={{ color:G, textDecoration:"none" }}>dotaciones.cl</a><br />
