@@ -1,19 +1,21 @@
 // src/app/sitemap.ts
 //
-// ¿Cómo agregar un post nuevo?
-//   1. Agrega el objeto al array de blog de abajo
-//   2. git push → Vercel regenera el sitemap solo en el build
-//   3. No necesitas tocar Google Search Console (ya apunta a /sitemap.xml)
+// ✅ Sitemap dinámico — se actualiza automáticamente en cada deploy.
+// Los posts del blog se leen directamente desde Notion a través de getBlogPosts().
+// Solo tienes que agregar páginas estáticas nuevas manualmente.
 
 import type { MetadataRoute } from "next";
+import { getBlogPosts } from "@/lib/notion-blog";
+
+export const revalidate = 3600; // revalidar cada hora en producción
 
 const BASE = "https://dotaciones.cl";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
-  return [
-    // ── Páginas principales ──────────────────────────────────────────────
+  // ── Páginas estáticas ─────────────────────────────────────────────────────
+  const paginas: MetadataRoute.Sitemap = [
     {
       url: BASE,
       lastModified: now,
@@ -33,6 +35,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
+      url: `${BASE}/calculadora/finiquito`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.9,
+    },
+    {
       url: `${BASE}/san`,
       lastModified: now,
       changeFrequency: "monthly",
@@ -45,67 +53,33 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.6,
     },
     {
-      url: `${BASE}/contacto`,
-      lastModified: now,
-      changeFrequency: "yearly",
-      priority: 0.5,
-    },
-
-    // ── Blog ─────────────────────────────────────────────────────────────
-    {
       url: `${BASE}/blog`,
       lastModified: now,
       changeFrequency: "weekly",
       priority: 0.8,
     },
-    // ▼ Agrega cada nuevo post aquí, con su fecha real de publicación
     {
-      url: `${BASE}/blog/dictamen-252-20-exclusion-jornada-articulo-22`,
-      lastModified: new Date("2026-04-22"),
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE}/blog/dictamen-253-21-42-horas-implementacion`,
-      lastModified: new Date("2026-04-20"),
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE}/blog/rse-vs-sostenibilidad-empresas-chile`,
-      lastModified: new Date("2026-04-16"),
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE}/blog/factor-reemplazo-dotacion-chile`,
-      lastModified: new Date("2026-04-16"),
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE}/blog/jornada-6x1-retail-chile`,
-      lastModified: new Date("2026-04-18"),
-      changeFrequency: "monthly",
-      priority: 0.7,
-    },
-    {
-      url: `${BASE}/blog/dotacion-hospitalaria-san`,
-      lastModified: new Date("2026-01-25"),
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE}/blog/como-calcular-dotacion-personal`,
-      lastModified: new Date("2026-01-10"),
-      changeFrequency: "monthly",
-      priority: 0.8,
-    },
-    {
-      url: `${BASE}/blog/mix-contratos-jornada-parcial`,
-      lastModified: new Date("2026-01-18"),
-      changeFrequency: "monthly",
-      priority: 0.7,
+      url: `${BASE}/contacto`,
+      lastModified: now,
+      changeFrequency: "yearly",
+      priority: 0.5,
     },
   ];
+
+  // ── Posts del blog (dinámico desde Notion) ────────────────────────────────
+  let posts: MetadataRoute.Sitemap = [];
+  try {
+    const blogPosts = await getBlogPosts();
+    posts = blogPosts.map((post) => ({
+      url: `${BASE}/blog/${post.slug}`,
+      lastModified: post.date ? new Date(post.date) : now,
+      changeFrequency: "monthly" as const,
+      priority: post.featured ? 0.9 : 0.7,
+    }));
+  } catch (error) {
+    // Si Notion falla, el sitemap sigue funcionando con las páginas estáticas
+    console.error("Sitemap: error al obtener posts de Notion:", error);
+  }
+
+  return [...paginas, ...posts];
 }
