@@ -384,8 +384,8 @@ export default function CalculadoraPage() {
   const [flexTolerance,     setFlexTolerance]     = useState(3);
 
   const [contracts, setContracts] = useState<Contract[]>([
-    { id: "1", name: "40h", hoursPerWeek: 40, patterns: ["5x2"] },
-    { id: "2", name: "30h", hoursPerWeek: 30, patterns: ["5x2"] },
+    { id: "1", name: "40h", hoursPerWeek: 40, patterns: ["5x2_lv"] },
+    { id: "2", name: "30h", hoursPerWeek: 30, patterns: ["5x2_lv"] },
     { id: "3", name: "20h", hoursPerWeek: 20, patterns: ["weekend"] },
   ]);
 
@@ -404,7 +404,7 @@ export default function CalculadoraPage() {
     setDays(prev => ({ ...prev, [to]: { ...prev[from] } }));
 
   const addContract = () => setContracts(prev => [...prev,
-    { id: Date.now().toString(), name: "", hoursPerWeek: 30, patterns: ["5x2"] }]);
+    { id: Date.now().toString(), name: "", hoursPerWeek: 30, patterns: ["5x2_lv"] }]);
 
   const updateContract = (id: string, patch: Partial<Contract>) =>
     setContracts(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
