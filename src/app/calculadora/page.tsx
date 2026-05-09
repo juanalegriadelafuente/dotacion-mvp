@@ -75,54 +75,111 @@ const costoEmpresaHora = (monthlyGross: number, h: number) =>
 
 // ─── Selección de 3 opciones distintas ───────────────────────────────────────
 
-function selectThreeOptions(mixes: Mix[], hasCosts: boolean, flexTolerance: number) {
-  const valid = mixes.filter(m => m.sundayOk && m.coverageOk);
+type ThreeOptions = {
+  cheapest:  Mix | null;
+  optimal:   Mix | null;
+  flexible:  Mix | null;
+  // Budget analysis
+  minMonthly:          number | null; // costo mensual mínimo posible
+  budgetSurplus:       number | null; // positivo = sobra, negativo = falta
+  withinBudgetCount:   number;        // cuántos mixes válidos caben en presupuesto
+};
+
+function selectOptions(
+  mixes: Mix[],
+  hasCosts: boolean,
+  flexTolerance: number,
+  targetBudgetMonthly: number | undefined, // CLP/mes objetivo
+): ThreeOptions {
+  const valid = mixes.filter(m => m.coverageOk && m.sundayOk);
   const pool  = valid.length > 0 ? valid
     : mixes.filter(m => m.coverageOk).length > 0 ? mixes.filter(m => m.coverageOk)
     : mixes;
-  if (!pool.length) return { cheapest: null, optimal: null, flexible: null };
 
-  // 1. Más económica
-  const byBudget = hasCosts
+  const empty: ThreeOptions = { cheapest: null, optimal: null, flexible: null,
+    minMonthly: null, budgetSurplus: null, withinBudgetCount: 0 };
+  if (!pool.length) return empty;
+
+  // Ordenar por costo (o horas si sin costos)
+  const sorted = hasCosts
     ? [...pool].filter(m => m.weeklyCost != null).sort((a, b) => (a.weeklyCost ?? 0) - (b.weeklyCost ?? 0))
     : [...pool].sort((a, b) => a.hoursTotal - b.hoursTotal);
-  const cheapest = byBudget[0] ?? pool[0];
+  if (!sorted.length) return empty;
 
-  // 2. Equilibrada: menor holgura, diferente a cheapest
-  const pool2   = pool.filter(m => m.id !== cheapest.id);
-  const optBase = pool2.length > 0 ? pool2 : pool;
+  // Mínimo posible
+  const globalCheapest   = sorted[0];
+  const minWeekly        = hasCosts ? (globalCheapest.weeklyCost ?? null) : null;
+  const minMonthly       = minWeekly != null ? Math.round(minWeekly * WEEKS_PER_MONTH) : null;
+
+  // ── Pool filtrado por presupuesto ──────────────────────────────────────
+  const maxWeekly = targetBudgetMonthly && hasCosts
+    ? (targetBudgetMonthly / WEEKS_PER_MONTH) * (1 + flexTolerance / 100)
+    : null;
+
+  const budgetPool = maxWeekly
+    ? pool.filter(m => (m.weeklyCost ?? Infinity) <= maxWeekly)
+    : pool;
+
+  const budgetSurplus = (targetBudgetMonthly != null && minMonthly != null)
+    ? targetBudgetMonthly - minMonthly
+    : null;
+
+  // Si hay presupuesto y NINGÚN mix cabe → devolver solo la mínima como referencia
+  if (maxWeekly !== null && budgetPool.length === 0) {
+    return { cheapest: globalCheapest, optimal: null, flexible: null,
+      minMonthly, budgetSurplus, withinBudgetCount: 0 };
+  }
+
+  const workPool = budgetPool.length > 0 ? budgetPool : pool;
+
+  // 1. Más económica: la más barata dentro del presupuesto (o global si sin presupuesto)
+  const cheapest = hasCosts
+    ? [...workPool].sort((a, b) => (a.weeklyCost ?? 0) - (b.weeklyCost ?? 0))[0]
+    : [...workPool].sort((a, b) => a.hoursTotal - b.hoursTotal)[0];
+
+  // 2. Equilibrada: menor holgura + mejor cobertura, diferente a cheapest
+  const pool2   = workPool.filter(m => m.id !== cheapest.id);
+  const optBase = pool2.length > 0 ? pool2 : workPool;
   const optimal = optBase.find(m => m.isOptimal)
     ?? [...optBase].sort((a, b) => (a.slackPct * 2 - a.ptShare * 0.5) - (b.slackPct * 2 - b.ptShare * 0.5))[0]
     ?? cheapest;
 
-  // 3. Más flexible: máximo ptShare dentro tolerancia, diferente a las dos anteriores
+  // 3. Más flexible: mayor ptShare dentro del presupuesto + tolerancia extra
   const usedIds  = new Set([cheapest.id, optimal.id]);
-  const baseCost = hasCosts ? (cheapest.weeklyCost ?? 0) : cheapest.hoursTotal;
-  const maxCost  = baseCost * (1 + flexTolerance / 100);
-  const pool3    = pool.filter(m => !usedIds.has(m.id));
-  const p3budget = (hasCosts ? pool3.filter(m => (m.weeklyCost ?? Infinity) <= maxCost)
-    : pool3.filter(m => m.hoursTotal <= maxCost));
-  const flexSrc  = p3budget.length > 0 ? p3budget : pool3.length > 0 ? pool3 : pool;
-  const flexible = [...flexSrc].sort((a, b) => b.ptShare - a.ptShare)[0];
+  const pool3    = workPool.filter(m => !usedIds.has(m.id));
+  const flexible = pool3.length > 0
+    ? [...pool3].sort((a, b) => b.ptShare - a.ptShare)[0]
+    : [...workPool].sort((a, b) => b.ptShare - a.ptShare)[0];
 
-  return { cheapest, optimal, flexible };
+  return {
+    cheapest, optimal, flexible,
+    minMonthly,
+    budgetSurplus,
+    withinBudgetCount: budgetPool.length,
+  };
 }
 
 // ─── Tarjeta de recomendación ─────────────────────────────────────────────────
 
 const clpFmt = (n: number) => "$" + Math.round(n).toLocaleString("es-CL");
 
-function RecommendationCard({ mix, label, icon, accent, hasCosts, cheapestMonthly }: {
+function RecommendationCard({ mix, label, icon, accent, hasCosts, cheapestMonthly, targetBudget }: {
   mix: Mix; label: string; icon: string; accent: boolean;
-  hasCosts: boolean; cheapestMonthly: number | null;
+  hasCosts: boolean; cheapestMonthly: number | null; targetBudget?: number;
 }) {
-  const flex          = Math.round(mix.ptShare * 70 + Math.min(mix.headcount / 20, 1) * 30);
-  const monthlyCost   = (hasCosts && mix.weeklyCost != null)
+  const flex        = Math.round(mix.ptShare * 70 + Math.min(mix.headcount / 20, 1) * 30);
+  const monthlyCost = (hasCosts && mix.weeklyCost != null)
     ? Math.round(mix.weeklyCost * WEEKS_PER_MONTH) : null;
-  const delta         = (monthlyCost != null && cheapestMonthly != null && cheapestMonthly > 0)
+
+  // Delta vs presupuesto objetivo (si se declaró)
+  const vsTarget    = (monthlyCost != null && targetBudget != null && targetBudget > 0)
+    ? monthlyCost - targetBudget : null;
+  // Delta vs mínimo (si no hay presupuesto objetivo)
+  const vsMin       = (monthlyCost != null && cheapestMonthly != null && cheapestMonthly > 0
+    && targetBudget == null)
     ? monthlyCost - cheapestMonthly : null;
-  const deltaPct      = delta != null && cheapestMonthly! > 0
-    ? delta / cheapestMonthly! * 100 : null;
+  const vsMinPct    = vsMin != null && cheapestMonthly! > 0
+    ? vsMin / cheapestMonthly! * 100 : null;
 
   return (
     <div className={`rounded-xl border flex flex-col overflow-hidden ${accent ? "border-blue-300 shadow-sm shadow-blue-100" : "border-slate-200"}`}>
@@ -137,7 +194,6 @@ function RecommendationCard({ mix, label, icon, accent, hasCosts, cheapestMonthl
       </div>
 
       <div className="p-4 flex flex-col gap-4 bg-white flex-1">
-        {/* Headcount + presupuesto */}
         <div className="flex items-end justify-between">
           <div>
             <p className={`text-4xl font-bold mono ${accent ? "text-blue-700" : "text-slate-900"}`}>
@@ -150,12 +206,21 @@ function RecommendationCard({ mix, label, icon, accent, hasCosts, cheapestMonthl
               <>
                 <p className="text-lg font-bold mono text-slate-800">{clpFmt(monthlyCost)}</p>
                 <p className="text-[10px] text-slate-400">costo empresa / mes *</p>
-                {delta != null && delta !== 0 && deltaPct != null && (
-                  <p className={`text-[11px] font-semibold ${delta > 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                    {delta > 0 ? "+" : ""}{clpFmt(delta)}/mes ({deltaPct > 0 ? "+" : ""}{deltaPct.toFixed(1)}%)
+                {/* vs presupuesto objetivo */}
+                {vsTarget != null && (
+                  <p className={`text-[11px] font-semibold ${vsTarget > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                    {vsTarget > 0 ? "+" : ""}{clpFmt(vsTarget)} vs tu presupuesto
                   </p>
                 )}
-                {delta === 0 && <p className="text-[11px] text-emerald-600 font-semibold">= mínimo presupuesto</p>}
+                {/* vs mínimo (cuando no hay presupuesto objetivo) */}
+                {vsMin != null && vsMin !== 0 && vsMinPct != null && (
+                  <p className={`text-[11px] font-semibold ${vsMin > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                    {vsMin > 0 ? "+" : ""}{clpFmt(vsMin)}/mes ({vsMinPct > 0 ? "+" : ""}{vsMinPct.toFixed(1)}%)
+                  </p>
+                )}
+                {vsMin === 0 && targetBudget == null && (
+                  <p className="text-[11px] text-emerald-600 font-semibold">= mínimo posible</p>
+                )}
               </>
             ) : (
               <>
@@ -166,7 +231,6 @@ function RecommendationCard({ mix, label, icon, accent, hasCosts, cheapestMonthl
           </div>
         </div>
 
-        {/* Composición */}
         <div className="space-y-1.5">
           {mix.items.map((item, j) => (
             <div key={j} className="flex items-center justify-between">
@@ -180,7 +244,6 @@ function RecommendationCard({ mix, label, icon, accent, hasCosts, cheapestMonthl
           ))}
         </div>
 
-        {/* Métricas */}
         <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs">
           <div>
             <p className="text-slate-400 mb-0.5">Holgura</p>
@@ -399,6 +462,7 @@ export default function CalculadoraPage() {
 
   const [showGross,  setShowGross]  = useState(false);
   const [useMinWage, setUseMinWage] = useState(false);
+  const [targetBudget, setTargetBudget] = useState<number | undefined>(undefined);
   const [result,     setResult]     = useState<CalcResult | null>(null);
   const [optimizedMix, setOptimizedMix] = useState<Mix | null>(null);
   const [loading,    setLoading]    = useState(false);
@@ -482,7 +546,7 @@ export default function CalculadoraPage() {
     setUserEmail(email);
     setEmailPassed(true);
     if (!result) return;
-    const opts = selectThreeOptions(result.mixes, result.hasCosts, flexTolerance);
+    const opts = selectOptions(result.mixes, result.hasCosts, flexTolerance, targetBudget);
     const mixesArray = [opts.cheapest, opts.optimal, opts.flexible, optimizedMix]
       .filter(Boolean)
       .filter((m, i, arr) => arr.findIndex(x => x?.id === m?.id) === i);
@@ -513,9 +577,8 @@ export default function CalculadoraPage() {
 
   const d = days[activeDay];
   const threeOptions = result && emailPassed
-    ? selectThreeOptions(result.mixes, result.hasCosts, flexTolerance) : null;
-  const cheapestMonthly = threeOptions?.cheapest?.weeklyCost != null
-    ? Math.round(threeOptions.cheapest.weeklyCost * WEEKS_PER_MONTH) : null;
+    ? selectOptions(result.mixes, result.hasCosts, flexTolerance, targetBudget) : null;
+  const cheapestMonthly = threeOptions?.minMonthly ?? null;
 
   return (
     <div className="min-h-screen bg-[#FAFAF7]" style={{ fontFamily: "'Sora', sans-serif" }}>
@@ -678,6 +741,36 @@ export default function CalculadoraPage() {
                     <p className="text-xs text-slate-400">Para servicios sin demanda de fin de semana</p>
                   </div>
                 </label>
+
+                {/* Presupuesto objetivo */}
+                {showGross && (
+                  <div className="pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-medium text-slate-700">
+                        Presupuesto objetivo mensual
+                        <span className="text-slate-400 font-normal ml-1">(opcional)</span>
+                      </label>
+                      {targetBudget != null && (
+                        <button onClick={() => setTargetBudget(undefined)}
+                          className="text-[11px] text-slate-400 hover:text-red-500 transition-colors">
+                          Quitar
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-400">$</span>
+                      <input type="number" min={0} step={100000}
+                        value={targetBudget ?? ""}
+                        onChange={e => setTargetBudget(parseFloat(e.target.value) || undefined)}
+                        placeholder="Ej: 6.000.000"
+                        className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                      <span className="text-xs text-slate-400 shrink-0">CLP/mes</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      El engine buscará mixes que cumplan la demanda dentro de este presupuesto ± tolerancia.
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 
@@ -770,39 +863,89 @@ export default function CalculadoraPage() {
 
             <div className="px-5 py-5">
               {threeOptions.cheapest || threeOptions.optimal || threeOptions.flexible ? (
-                <div className={`grid gap-4 ${optimizedMix ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
-                  {threeOptions.cheapest && (
-                    <RecommendationCard mix={threeOptions.cheapest} label="Más económica" icon="💰"
-                      accent={false} hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly} />
-                  )}
-                  {threeOptions.optimal && (
-                    <RecommendationCard mix={threeOptions.optimal} label="Equilibrada" icon="⚖️"
-                      accent={true} hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly} />
-                  )}
-                  {threeOptions.flexible && (
-                    <RecommendationCard mix={threeOptions.flexible} label="Más flexible" icon="🔄"
-                      accent={false} hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly} />
-                  )}
-                  {optimizedMix && (
-                    <div className="rounded-xl border-2 border-emerald-400 flex flex-col overflow-hidden shadow-sm shadow-emerald-100">
-                      <div className="px-4 py-3 flex items-center justify-between bg-emerald-600">
-                        <div className="flex items-center gap-2">
-                          <span className="text-base">🎯</span>
-                          <span className="text-sm font-semibold text-white">Propuesta optimizada</span>
-                        </div>
-                        <span className="text-[10px] text-white/70">sin restricciones</span>
+                <>
+                  {/* Banner de estado presupuestario */}
+                  {result.hasCosts && targetBudget != null && threeOptions.minMonthly != null && (
+                    <div className={`mb-4 rounded-xl px-4 py-3 flex items-start gap-3 ${
+                      threeOptions.budgetSurplus != null && threeOptions.budgetSurplus >= 0
+                        ? "bg-emerald-50 border border-emerald-200"
+                        : "bg-red-50 border border-red-200"
+                    }`}>
+                      <span className="text-lg flex-shrink-0">
+                        {threeOptions.budgetSurplus != null && threeOptions.budgetSurplus >= 0 ? "✅" : "❌"}
+                      </span>
+                      <div>
+                        {threeOptions.budgetSurplus != null && threeOptions.budgetSurplus >= 0 ? (
+                          <>
+                            <p className="text-sm font-semibold text-emerald-800">
+                              Tu presupuesto de {clpFmt(targetBudget)}/mes es suficiente
+                            </p>
+                            <p className="text-xs text-emerald-700 mt-0.5">
+                              Hay {threeOptions.withinBudgetCount} mix{threeOptions.withinBudgetCount !== 1 ? "es" : ""} válidos dentro del presupuesto.
+                              El mínimo posible es {clpFmt(threeOptions.minMonthly)}/mes —
+                              te sobran {clpFmt(threeOptions.budgetSurplus)}.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-sm font-semibold text-red-800">
+                              Tu presupuesto de {clpFmt(targetBudget)}/mes no alcanza
+                            </p>
+                            <p className="text-xs text-red-700 mt-0.5">
+                              La dotación mínima para cubrir esta demanda requiere {clpFmt(threeOptions.minMonthly)}/mes.
+                              Te faltan {clpFmt(Math.abs(threeOptions.budgetSurplus ?? 0))}.
+                              Abajo ves la opción más barata posible como referencia.
+                            </p>
+                          </>
+                        )}
                       </div>
-                      <div className="p-3 bg-emerald-50 border-b border-emerald-100">
-                        <p className="text-[11px] text-emerald-700 leading-relaxed">
-                          El engine encontró esta combinación explorando todas las jornadas disponibles,
-                          sin las restricciones de patrón que seleccionaste. Podría requerir ajustes operativos.
-                        </p>
-                      </div>
-                      <RecommendationCard mix={optimizedMix} label="" icon=""
-                        accent={false} hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly} />
                     </div>
                   )}
-                </div>
+
+                  <div className={`grid gap-4 ${optimizedMix ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
+                    {threeOptions.cheapest && (
+                      <RecommendationCard mix={threeOptions.cheapest}
+                        label={targetBudget != null ? "Mínimo posible" : "Más económica"}
+                        icon="💰" accent={false}
+                        hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly}
+                        targetBudget={targetBudget} />
+                    )}
+                    {threeOptions.optimal && (
+                      <RecommendationCard mix={threeOptions.optimal}
+                        label={targetBudget != null ? "Mejor dentro del presupuesto" : "Equilibrada"}
+                        icon="⚖️" accent={true}
+                        hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly}
+                        targetBudget={targetBudget} />
+                    )}
+                    {threeOptions.flexible && (
+                      <RecommendationCard mix={threeOptions.flexible}
+                        label={targetBudget != null ? "Más flexible dentro del presupuesto" : "Más flexible"}
+                        icon="🔄" accent={false}
+                        hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly}
+                        targetBudget={targetBudget} />
+                    )}
+                    {optimizedMix && (
+                      <div className="rounded-xl border-2 border-emerald-400 flex flex-col overflow-hidden shadow-sm shadow-emerald-100">
+                        <div className="px-4 py-3 flex items-center justify-between bg-emerald-600">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base">🎯</span>
+                            <span className="text-sm font-semibold text-white">Propuesta optimizada</span>
+                          </div>
+                          <span className="text-[10px] text-white/70">sin restricciones</span>
+                        </div>
+                        <div className="p-3 bg-emerald-50 border-b border-emerald-100">
+                          <p className="text-[11px] text-emerald-700 leading-relaxed">
+                            El engine exploró todas las jornadas disponibles sin las restricciones que seleccionaste.
+                            Podría requerir ajustes operativos.
+                          </p>
+                        </div>
+                        <RecommendationCard mix={optimizedMix} label="" icon=""
+                          accent={false} hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly}
+                          targetBudget={targetBudget} />
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
                 <p className="text-sm text-slate-500">No se encontraron mixes válidos. Revisa los patrones y la demanda configurada.</p>
               )}
