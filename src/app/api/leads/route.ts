@@ -14,12 +14,14 @@ export const dynamic = "force-dynamic";
 // ─── Mapa de source → nombre legible ─────────────────────────────────────────
 
 const SOURCE_LABELS: Record<string, string> = {
-  "calculadora-finiquito":  "Calculadora Finiquito",
-  "calculadora-retail":     "Calculadora Retail",
-  "calculadora-san":        "Calculadora SAN",
-  "blog-san":               "Blog SAN",
-  "blog":                   "Blog",
-  "contacto":               "Formulario Contacto",
+  "calculadora-finiquito":      "Calculadora Finiquito",
+  "calculadora-retail":         "Calculadora Retail",
+  "calculadora_gate":           "Calculadora Retail (gate)",
+  "calculadora_resultados":     "Calculadora Retail (resultados)",
+  "calculadora-san":            "Calculadora SAN",
+  "blog-san":                   "Blog SAN",
+  "blog":                       "Blog",
+  "contacto":                   "Formulario Contacto",
 };
 
 function sourceLabel(source: string): string {
@@ -440,6 +442,28 @@ export async function POST(req: NextRequest) {
     }
 
     // 2b. Flujo dotación (retail / SAN) — análisis IA + Excel + email
+    // Siempre notificar internamente (nuevo lead)
+    try {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "Dotaciones <no-reply@dotaciones.cl>",
+          to: [NOTIFY_EMAIL],
+          subject: `Nuevo lead: ${origenLabel} — ${nombre || email}`,
+          html: `<p style="font-family:Arial;font-size:14px;color:#0f172a;">
+            <strong>${nombre || "Sin nombre"}</strong> (${email})<br>
+            Empresa: ${empresa || "—"}<br>
+            Origen: ${origenLabel}<br>
+            Fecha: ${new Date().toLocaleDateString("es-CL")}
+          </p>`,
+        }),
+      });
+    } catch (e) {
+      console.error("Internal notification failed (non-fatal):", e);
+    }
+
+    // Solo enviar email al usuario si hay resultados + mixes (flujo completo)
     let analisis: string | null = null;
     if (resultados) {
       try {
@@ -453,7 +477,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (analisis && mixes?.length) {
+    if (mixes?.length) {
       try {
         const excelBuffer = await buildExcel(
           mixes,
@@ -469,7 +493,7 @@ export async function POST(req: NextRequest) {
         await sendEmailDotacion({
           to: email,
           nombre: nombre || "",
-          analisis,
+          analisis: analisis || "Análisis no disponible en este momento.",
           calculadora: calculadora || "Retail / Servicios",
           excelBuffer,
           totalMixes: mixes.length,

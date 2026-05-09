@@ -53,8 +53,8 @@ function availablePatterns(hoursPerWeek: number): PatternKey[] {
 }
 
 function defaultPatterns(hoursPerWeek: number): PatternKey[] {
-  if (hoursPerWeek >= 35) return ["5x2_lv"];
-  if (hoursPerWeek >= 25) return ["5x2_lv"];
+  if (hoursPerWeek >= 35) return ["5x2_rot"];
+  if (hoursPerWeek >= 25) return ["5x2_rot"];
   return ["weekend"];
 }
 
@@ -258,13 +258,21 @@ function ContractRow({ contract, showGross, useMinWage, onUpdate, onRemove }: {
         <div className="flex flex-wrap gap-1.5">
           {patterns.map(p => {
             const active = contract.patterns.includes(p);
+            const isLV   = p === "5x2_lv";
             return (
-              <button key={p} onClick={() => togglePattern(p)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all ${
-                  active ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
-                }`}>
-                {PATTERN_INFO[p].label}
-              </button>
+              <div key={p} className="relative group">
+                <button onClick={() => togglePattern(p)}
+                  className={`px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all ${
+                    active ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                  }`}>
+                  {PATTERN_INFO[p].label}
+                </button>
+                {isLV && (
+                  <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-10 w-52 bg-slate-800 text-white text-[10px] rounded-lg px-2.5 py-2 leading-relaxed shadow-lg">
+                    No cubre sábado ni domingo. Solo usar si el negocio cierra fines de semana.
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
@@ -384,8 +392,8 @@ export default function CalculadoraPage() {
   const [flexTolerance,     setFlexTolerance]     = useState(3);
 
   const [contracts, setContracts] = useState<Contract[]>([
-    { id: "1", name: "40h", hoursPerWeek: 40, patterns: ["5x2_lv"] },
-    { id: "2", name: "30h", hoursPerWeek: 30, patterns: ["5x2_lv"] },
+    { id: "1", name: "40h", hoursPerWeek: 40, patterns: ["5x2_rot"] },
+    { id: "2", name: "30h", hoursPerWeek: 30, patterns: ["5x2_rot"] },
     { id: "3", name: "20h", hoursPerWeek: 20, patterns: ["weekend"] },
   ]);
 
@@ -404,7 +412,7 @@ export default function CalculadoraPage() {
     setDays(prev => ({ ...prev, [to]: { ...prev[from] } }));
 
   const addContract = () => setContracts(prev => [...prev,
-    { id: Date.now().toString(), name: "", hoursPerWeek: 30, patterns: ["5x2_lv"] }]);
+    { id: Date.now().toString(), name: "", hoursPerWeek: 30, patterns: ["5x2_rot"] }]);
 
   const updateContract = (id: string, patch: Partial<Contract>) =>
     setContracts(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
@@ -463,15 +471,8 @@ export default function CalculadoraPage() {
               : [...validOpt].sort((a, b) => a.hoursTotal - b.hoursTotal)[0])
           : null;
 
-        // Mostrar solo si mejora ≥1% vs la opción más económica del usuario
-        const userPool  = mainResult.mixes.filter(m => m.coverageOk && m.sundayOk);
-        const userBest  = optResult.hasCosts
-          ? [...userPool].sort((a, b) => (a.weeklyCost ?? 0) - (b.weeklyCost ?? 0))[0]
-          : [...userPool].sort((a, b) => a.hoursTotal - b.hoursTotal)[0];
-        const isBetter  = bestOpt && userBest && (optResult.hasCosts
-          ? (bestOpt.weeklyCost ?? 0) < (userBest.weeklyCost ?? Infinity) * 0.99
-          : bestOpt.hoursTotal < (userBest?.hoursTotal ?? Infinity));
-        setOptimizedMix(isBetter ? bestOpt! : null);
+        // Propuesta optimizada: siempre mostrar (es el valor diferencial)
+        setOptimizedMix(bestOpt ?? null);
       } catch (e) { console.error(e); }
       setLoading(false);
     }, 50);
@@ -481,13 +482,31 @@ export default function CalculadoraPage() {
     setUserEmail(email);
     setEmailPassed(true);
     if (!result) return;
+    const opts = selectThreeOptions(result.mixes, result.hasCosts, flexTolerance);
+    const mixesArray = [opts.cheapest, opts.optimal, opts.flexible, optimizedMix]
+      .filter(Boolean)
+      .filter((m, i, arr) => arr.findIndex(x => x?.id === m?.id) === i);
     try {
       await fetch("/api/leads", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre, email, empresa, source: "calculadora_resultados",
-          sector: "Retail", resultados: { requiredHours: result.requiredHours,
-            fteAdjusted: result.fteAdjusted, totalMixes: result.totalMixes,
-            recomendaciones: selectThreeOptions(result.mixes, result.hasCosts, flexTolerance) } }),
+        body: JSON.stringify({
+          nombre, email, empresa,
+          source:      "calculadora-retail",
+          calculadora: "Retail",
+          sector:      "Retail / Servicios",
+          hasCosts:    result.hasCosts,
+          mixes:       mixesArray,
+          resultados: {
+            requiredHours:         result.requiredHours,
+            requiredHoursAdjusted: result.requiredHoursAdjusted,
+            fte:                   result.fte,
+            fteAdjusted:           result.fteAdjusted,
+            replacementFactor:     result.replacementFactor,
+            totalMixes:            result.totalMixes,
+            recomendaciones:       opts,
+            propuestaOptimizada:   optimizedMix ?? null,
+          },
+        }),
       });
     } catch (_) {}
   };
