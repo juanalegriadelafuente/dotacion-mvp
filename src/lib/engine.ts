@@ -97,20 +97,24 @@ type Jornada = {
 };
 
 const JORNADAS: Jornada[] = [
-  { id: "J_5X2",        name: "5×2",                       sundayAvailability: 0.20,  eligibleDays: "all",      maxHours: 44 },
-  { id: "J_6X1",        name: "6×1 (rotativo)",             sundayAvailability: 0.143, eligibleDays: "all",      maxHours: 44 },
+  { id: "J_5X2",        name: "5×2 rot. (cualquier día)",   sundayAvailability: 0.20,  eligibleDays: "all",      maxHours: 40 },
+  { id: "J_5X2_LV",     name: "5×2 L-V (fijo)",            sundayAvailability: 0.0,   eligibleDays: "weekdays", maxHours: 40 },
+  { id: "J_6X1",        name: "6×1 (rotativo)",             sundayAvailability: 0.143, eligibleDays: "all",      maxHours: 40 },
   { id: "J_4X3",        name: "4×3 (concentrada)",          sundayAvailability: 0.25,  eligibleDays: "all",      maxHours: 40 },
   { id: "J_PT_WEEKEND", name: "PT fin de semana (Sáb+Dom)", sundayAvailability: 1.0,   eligibleDays: "weekend",  maxHours: 20 },
   { id: "J_PT_WEEKDAY", name: "PT días de semana (L–V)",    sundayAvailability: 0.0,   eligibleDays: "weekdays", maxHours: 20 },
 ];
 
 function jornadasParaContrato(h: number, ptOk: boolean, hasSun: boolean): Jornada[] {
-  if (h > 44) return [JORNADAS.find(j => j.id === "J_5X2")!];
+  if (h > 40) return [JORNADAS.find(j => j.id === "J_5X2_LV")!]; // >40h solo L-V fijo
 
   if (h > 20) {
-    const out: Jornada[] = [JORNADAS.find(j => j.id === "J_5X2")!];
-    if (h <= 44) out.push(JORNADAS.find(j => j.id === "J_6X1")!);
-    if (h <= 40) out.push(JORNADAS.find(j => j.id === "J_4X3")!);
+    const out: Jornada[] = [
+      JORNADAS.find(j => j.id === "J_5X2")!,     // rot. cualquier día
+      JORNADAS.find(j => j.id === "J_5X2_LV")!,  // L-V fijo
+      JORNADAS.find(j => j.id === "J_6X1")!,
+      JORNADAS.find(j => j.id === "J_4X3")!,
+    ];
     return out;
   }
 

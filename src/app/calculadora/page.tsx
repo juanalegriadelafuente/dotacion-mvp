@@ -14,16 +14,6 @@ const MIN_WAGE_40H    = 539000;   // CLP bruto/mes
 const EMPLOYER_RATE   = 0.0482;   // SIS 1.49% + Mutual ~0.93% + Seg.Cesantía emp. 2.40%
 const WEEKS_PER_MONTH = 52 / 12;  // 4.333
 
-// Mapeo de patrones UI → IDs de jornada del engine
-const PATTERN_TO_JORNADA: Record<PatternKey, string> = {
-  "5x2":     "J_5X2",
-  "6x1":     "J_6X1",
-  "4x3":     "J_4X3",
-  "weekend": "J_PT_WEEKEND",
-  "5pt":     "J_PT_WEEKDAY",
-  "3days":   "J_PT_WEEKDAY",  // aproximación: 3 días de semana
-};
-
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 type DayConfig = {
@@ -33,26 +23,38 @@ type DayConfig = {
   overlapMinutes: number;
 };
 
-type PatternKey = "5x2" | "6x1" | "4x3" | "3days" | "weekend" | "5pt";
+type PatternKey = "5x2_rot" | "5x2_lv" | "6x1" | "4x3" | "3days" | "weekend" | "5pt";
 
 const PATTERN_INFO: Record<PatternKey, { label: string; short: string; daysPerCycle: number }> = {
-  "5x2":     { label: "5×2 — L a V",       short: "5×2",   daysPerCycle: 5 },
-  "6x1":     { label: "6×1 — rotativo",     short: "6×1",   daysPerCycle: 6 },
-  "4x3":     { label: "4×3 — rotativo",     short: "4×3",   daysPerCycle: 4 },
-  "3days":   { label: "3 días / semana",     short: "3días", daysPerCycle: 3 },
-  "weekend": { label: "Fin de semana (S+D)", short: "S+D",   daysPerCycle: 2 },
-  "5pt":     { label: "5 días parciales",    short: "5días", daysPerCycle: 5 },
+  "5x2_rot": { label: "5×2 — rot. (cualquier día)", short: "5×2 rot", daysPerCycle: 5 },
+  "5x2_lv":  { label: "5×2 — L a V (fijo)",        short: "5×2 L-V", daysPerCycle: 5 },
+  "6x1":     { label: "6×1 — rotativo",             short: "6×1",     daysPerCycle: 6 },
+  "4x3":     { label: "4×3 — rotativo",             short: "4×3",     daysPerCycle: 4 },
+  "3days":   { label: "3 días / semana",             short: "3días",   daysPerCycle: 3 },
+  "weekend": { label: "Fin de semana (S+D)",         short: "S+D",     daysPerCycle: 2 },
+  "5pt":     { label: "5 días parciales",            short: "5días",   daysPerCycle: 5 },
+};
+
+// Mapeo de patrones UI → IDs de jornada del engine
+const PATTERN_TO_JORNADA: Record<PatternKey, string> = {
+  "5x2_rot": "J_5X2",
+  "5x2_lv":  "J_5X2_LV",
+  "6x1":     "J_6X1",
+  "4x3":     "J_4X3",
+  "weekend": "J_PT_WEEKEND",
+  "5pt":     "J_PT_WEEKDAY",
+  "3days":   "J_PT_WEEKDAY",
 };
 
 function availablePatterns(hoursPerWeek: number): PatternKey[] {
-  if (hoursPerWeek >= 35) return ["5x2", "6x1", "4x3"];
-  if (hoursPerWeek >= 25) return ["5x2", "6x1", "4x3", "3days"];
-  return ["5x2", "4x3", "3days", "weekend", "5pt"];
+  if (hoursPerWeek >= 35) return ["5x2_rot", "5x2_lv", "6x1", "4x3"];
+  if (hoursPerWeek >= 25) return ["5x2_rot", "5x2_lv", "6x1", "4x3", "3days"];
+  return ["5x2_rot", "5x2_lv", "4x3", "3days", "weekend", "5pt"];
 }
 
 function defaultPatterns(hoursPerWeek: number): PatternKey[] {
-  if (hoursPerWeek >= 35) return ["5x2"];
-  if (hoursPerWeek >= 25) return ["5x2"];
+  if (hoursPerWeek >= 35) return ["5x2_lv"];
+  if (hoursPerWeek >= 25) return ["5x2_lv"];
   return ["weekend"];
 }
 
@@ -390,6 +392,7 @@ export default function CalculadoraPage() {
   const [showGross,  setShowGross]  = useState(false);
   const [useMinWage, setUseMinWage] = useState(false);
   const [result,     setResult]     = useState<CalcResult | null>(null);
+  const [optimizedMix, setOptimizedMix] = useState<Mix | null>(null);
   const [loading,    setLoading]    = useState(false);
   const [emailPassed, setEmailPassed] = useState(false);
   const [userEmail,   setUserEmail]   = useState("");
@@ -413,38 +416,63 @@ export default function CalculadoraPage() {
     setLoading(true);
     setEmailPassed(false);
     setResult(null);
+    setOptimizedMix(null);
     setTimeout(() => {
       const hasGross = showGross && (useMinWage || contracts.some(c => c.monthlyGross != null));
 
+      const baseContracts = contracts
+        .filter(c => c.hoursPerWeek > 0 && c.name && c.patterns.length > 0)
+        .map(c => {
+          const gross  = useMinWage ? minWageForHours(c.hoursPerWeek) : c.monthlyGross;
+          const costPH = (hasGross && gross && gross > 0)
+            ? costoEmpresaHora(gross, c.hoursPerWeek) : undefined;
+          const allowedJornadaIds = c.patterns
+            .map(p => PATTERN_TO_JORNADA[p])
+            .filter((v, i, a) => v && a.indexOf(v) === i);
+          return {
+            name: c.name, hoursPerWeek: c.hoursPerWeek, costPerHour: costPH,
+            allowedJornadaIds: allowedJornadaIds.length > 0 ? allowedJornadaIds : undefined,
+          };
+        });
+
+      const dayInput = Object.fromEntries(DAY_KEYS.map(k => {
+        const d = days[k];
+        const { peak, hoursOpen } = computeStats(d.slots);
+        return [k, { open: d.open, hoursOpen: hoursOpen > 0 ? hoursOpen : 0,
+          requiredPeople: peak, shiftsPerDay: 1,
+          overlapMinutes: d.overlapMinutes, breakMinutes: d.breakMinutes }];
+      })) as CalcInput["days"];
+
       const input: CalcInput = {
-        fullHoursPerWeek: fullHours,
-        replacementFactor,
-        ptWeekdaysAllowed: ptWeekdays,
-        contracts: contracts
-          .filter(c => c.hoursPerWeek > 0 && c.name && c.patterns.length > 0)
-          .map(c => {
-            const gross   = useMinWage ? minWageForHours(c.hoursPerWeek) : c.monthlyGross;
-            const costPH  = (hasGross && gross && gross > 0)
-              ? costoEmpresaHora(gross, c.hoursPerWeek) : undefined;
-            const allowedJornadaIds = c.patterns
-              .map(p => PATTERN_TO_JORNADA[p])
-              .filter((v, i, a) => v && a.indexOf(v) === i); // dedup
-            return {
-              name: c.name,
-              hoursPerWeek: c.hoursPerWeek,
-              costPerHour: costPH,
-              allowedJornadaIds: allowedJornadaIds.length > 0 ? allowedJornadaIds : undefined,
-            };
-          }),
-        days: Object.fromEntries(DAY_KEYS.map(k => {
-          const d = days[k];
-          const { peak, hoursOpen } = computeStats(d.slots);
-          return [k, { open: d.open, hoursOpen: hoursOpen > 0 ? hoursOpen : 0,
-            requiredPeople: peak, shiftsPerDay: 1,
-            overlapMinutes: d.overlapMinutes, breakMinutes: d.breakMinutes }];
-        })) as CalcInput["days"],
+        fullHoursPerWeek: fullHours, replacementFactor,
+        ptWeekdaysAllowed: ptWeekdays, contracts: baseContracts, days: dayInput,
       };
-      try { setResult(calculate(input)); } catch (e) { console.error(e); }
+
+      try {
+        const mainResult = calculate(input);
+        setResult(mainResult);
+
+        // Cálculo optimizado: mismos contratos, sin restricción de patrón
+        // Busca la opción más barata posible con total libertad de jornadas
+        const freeContracts = baseContracts.map(c => ({ ...c, allowedJornadaIds: undefined }));
+        const optResult = calculate({ ...input, contracts: freeContracts, ptWeekdaysAllowed: true });
+        const validOpt  = optResult.mixes.filter(m => m.coverageOk && m.sundayOk);
+        const bestOpt   = validOpt.length > 0
+          ? (optResult.hasCosts
+              ? [...validOpt].sort((a, b) => (a.weeklyCost ?? 0) - (b.weeklyCost ?? 0))[0]
+              : [...validOpt].sort((a, b) => a.hoursTotal - b.hoursTotal)[0])
+          : null;
+
+        // Mostrar solo si mejora ≥1% vs la opción más económica del usuario
+        const userPool  = mainResult.mixes.filter(m => m.coverageOk && m.sundayOk);
+        const userBest  = optResult.hasCosts
+          ? [...userPool].sort((a, b) => (a.weeklyCost ?? 0) - (b.weeklyCost ?? 0))[0]
+          : [...userPool].sort((a, b) => a.hoursTotal - b.hoursTotal)[0];
+        const isBetter  = bestOpt && userBest && (optResult.hasCosts
+          ? (bestOpt.weeklyCost ?? 0) < (userBest.weeklyCost ?? Infinity) * 0.99
+          : bestOpt.hoursTotal < (userBest?.hoursTotal ?? Infinity));
+        setOptimizedMix(isBetter ? bestOpt! : null);
+      } catch (e) { console.error(e); }
       setLoading(false);
     }, 50);
   };
@@ -723,7 +751,7 @@ export default function CalculadoraPage() {
 
             <div className="px-5 py-5">
               {threeOptions.cheapest || threeOptions.optimal || threeOptions.flexible ? (
-                <div className="grid md:grid-cols-3 gap-4">
+                <div className={`grid gap-4 ${optimizedMix ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
                   {threeOptions.cheapest && (
                     <RecommendationCard mix={threeOptions.cheapest} label="Más económica" icon="💰"
                       accent={false} hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly} />
@@ -735,6 +763,25 @@ export default function CalculadoraPage() {
                   {threeOptions.flexible && (
                     <RecommendationCard mix={threeOptions.flexible} label="Más flexible" icon="🔄"
                       accent={false} hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly} />
+                  )}
+                  {optimizedMix && (
+                    <div className="rounded-xl border-2 border-emerald-400 flex flex-col overflow-hidden shadow-sm shadow-emerald-100">
+                      <div className="px-4 py-3 flex items-center justify-between bg-emerald-600">
+                        <div className="flex items-center gap-2">
+                          <span className="text-base">🎯</span>
+                          <span className="text-sm font-semibold text-white">Propuesta optimizada</span>
+                        </div>
+                        <span className="text-[10px] text-white/70">sin restricciones</span>
+                      </div>
+                      <div className="p-3 bg-emerald-50 border-b border-emerald-100">
+                        <p className="text-[11px] text-emerald-700 leading-relaxed">
+                          El engine encontró esta combinación explorando todas las jornadas disponibles,
+                          sin las restricciones de patrón que seleccionaste. Podría requerir ajustes operativos.
+                        </p>
+                      </div>
+                      <RecommendationCard mix={optimizedMix} label="" icon=""
+                        accent={false} hasCosts={result.hasCosts} cheapestMonthly={cheapestMonthly} />
+                    </div>
                   )}
                 </div>
               ) : (
