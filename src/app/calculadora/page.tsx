@@ -32,178 +32,227 @@ function makeDefaultDay(open: boolean): DayConfig {
   return { open, slots: Array(48).fill(0), breakMinutes: 30, overlapMinutes: 30 };
 }
 
-// ─── Selección de 4 mixes destacados ─────────────────────────────────────────
+// ─── Selección de 3 recomendaciones ──────────────────────────────────────────
 
-function selectFeatured(mixes: Mix[], hasCosts: boolean) {
-  const ok  = mixes.filter(m => m.sundayOk && m.coverageOk);
-  const all = ok.length > 0 ? ok : mixes.filter(m => m.coverageOk).length > 0 ? mixes.filter(m => m.coverageOk) : mixes;
+function selectThreeOptions(mixes: Mix[], hasCosts: boolean, flexTolerance: number) {
+  const valid = mixes.filter(m => m.sundayOk && m.coverageOk);
+  const pool  = valid.length > 0 ? valid : mixes.filter(m => m.coverageOk).length > 0
+    ? mixes.filter(m => m.coverageOk)
+    : mixes;
+  if (!pool.length) return { cheapest: null, optimal: null, flexible: null };
 
-  const optimal  = all.find(m => m.isOptimal) ?? all[0] ?? null;
-  const cheapest = hasCosts
-    ? (all.find(m => m.isCheapest) ?? [...all].filter(m => m.weeklyCost != null).sort((a, b) => (a.weeklyCost ?? 0) - (b.weeklyCost ?? 0))[0] ?? null)
-    : null;
-  const leanest  = [...all].sort((a, b) => a.slackPct - b.slackPct)[0] ?? null;
-  const mostFull = [...all].sort((a, b) => a.ptShare - b.ptShare)[0] ?? null;
+  // 1. Más económica: menor costo total (o menos horas si no hay costos)
+  const byBudget = hasCosts
+    ? [...pool].filter(m => m.weeklyCost != null).sort((a, b) => (a.weeklyCost ?? 0) - (b.weeklyCost ?? 0))
+    : [...pool].sort((a, b) => a.hoursTotal - b.hoursTotal);
+  const cheapest = byBudget[0] ?? pool[0];
 
-  return { optimal, cheapest, leanest, mostFull };
+  // 2. Óptima: la marcada por el engine, o la que mejor equilibra holgura vs cobertura
+  const optimal = pool.find(m => m.isOptimal)
+    ?? [...pool].sort((a, b) => a.slackPct - b.slackPct)[0]
+    ?? cheapest;
+
+  // 3. Más flexible: mayor ptShare dentro de la tolerancia presupuestaria
+  const baseBudget = hasCosts ? (cheapest?.weeklyCost ?? 0) : (cheapest?.hoursTotal ?? 0);
+  const maxBudget  = baseBudget * (1 + flexTolerance / 100);
+  const flexPool   = hasCosts
+    ? pool.filter(m => (m.weeklyCost ?? Infinity) <= maxBudget)
+    : pool.filter(m => m.hoursTotal <= maxBudget);
+  const flexible = [...(flexPool.length ? flexPool : pool)].sort((a, b) => b.ptShare - a.ptShare)[0];
+
+  return { cheapest, optimal, flexible };
 }
 
-// ─── Tarjeta de mix ───────────────────────────────────────────────────────────
+function flexibilityScore(mix: Mix): number {
+  // 0–100: más alto = más flexible operacionalmente
+  return Math.round(mix.ptShare * 70 + (mix.headcount > 1 ? Math.min(mix.headcount / 10, 1) * 30 : 0));
+}
 
-function MixCard({ mix, label, accent, hasCosts }: {
-  mix: Mix; label: string; accent: boolean; hasCosts: boolean;
+// ─── Tarjeta de recomendación ─────────────────────────────────────────────────
+
+function RecommendationCard({
+  mix, label, icon, accent, hasCosts, baseWeeklyCost,
+}: {
+  mix: Mix;
+  label: string;
+  icon: string;
+  accent: boolean;
+  hasCosts: boolean;
+  baseWeeklyCost: number | null;
 }) {
+  const flex   = flexibilityScore(mix);
+  const budget = hasCosts && mix.weeklyCost != null ? mix.weeklyCost : null;
+  const deltaVsBase = (budget != null && baseWeeklyCost != null && baseWeeklyCost > 0)
+    ? ((budget - baseWeeklyCost) / baseWeeklyCost * 100)
+    : null;
+
   return (
-    <div className={`rounded-xl border p-4 flex flex-col gap-3 ${accent ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white"}`}>
-      <div className="flex items-start justify-between">
-        <div>
-          <p className={`text-xs font-semibold ${accent ? "text-blue-700" : "text-slate-500"}`}>{label}</p>
-          <p className="text-xs text-slate-400 mt-0.5">{mix.sundayOk ? "✅ domingo cubierto" : "⚠️ domingo ajustado"}</p>
+    <div className={`rounded-xl border flex flex-col gap-0 overflow-hidden ${
+      accent ? "border-blue-300 shadow-sm shadow-blue-100" : "border-slate-200"
+    }`}>
+      {/* Header */}
+      <div className={`px-4 py-3 flex items-center justify-between ${accent ? "bg-blue-600" : "bg-slate-800"}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{icon}</span>
+          <span className="text-sm font-semibold text-white">{label}</span>
         </div>
-        <div className="text-right">
-          <p className={`text-2xl font-bold mono ${accent ? "text-blue-700" : "text-slate-800"}`}>{mix.headcount}</p>
-          <p className="text-xs text-slate-400">personas</p>
-        </div>
+        {mix.sundayOk
+          ? <span className="text-[10px] text-white/70">✓ domingo OK</span>
+          : <span className="text-[10px] text-amber-300">⚠ domingo ajustado</span>}
       </div>
 
-      <div className="space-y-1.5">
-        {mix.items.map((item, j) => (
-          <div key={j} className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${accent ? "bg-blue-500" : "bg-slate-400"}`} />
-              <span className="text-xs text-slate-700 font-medium">{item.contractName}</span>
-              <span className="text-xs text-slate-400 mono">{item.jornadaName}</span>
-            </div>
-            <span className={`text-xs font-bold mono ${accent ? "text-blue-700" : "text-slate-700"}`}>×{item.count}</span>
-          </div>
-        ))}
-      </div>
-
-      <div className={`pt-3 border-t ${accent ? "border-blue-100" : "border-slate-100"} grid grid-cols-2 gap-2 text-xs`}>
-        <div>
-          <p className="text-slate-400">Total horas</p>
-          <p className="mono font-semibold text-slate-700">{mix.hoursTotal}h</p>
-        </div>
-        <div>
-          <p className="text-slate-400">Holgura</p>
-          <p className={`mono font-semibold ${mix.slackPct > 0.25 ? "text-amber-600" : "text-slate-700"}`}>
-            {mix.slackHours}h ({Math.round(mix.slackPct * 100)}%)
-          </p>
-        </div>
-        {hasCosts && mix.weeklyCost != null && (
-          <>
-            <div>
-              <p className="text-slate-400">Costo/sem</p>
-              <p className="mono font-semibold text-slate-700">${mix.weeklyCost.toLocaleString("es-CL")}</p>
-            </div>
-            <div>
-              <p className="text-slate-400">% PT</p>
-              <p className="mono font-semibold text-slate-700">{Math.round(mix.ptShare * 100)}%</p>
-            </div>
-          </>
-        )}
-        {!hasCosts && (
+      <div className="p-4 flex flex-col gap-4 bg-white flex-1">
+        {/* Headcount destacado */}
+        <div className="flex items-end justify-between">
           <div>
-            <p className="text-slate-400">% PT</p>
+            <p className={`text-4xl font-bold mono ${accent ? "text-blue-700" : "text-slate-900"}`}>
+              {mix.headcount}
+            </p>
+            <p className="text-xs text-slate-400">personas</p>
+          </div>
+          {/* Presupuesto */}
+          <div className="text-right">
+            {budget != null ? (
+              <>
+                <p className="text-base font-semibold mono text-slate-800">
+                  ${budget.toLocaleString("es-CL")}
+                </p>
+                <p className="text-[10px] text-slate-400">costo empresa / sem</p>
+                {deltaVsBase != null && deltaVsBase !== 0 && (
+                  <p className={`text-[10px] font-medium ${deltaVsBase > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                    {deltaVsBase > 0 ? "+" : ""}{deltaVsBase.toFixed(1)}% vs. mínimo
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="text-base font-semibold mono text-slate-800">{mix.hoursTotal}h</p>
+                <p className="text-[10px] text-slate-400">horas / sem</p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Composición */}
+        <div className="space-y-1.5">
+          {mix.items.map((item, j) => (
+            <div key={j} className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${accent ? "bg-blue-500" : "bg-slate-400"}`} />
+                <span className="text-xs text-slate-700 font-medium">{item.contractName}</span>
+                <span className="text-xs text-slate-400 mono">{item.jornadaName}</span>
+              </div>
+              <span className={`text-xs font-bold mono ${accent ? "text-blue-700" : "text-slate-700"}`}>×{item.count}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Métricas */}
+        <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-3 text-xs">
+          <div>
+            <p className="text-slate-400 mb-0.5">Holgura</p>
+            <p className={`mono font-semibold ${mix.slackPct > 0.25 ? "text-amber-600" : "text-slate-700"}`}>
+              {mix.slackHours}h ({Math.round(mix.slackPct * 100)}%)
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-400 mb-0.5">Flexibilidad</p>
+            <div className="flex items-center gap-1.5">
+              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${flex >= 60 ? "bg-emerald-500" : flex >= 35 ? "bg-blue-500" : "bg-slate-400"}`}
+                  style={{ width: `${flex}%` }}
+                />
+              </div>
+              <span className={`font-semibold mono ${flex >= 60 ? "text-emerald-600" : flex >= 35 ? "text-blue-600" : "text-slate-500"}`}>
+                {flex}
+              </span>
+            </div>
+          </div>
+          <div>
+            <p className="text-slate-400 mb-0.5">% Part-time</p>
             <p className="mono font-semibold text-slate-700">{Math.round(mix.ptShare * 100)}%</p>
           </div>
-        )}
+          <div>
+            <p className="text-slate-400 mb-0.5">Total horas</p>
+            <p className="mono font-semibold text-slate-700">{mix.hoursTotal}h</p>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── Tabla completa ───────────────────────────────────────────────────────────
+// ─── Gate de email ─────────────────────────────────────────────────────────────
 
-type SortKey = "headcount" | "slackPct" | "weeklyCost" | "ptShare";
+function EmailGate({ onSubmit }: { onSubmit: (email: string, nombre: string, empresa: string) => void }) {
+  const [email,   setEmail]   = useState("");
+  const [nombre,  setNombre]  = useState("");
+  const [empresa, setEmpresa] = useState("");
+  const [loading, setLoading] = useState(false);
 
-function MixTable({ mixes, hasCosts }: { mixes: Mix[]; hasCosts: boolean }) {
-  const [sortKey, setSortKey] = useState<SortKey>("headcount");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-
-  function toggleSort(key: SortKey) {
-    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
-    else { setSortKey(key); setSortDir("asc"); }
-  }
-
-  const sorted = [...mixes].sort((a, b) => {
-    const av = (a[sortKey] ?? Infinity) as number;
-    const bv = (b[sortKey] ?? Infinity) as number;
-    return sortDir === "asc" ? av - bv : bv - av;
-  });
-
-  function SortBtn({ col, label }: { col: SortKey; label: string }) {
-    const active = sortKey === col;
-    return (
-      <button onClick={() => toggleSort(col)}
-        className={`flex items-center gap-1 text-xs font-medium transition-colors ${active ? "text-blue-600" : "text-slate-500 hover:text-slate-700"}`}>
-        {label}
-        <span className="mono">{active ? (sortDir === "asc" ? "↑" : "↓") : "↕"}</span>
-      </button>
-    );
-  }
+  const handleSubmit = async () => {
+    if (!email) return;
+    setLoading(true);
+    // Guardamos el lead antes de mostrar resultados
+    try {
+      await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nombre, email, empresa, source: "calculadora_gate" }),
+      });
+    } catch (_) { /* no bloquear si falla */ }
+    onSubmit(email, nombre, empresa);
+    setLoading(false);
+  };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200">
-      <table className="w-full text-xs border-collapse">
-        <thead>
-          <tr className="bg-slate-50 border-b border-slate-200">
-            <th className="px-4 py-3 text-left"><SortBtn col="headcount" label="Personas" /></th>
-            <th className="px-4 py-3 text-left text-slate-500 font-medium">Composición</th>
-            <th className="px-4 py-3 text-left text-slate-500 font-medium">Domingo</th>
-            <th className="px-4 py-3 text-left"><SortBtn col="slackPct" label="Holgura" /></th>
-            <th className="px-4 py-3 text-left"><SortBtn col="ptShare" label="% PT" /></th>
-            {hasCosts && <th className="px-4 py-3 text-left"><SortBtn col="weeklyCost" label="Costo/sem" /></th>}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((mix, i) => (
-            <tr key={mix.id}
-              className={`border-b border-slate-100 transition-colors hover:bg-slate-50 ${
-                mix.isOptimal ? "bg-blue-50/60" : i % 2 === 0 ? "bg-white" : "bg-slate-50/30"
-              }`}>
-              <td className="px-4 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold mono text-slate-800">{mix.headcount}</span>
-                  {mix.isOptimal && <span className="text-[10px] font-semibold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">óptimo</span>}
-                  {mix.isCheapest && <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">más barato</span>}
-                </div>
-              </td>
-              <td className="px-4 py-2.5">
-                <div className="flex flex-wrap gap-1">
-                  {mix.items.map((it, j) => (
-                    <span key={j} className="inline-flex items-center gap-1 text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
-                      <span className="font-semibold mono">×{it.count}</span>
-                      <span>{it.contractName}</span>
-                      <span className="text-slate-400">{it.jornadaName}</span>
-                    </span>
-                  ))}
-                </div>
-              </td>
-              <td className="px-4 py-2.5">
-                {mix.sundayOk
-                  ? <span className="text-emerald-600 font-medium">✓ OK</span>
-                  : <span className="text-amber-600 font-medium">⚠ Ajustado</span>}
-              </td>
-              <td className="px-4 py-2.5">
-                <span className={`mono font-medium ${mix.slackPct > 0.25 ? "text-amber-600" : "text-slate-700"}`}>
-                  {mix.slackHours}h ({Math.round(mix.slackPct * 100)}%)
-                </span>
-              </td>
-              <td className="px-4 py-2.5">
-                <span className="mono text-slate-700">{Math.round(mix.ptShare * 100)}%</span>
-              </td>
-              {hasCosts && (
-                <td className="px-4 py-2.5">
-                  <span className="mono text-slate-700">
-                    {mix.weeklyCost != null ? `$${mix.weeklyCost.toLocaleString("es-CL")}` : "—"}
-                  </span>
-                </td>
-              )}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="mt-6 border border-blue-200 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50 to-white">
+      <div className="px-6 py-5 border-b border-blue-100">
+        <p className="text-sm font-semibold text-slate-800">Tu dotación está lista</p>
+        <p className="text-xs text-slate-500 mt-1">
+          Ingresa tu email para ver las 3 recomendaciones de mix, presupuesto y flexibilidad.
+          También te las enviamos para que las tengas guardadas.
+        </p>
+      </div>
+      <div className="px-6 py-5 space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Nombre</label>
+            <input type="text" value={nombre} onChange={e => setNombre(e.target.value)}
+              placeholder="Tu nombre"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Empresa</label>
+            <input type="text" value={empresa} onChange={e => setEmpresa(e.target.value)}
+              placeholder="Tu empresa"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">
+            Email <span className="text-blue-500">*</span>
+          </label>
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+            placeholder="tu@empresa.cl"
+            onKeyDown={e => e.key === "Enter" && handleSubmit()}
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <button onClick={handleSubmit} disabled={!email || loading}
+          className="w-full py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+          {loading ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+              Cargando…
+            </>
+          ) : "Ver mis recomendaciones →"}
+        </button>
+        <p className="text-[11px] text-slate-400 text-center">Sin spam. Solo tus resultados.</p>
+      </div>
     </div>
   );
 }
@@ -219,32 +268,22 @@ export default function CalculadoraPage() {
   }));
   const [activeDay, setActiveDay] = useState<DayKey>("mon");
 
-  const [fullHours, setFullHours] = useState(42);
+  const [fullHours,         setFullHours]         = useState(40);
   const [replacementFactor, setReplacementFactor] = useState(1.15);
-  const [ptWeekdays, setPtWeekdays] = useState(false);
+  const [ptWeekdays,        setPtWeekdays]        = useState(false);
+  const [flexTolerance,     setFlexTolerance]     = useState(3); // % más caro que se acepta por flexibilidad
 
   const [contracts, setContracts] = useState<Contract[]>([
-    { id: "1", name: "44h", hoursPerWeek: 44 },
-    { id: "2", name: "42h", hoursPerWeek: 42 },
-    { id: "3", name: "40h", hoursPerWeek: 40 },
-    { id: "4", name: "30h", hoursPerWeek: 30 },
-    { id: "5", name: "20h", hoursPerWeek: 20 },
+    { id: "2", name: "40h", hoursPerWeek: 40 },
+    { id: "3", name: "30h", hoursPerWeek: 30 },
+    { id: "4", name: "20h", hoursPerWeek: 20 },
   ]);
   const [showCosts, setShowCosts] = useState(false);
 
-  const [result, setResult] = useState<CalcResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [showAllMixes, setShowAllMixes] = useState(false);
-  const [exportingExcel, setExportingExcel] = useState(false);
-
-  // Estados IA
-  const [showLeadForm, setShowLeadForm] = useState(false);
-  const [leadEmail, setLeadEmail] = useState("");
-  const [leadNombre, setLeadNombre] = useState("");
-  const [leadEmpresa, setLeadEmpresa] = useState("");
-  const [leadEnviado, setLeadEnviado] = useState(false);
-  const [analisisIA, setAnalisisIA] = useState<string | null>(null);
-  const [loadingIA, setLoadingIA] = useState(false);
+  const [result,       setResult]       = useState<CalcResult | null>(null);
+  const [loading,      setLoading]      = useState(false);
+  const [emailPassed,  setEmailPassed]  = useState(false);
+  const [userEmail,    setUserEmail]    = useState("");
 
   // ── Helpers ──
 
@@ -256,9 +295,7 @@ export default function CalculadoraPage() {
     setDays(prev => ({ ...prev, [to]: { ...prev[from] } }));
   };
 
-  const addContract = () => {
-    setContracts(prev => [...prev, { id: Date.now().toString(), name: "", hoursPerWeek: 40 }]);
-  };
+  const addContract    = () => setContracts(prev => [...prev, { id: Date.now().toString(), name: "", hoursPerWeek: 30 }]);
   const removeContract = (id: string) => setContracts(prev => prev.filter(c => c.id !== id));
   const updateContract = (id: string, patch: Partial<Contract>) =>
     setContracts(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
@@ -267,10 +304,8 @@ export default function CalculadoraPage() {
 
   const handleCalculate = () => {
     setLoading(true);
-    setShowAllMixes(false);
-    setShowLeadForm(false);
-    setLeadEnviado(false);
-    setAnalisisIA(null);
+    setEmailPassed(false);
+    setResult(null);
 
     setTimeout(() => {
       const input: CalcInput = {
@@ -308,96 +343,44 @@ export default function CalculadoraPage() {
     }, 50);
   };
 
-  // ── Exportar Excel ──
+  // ── Gate de email ──
 
-  const handleExportExcel = async () => {
+  const handleEmailSubmit = async (email: string, nombre: string, empresa: string) => {
+    setUserEmail(email);
+    setEmailPassed(true);
+    // Enviar resultados por email
     if (!result) return;
-    setExportingExcel(true);
+    const { cheapest, optimal, flexible } = selectThreeOptions(result.mixes, result.hasCosts, flexTolerance);
     try {
-      const res = await fetch("/api/export-mixes", {
+      await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          mixes: result.mixes,
-          hasCosts: result.hasCosts,
-          requiredHours: result.requiredHours,
-          requiredHoursAdjusted: result.requiredHoursAdjusted,
-          fte: result.fte,
-          fteAdjusted: result.fteAdjusted,
-          replacementFactor: result.replacementFactor,
-        }),
-      });
-      if (!res.ok) throw new Error("Error generando Excel");
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = `dotaciones_mixes_${new Date().toISOString().slice(0,10)}.xlsx`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setExportingExcel(false);
-    }
-  };
-
-  // ── Análisis IA + Lead + Email ──
-
-  const handleSolicitarAnalisis = async () => {
-    if (!result || !leadEmail) return;
-    setLoadingIA(true);
-    try {
-      const mixOptimo = result.mixes.find(m => m.isOptimal) ?? result.mixes[0];
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: leadNombre || leadEmail,
-          email: leadEmail,
-          empresa: leadEmpresa,
+          nombre, email, empresa,
+          source: "calculadora_resultados",
           sector: "Retail",
-          calculadora: "Retail / Servicios",
-          fuente: "Calculadora",
-          mixes: result.mixes,
-          hasCosts: result.hasCosts,
           resultados: {
-            requiredHours: result.requiredHours,
+            requiredHours:         result.requiredHours,
             requiredHoursAdjusted: result.requiredHoursAdjusted,
-            fte: result.fte,
-            fteAdjusted: result.fteAdjusted,
-            replacementFactor: result.replacementFactor,
-            gapHours: result.gapHours,
-            breakHours: result.breakHours,
-            totalMixesEncontrados: result.totalMixes,
-            mixOptimo,
-            advertencias: result.warnings,
+            fte:                   result.fte,
+            fteAdjusted:           result.fteAdjusted,
+            replacementFactor:     result.replacementFactor,
+            gapHours:              result.gapHours,
+            totalMixes:            result.totalMixes,
+            recomendaciones: { cheapest, optimal, flexible },
           },
         }),
       });
-      const data = await res.json();
-      setAnalisisIA(data.analisis ?? null);
-      setLeadEnviado(true);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingIA(false);
-    }
+    } catch (_) { /* silencioso */ }
   };
 
   const d = days[activeDay];
 
-  const featured = result ? selectFeatured(result.mixes, result.hasCosts) : null;
-  const featuredMixes = featured
-    ? [
-        featured.optimal  ? { mix: featured.optimal,  label: "Óptimo",              accent: true  } : null,
-        featured.cheapest ? { mix: featured.cheapest, label: "Más económico",        accent: false } : null,
-        featured.leanest && featured.leanest !== featured.optimal
-          ? { mix: featured.leanest,  label: "Menor holgura",          accent: false } : null,
-        featured.mostFull && featured.mostFull !== featured.optimal && featured.mostFull !== featured.leanest
-          ? { mix: featured.mostFull, label: "Más estable (menos PT)", accent: false } : null,
-      ].filter(Boolean)
-    : [];
+  const threeOptions = (result && emailPassed)
+    ? selectThreeOptions(result.mixes, result.hasCosts, flexTolerance)
+    : null;
+
+  const baseWeeklyCost = threeOptions?.cheapest?.weeklyCost ?? null;
 
   return (
     <div className="min-h-screen bg-[#FAFAF7]" style={{ fontFamily: "'Sora', sans-serif" }}>
@@ -432,7 +415,8 @@ export default function CalculadoraPage() {
             Calculadora de dotación por tramos
           </h1>
           <p className="text-sm text-slate-500">
-            Dibuja cuántas personas necesitas en cada tramo de 30 min, día por día. Obtienes horas‑persona, FTE y todos los mixes de contratos posibles.
+            Dibuja cuántas personas necesitas en cada tramo de 30 min, día por día.
+            Obtienes las 3 mejores combinaciones de contratos con presupuesto y flexibilidad.
           </p>
         </div>
 
@@ -555,18 +539,33 @@ export default function CalculadoraPage() {
                   <div>
                     <label className="block text-xs text-slate-500 mb-1.5">Horas Full (FTE base)</label>
                     <input type="number" min={20} max={60} step={1} value={fullHours}
-                      onChange={e => setFullHours(parseInt(e.target.value) || 42)}
+                      onChange={e => setFullHours(parseInt(e.target.value) || 40)}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <p className="text-xs text-slate-400 mt-1">Ej: 42 ó 44</p>
+                    <p className="text-xs text-slate-400 mt-1">Ley 40h vigente</p>
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1.5">Factor reemplazo <span className="text-slate-400">(vacac. + lic.)</span></label>
                     <input type="number" min={1} max={1.5} step={0.01} value={replacementFactor}
                       onChange={e => setReplacementFactor(parseFloat(e.target.value) || 1.15)}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <p className="text-xs text-slate-400 mt-1">{((replacementFactor - 1) * 100).toFixed(0)}% — retail ~12%, salud ~18%</p>
+                    <p className="text-xs text-slate-400 mt-1">{((replacementFactor - 1) * 100).toFixed(0)}% — retail ~12%</p>
                   </div>
                 </div>
+
+                {/* Tolerancia de flexibilidad */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs text-slate-500">Tolerancia presupuestaria para flexibilidad</label>
+                    <span className="text-xs font-semibold mono text-blue-600">+{flexTolerance}%</span>
+                  </div>
+                  <input type="range" min={0} max={15} step={1} value={flexTolerance}
+                    onChange={e => setFlexTolerance(parseInt(e.target.value))}
+                    className="w-full accent-blue-600" />
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    Cuánto más caro puede ser el mix más flexible respecto al más económico
+                  </p>
+                </div>
+
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <input type="checkbox" checked={ptWeekdays} onChange={e => setPtWeekdays(e.target.checked)}
                     className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
@@ -583,7 +582,7 @@ export default function CalculadoraPage() {
               <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
                 <div>
                   <h2 className="text-sm font-semibold text-slate-700">Contratos disponibles</h2>
-                  <p className="text-xs text-slate-400 mt-0.5">Define los tipos de contrato que permite tu empresa</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Tipos de contrato que permite tu empresa</p>
                 </div>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="checkbox" checked={showCosts} onChange={e => setShowCosts(e.target.checked)}
@@ -646,19 +645,26 @@ export default function CalculadoraPage() {
                 </svg>
                 Calculando…
               </>
-            ) : "Calcular"}
+            ) : "Calcular dotación"}
           </button>
           <Link href="/calculadora/guia" className="text-xs text-slate-500 hover:text-slate-700 transition-colors">
             Ver guía de uso →
           </Link>
         </div>
 
-        {/* ── Resultado ── */}
-        {result && (
+        {/* ── Gate de email (antes de ver resultados) ── */}
+        {result && !emailPassed && (
+          <EmailGate onSubmit={handleEmailSubmit} />
+        )}
+
+        {/* ── Resultados ── */}
+        {result && emailPassed && threeOptions && (
           <section className="mt-6 border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-slate-700">Resultado</h2>
-              <span className="text-xs text-slate-400">Powered by Nexwork SpA</span>
+              <h2 className="text-sm font-semibold text-slate-700">Tus 3 recomendaciones</h2>
+              <span className="text-xs text-slate-400">
+                Enviadas a {userEmail}
+              </span>
             </div>
 
             {result.warnings.length > 0 && (
@@ -670,10 +676,10 @@ export default function CalculadoraPage() {
             {/* KPIs */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-100">
               {[
-                { label: "Horas‑persona / sem", value: result.requiredHours.toFixed(1), sub: "demanda bruta" },
+                { label: "Horas‑persona / sem", value: result.requiredHours.toFixed(1),         sub: "demanda bruta" },
                 { label: "Horas a contratar",   value: result.requiredHoursAdjusted.toFixed(1), sub: `×${result.replacementFactor} reemplazo`, highlight: true },
-                { label: "FTE bruto",           value: result.fte.toFixed(2), sub: "sin reemplazo" },
-                { label: "FTE a contratar",     value: result.fteAdjusted.toFixed(2), sub: "dotación real", highlight: true },
+                { label: "FTE bruto",           value: result.fte.toFixed(2),                   sub: "sin reemplazo" },
+                { label: "FTE a contratar",     value: result.fteAdjusted.toFixed(2),           sub: "dotación real", highlight: true },
               ].map(k => (
                 <div key={k.label} className={`px-5 py-4 ${k.highlight ? "bg-blue-50" : "bg-white"}`}>
                   <p className="text-xs text-slate-500 mb-1">{k.label}</p>
@@ -696,141 +702,71 @@ export default function CalculadoraPage() {
               ))}
             </div>
 
-            {/* 4 tarjetas destacadas */}
+            {/* 3 tarjetas */}
             <div className="px-5 py-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-slate-700">Mix de contratos sugerido</h3>
-                <span className="text-xs text-slate-400 mono">{result.totalMixes} combinaciones válidas</span>
+                <h3 className="text-sm font-semibold text-slate-700">Mix de contratos</h3>
+                {flexTolerance > 0 && (
+                  <span className="text-xs text-slate-400 mono">
+                    flexibilidad: tolerancia +{flexTolerance}% presupuesto
+                  </span>
+                )}
               </div>
 
-              {featuredMixes.length > 0 ? (
-                <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-4">
-                  {featuredMixes.map((f, i) => f && (
-                    <MixCard key={i} mix={f.mix} label={f.label} accent={f.accent} hasCosts={result.hasCosts} />
-                  ))}
+              {threeOptions.cheapest || threeOptions.optimal || threeOptions.flexible ? (
+                <div className="grid md:grid-cols-3 gap-4">
+                  {threeOptions.cheapest && (
+                    <RecommendationCard
+                      mix={threeOptions.cheapest}
+                      label="Más económica"
+                      icon="💰"
+                      accent={false}
+                      hasCosts={result.hasCosts}
+                      baseWeeklyCost={baseWeeklyCost}
+                    />
+                  )}
+                  {threeOptions.optimal && (
+                    <RecommendationCard
+                      mix={threeOptions.optimal}
+                      label="Equilibrada"
+                      icon="⚖️"
+                      accent={true}
+                      hasCosts={result.hasCosts}
+                      baseWeeklyCost={baseWeeklyCost}
+                    />
+                  )}
+                  {threeOptions.flexible && (
+                    <RecommendationCard
+                      mix={threeOptions.flexible}
+                      label="Más flexible"
+                      icon="🔄"
+                      accent={false}
+                      hasCosts={result.hasCosts}
+                      baseWeeklyCost={baseWeeklyCost}
+                    />
+                  )}
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">No se encontraron mixes válidos. Revisa que los contratos puedan cubrir todos los días abiertos.</p>
+                <p className="text-sm text-slate-500">
+                  No se encontraron mixes válidos. Revisa que los contratos puedan cubrir todos los días abiertos.
+                </p>
               )}
 
-              {/* Botones: ver tabla + exportar Excel */}
-              {result.totalMixes > 0 && (
-                <div className="mt-4 flex items-center gap-5 flex-wrap">
-                  <button onClick={() => setShowAllMixes(v => !v)}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1.5">
-                    <svg className={`w-3.5 h-3.5 transition-transform ${showAllMixes ? "rotate-90" : ""}`}
-                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                    {showAllMixes ? "Ocultar tabla" : `Ver todas las ${result.totalMixes} combinaciones`}
-                  </button>
-
-                  <button onClick={handleExportExcel} disabled={exportingExcel}
-                    className="text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                    {exportingExcel ? (
-                      <>
-                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                        </svg>
-                        Generando Excel…
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Exportar todas las combinaciones a Excel
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-
-              {showAllMixes && result.totalMixes > 0 && (
-                <div className="mt-4">
-                  <MixTable mixes={result.mixes} hasCosts={result.hasCosts} />
-                </div>
-              )}
-            </div>
-
-            {/* Panel IA Nexwork */}
-            <div className="mx-5 mb-5 rounded-xl border border-[#52B788]/30 bg-gradient-to-br from-[#D8F3DC] to-[#F0FDF4] overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#52B788]/20 flex items-center justify-between">
+              {/* CTA turno de pago (fase 2) */}
+              <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">Análisis IA de tu dotación</p>
+                  <p className="text-sm font-semibold text-slate-800">¿Quieres el calendario de turnos del mes?</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Interpretación experta, alertas legales y cómo presentarlo a gerencia — gratis. Te lo enviamos también por email.
+                    Generamos 4 semanas de turnos para cada una de tus 3 opciones. Descarga en Excel, listo para operar.
                   </p>
                 </div>
-                <span className="text-xs font-medium text-[#1B4332] bg-[#D8F3DC] px-2 py-1 rounded-full">Nexwork SpA</span>
+                <button
+                  disabled
+                  className="shrink-0 px-4 py-2 bg-slate-900 text-white text-xs font-semibold rounded-lg opacity-50 cursor-not-allowed">
+                  Próximamente
+                </button>
               </div>
-
-              {!leadEnviado ? (
-                <div className="px-5 py-4">
-                  {!showLeadForm ? (
-                    <button onClick={() => setShowLeadForm(true)}
-                      className="w-full py-2.5 bg-[#1B4332] text-white text-sm font-semibold rounded-lg hover:bg-[#2D6A4F] transition-colors flex items-center justify-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                      </svg>
-                      Obtener análisis IA gratuito
-                    </button>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs text-slate-500 mb-1">Nombre</label>
-                          <input type="text" value={leadNombre} onChange={e => setLeadNombre(e.target.value)}
-                            placeholder="Tu nombre"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#52B788]" />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-slate-500 mb-1">Empresa</label>
-                          <input type="text" value={leadEmpresa} onChange={e => setLeadEmpresa(e.target.value)}
-                            placeholder="Tu empresa"
-                            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#52B788]" />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs text-slate-500 mb-1">Email <span className="text-[#52B788]">*</span></label>
-                        <input type="email" value={leadEmail} onChange={e => setLeadEmail(e.target.value)}
-                          placeholder="tu@empresa.cl"
-                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#52B788]" />
-                      </div>
-                      <button onClick={handleSolicitarAnalisis} disabled={!leadEmail || loadingIA}
-                        className="w-full py-2.5 bg-[#1B4332] text-white text-sm font-semibold rounded-lg hover:bg-[#2D6A4F] transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                        {loadingIA ? (
-                          <>
-                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                            </svg>
-                            Analizando y enviando…
-                          </>
-                        ) : "Ver mi análisis →"}
-                      </button>
-                      <p className="text-xs text-slate-400 text-center">Sin spam. Te enviamos el análisis a tu email.</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="px-5 py-4 space-y-3">
-                  <div className="flex items-center gap-2 text-emerald-600">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-xs font-medium">Análisis generado y enviado a {leadEmail}</span>
-                  </div>
-                  {analisisIA && (
-                    <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-white rounded-lg p-4 border border-slate-100">
-                      {analisisIA}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
-
           </section>
         )}
       </div>
