@@ -9,7 +9,7 @@ import { SlotDemandGrid, computeStats } from "@/components/SlotDemandGrid";
 
 // ─── Constantes laborales Chile ───────────────────────────────────────────────
 
-const MIN_WAGE_40H    = 510000;   // CLP bruto/mes, vigente 2025
+const MIN_WAGE_40H    = 539000;   // CLP bruto/mes, vigente 2025
 const EMPLOYER_RATE   = 0.0482;   // SIS 1.49% + Mutual ~0.93% + Seg.Cesantía emp. 2.40%
 const WEEKS_PER_MONTH = 52 / 12;  // 4.333
 
