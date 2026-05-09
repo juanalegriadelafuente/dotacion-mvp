@@ -9,9 +9,20 @@ import { SlotDemandGrid, computeStats } from "@/components/SlotDemandGrid";
 
 // ─── Constantes laborales Chile ───────────────────────────────────────────────
 
-const MIN_WAGE_40H    = 539000;   // CLP bruto/mes, vigente 2025
+// Ley N°21.751 — vigente desde el 1 de enero de 2026
+const MIN_WAGE_40H    = 539000;   // CLP bruto/mes
 const EMPLOYER_RATE   = 0.0482;   // SIS 1.49% + Mutual ~0.93% + Seg.Cesantía emp. 2.40%
 const WEEKS_PER_MONTH = 52 / 12;  // 4.333
+
+// Mapeo de patrones UI → IDs de jornada del engine
+const PATTERN_TO_JORNADA: Record<PatternKey, string> = {
+  "5x2":     "J_5X2",
+  "6x1":     "J_6X1",
+  "4x3":     "J_4X3",
+  "weekend": "J_PT_WEEKEND",
+  "5pt":     "J_PT_WEEKDAY",
+  "3days":   "J_PT_WEEKDAY",  // aproximación: 3 días de semana
+};
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -59,33 +70,6 @@ const minWageForHours = (h: number) => Math.round(MIN_WAGE_40H * (h / 40));
 
 const costoEmpresaHora = (monthlyGross: number, h: number) =>
   (monthlyGross * (1 + EMPLOYER_RATE)) / (h * WEEKS_PER_MONTH);
-
-const rotFactor = (pattern: PatternKey, daysOpen: number) => {
-  const d = PATTERN_INFO[pattern].daysPerCycle;
-  return daysOpen <= d ? 1.0 : daysOpen / d;
-};
-
-// ─── Expansión de contratos para el engine ────────────────────────────────────
-
-type EngineContract = { name: string; hoursPerWeek: number; costPerHour?: number };
-
-function expandContracts(contracts: Contract[], daysOpen: number, useGross: boolean): EngineContract[] {
-  const result: EngineContract[] = [];
-  for (const c of contracts) {
-    if (!c.hoursPerWeek || !c.name) continue;
-    for (const pat of c.patterns) {
-      const rf   = rotFactor(pat, daysOpen);
-      const costPH = (useGross && c.monthlyGross && c.monthlyGross > 0)
-        ? costoEmpresaHora(c.monthlyGross, c.hoursPerWeek) : undefined;
-      result.push({
-        name: `${c.name} ${PATTERN_INFO[pat].short}`,
-        hoursPerWeek: c.hoursPerWeek / rf,
-        costPerHour: costPH,
-      });
-    }
-  }
-  return result;
-}
 
 // ─── Selección de 3 opciones distintas ───────────────────────────────────────
 
@@ -430,16 +414,28 @@ export default function CalculadoraPage() {
     setEmailPassed(false);
     setResult(null);
     setTimeout(() => {
-      const daysOpen = DAY_KEYS.filter(k =>
-        days[k].open && computeStats(days[k].slots).personHours > 0).length;
       const hasGross = showGross && (useMinWage || contracts.some(c => c.monthlyGross != null));
-      const engineContracts = expandContracts(contracts, daysOpen, hasGross);
 
       const input: CalcInput = {
         fullHoursPerWeek: fullHours,
         replacementFactor,
         ptWeekdaysAllowed: ptWeekdays,
-        contracts: engineContracts,
+        contracts: contracts
+          .filter(c => c.hoursPerWeek > 0 && c.name && c.patterns.length > 0)
+          .map(c => {
+            const gross   = useMinWage ? minWageForHours(c.hoursPerWeek) : c.monthlyGross;
+            const costPH  = (hasGross && gross && gross > 0)
+              ? costoEmpresaHora(gross, c.hoursPerWeek) : undefined;
+            const allowedJornadaIds = c.patterns
+              .map(p => PATTERN_TO_JORNADA[p])
+              .filter((v, i, a) => v && a.indexOf(v) === i); // dedup
+            return {
+              name: c.name,
+              hoursPerWeek: c.hoursPerWeek,
+              costPerHour: costPH,
+              allowedJornadaIds: allowedJornadaIds.length > 0 ? allowedJornadaIds : undefined,
+            };
+          }),
         days: Object.fromEntries(DAY_KEYS.map(k => {
           const d = days[k];
           const { peak, hoursOpen } = computeStats(d.slots);
@@ -749,7 +745,7 @@ export default function CalculadoraPage() {
                 <p className="mt-4 text-[11px] text-slate-400 leading-relaxed">
                   * Costo empresa aproximado: sueldo bruto + SIS 1.49% + mutual promedio 0.93% + seguro de cesantía empleador 2.40%.
                   No incluye gratificaciones legales, bonos, colación ni beneficios adicionales.
-                  Sueldo mínimo de referencia: ${MIN_WAGE_40H.toLocaleString("es-CL")}/mes para 40h (2025).
+                  Sueldo mínimo de referencia: ${MIN_WAGE_40H.toLocaleString("es-CL")}/mes para 40h (vigente desde enero 2026).
                 </p>
               )}
 

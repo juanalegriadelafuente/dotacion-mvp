@@ -19,6 +19,8 @@ export type ContractType = {
   name: string;
   hoursPerWeek: number;
   costPerHour?: number;
+  /** Si se especifica, solo se usarán estas jornadas para este contrato */
+  allowedJornadaIds?: string[];
 };
 
 export type CalcInput = {
@@ -174,6 +176,9 @@ function buildCandidates(
   for (const c of contracts) {
     if (c.hoursPerWeek <= 0 || !c.name) continue;
     for (const j of jornadasParaContrato(c.hoursPerWeek, ptOk, hasSun)) {
+      // Respetar los patrones que el usuario habilitó para este contrato
+      if (c.allowedJornadaIds && c.allowedJornadaIds.length > 0
+          && !c.allowedJornadaIds.includes(j.id)) continue;
       if (c.hoursPerWeek > j.maxHours) continue;
       let dailyHours: number;
       if (j.eligibleDays === "weekend")  dailyHours = c.hoursPerWeek / 2;
@@ -371,7 +376,7 @@ export function calculate(input: CalcInput): CalcResult {
     return emptyResult(rf, fullH, totalHoursRaw, totalTarget, breakHours, overlapHours, gapHours, warns);
   }
 
-  const CAND   = cands.slice(0, 6);
+  const CAND = cands.slice(0, 8);
 
   // Límite por candidato: máximo para cubrir toda la demanda solo × 1.4
   // PT weekend: limitado por demanda de fin de semana, no total
@@ -397,13 +402,15 @@ export function calculate(input: CalcInput): CalcResult {
   for (let a = 0; a <= (limits[0]??0); a++)
   for (let b = 0; b <= (limits[1]??0); b++)
   for (let c2= 0; c2<= (limits[2]??0); c2++)
-  for (let d = 0; d <= (limits[3]??0); d++) {
+  for (let d = 0; d <= (limits[3]??0); d++)
+  for (let e = 0; e <= (limits[4]??0); e++)
+  for (let f = 0; f <= (limits[5]??0); f++) {
     if (++iters > MAX_ITERS) {
       warns.push("⚠️ Búsqueda acotada — reduce tipos de contrato para mayor precisión.");
       break outer;
     }
 
-    const counts = [a, b, c2, d, 0, 0];
+    const counts = [a, b, c2, d, e, f, 0, 0];
     const mix = buildMix(fullH, dayDemands, totalTarget, CAND, counts, mixId++);
     if (!mix) continue;
 
