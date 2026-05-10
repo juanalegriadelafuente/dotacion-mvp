@@ -59,8 +59,44 @@ async function saveToNotion(payload: {
   });
   if (!res.ok) {
     const err = await res.json();
-    console.error("Notion error:", err);
+    // Lanzar el error para que sea visible en logs y respuesta de diagnóstico
+    throw new Error(`Notion API error ${res.status}: ${JSON.stringify(err)}`);
   }
+}
+
+// ─── Diagnóstico (GET /api/leads) ─────────────────────────────────────────────
+
+export async function GET() {
+  const results: Record<string, unknown> = {
+    notion_key_set:  !!NOTION_API_KEY,
+    notion_db_set:   !!NOTION_DATABASE_ID,
+    resend_key_set:  !!RESEND_API_KEY,
+    anthropic_key_set: !!ANTHROPIC_API_KEY,
+  };
+
+  // Verificar acceso a la base de datos de Notion
+  if (NOTION_API_KEY && NOTION_DATABASE_ID) {
+    try {
+      const r = await fetch(`https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}`, {
+        headers: {
+          Authorization: `Bearer ${NOTION_API_KEY}`,
+          "Notion-Version": "2022-06-28",
+        },
+      });
+      results.notion_db_accessible = r.ok;
+      if (!r.ok) {
+        results.notion_db_error = await r.json();
+      } else {
+        const db = await r.json();
+        results.notion_db_title     = db.title?.[0]?.plain_text ?? "sin título";
+        results.notion_db_props     = Object.keys(db.properties ?? {});
+      }
+    } catch (e) {
+      results.notion_db_error = String(e);
+    }
+  }
+
+  return NextResponse.json(results);
 }
 
 // ─── Anthropic ────────────────────────────────────────────────────────────────
@@ -420,6 +456,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Guardar en Notion con origen legible
+    let notionError: string | null = null;
     try {
       await saveToNotion({
         nombre, email, empresa, cargo, sector,
@@ -428,7 +465,8 @@ export async function POST(req: NextRequest) {
         origen: origenLabel,
       });
     } catch (e) {
-      console.error("Notion save failed (non-fatal):", e);
+      notionError = String(e);
+      console.error("Notion save failed:", notionError);
     }
 
     // 2a. Flujo finiquito — email directo, sin análisis IA ni Excel
@@ -503,7 +541,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, analisis });
+    return NextResponse.json({ ok: true, analisis, notionError });
   } catch (e) {
     console.error("leads route error:", e);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
