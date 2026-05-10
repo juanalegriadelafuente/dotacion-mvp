@@ -51,7 +51,6 @@ async function saveToNotion(payload: {
         Cargo:                { rich_text: [{ text: { content: payload.cargo    || "" } }] },
         Estado:               { select: { name: "Nuevo" } },
         Fuente:               { select: { name: payload.fuente  || "Web" } },
-        Origen:               { select: { name: payload.origen  || sourceLabel(payload.fuente || "") } },
         ...(payload.sector      && { Sector:             { select: { name: payload.sector      } } }),
         ...(payload.calculadora && { "Calculadora usada": { select: { name: payload.calculadora } } }),
       },
