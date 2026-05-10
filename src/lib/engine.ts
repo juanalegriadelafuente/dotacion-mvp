@@ -250,16 +250,28 @@ function buildMix(
     if (n <= 0) continue;
     const c = cands[i];
 
-    headcount  += n;
-    const wkHours = n * c.hoursPerWeek;
-    hoursTotal += wkHours;
+    headcount += n;
 
+    // Días abiertos que este candidato puede cubrir
+    const daysForCand = c.eligibleDays === "weekend"
+      ? dayDemands.filter(d => d.isWeekend  && d.isOpen).length
+      : c.eligibleDays === "weekdays"
+      ? dayDemands.filter(d => !d.isWeekend && d.isOpen).length
+      : dayDemands.filter(d => d.isOpen).length;
+
+    // Horas útiles = mín(horas contratadas, contribución real a días abiertos)
+    // Evita sobre-contar un trabajador 5×2 en operación de 1 solo día
+    const usefulPerWorker = Math.min(c.hoursPerWeek, c.dailyHours * daysForCand);
+    hoursTotal += n * usefulPerWorker;
+
+    // Costo: siempre sobre horas contratadas (el trabajador cobra su contrato)
+    const wkHours = n * c.hoursPerWeek;
     if (c.costPerHour != null) weeklyCost += wkHours * c.costPerHour;
     else hasCostData = false;
 
     sundayCapFTE += n * (c.hoursPerWeek / fullH) * c.sundayAvailability;
 
-    // Sumar cobertura diaria por tipo de jornada
+    // Cobertura por día (modelo simplificado: cada trabajador disponible todos sus días)
     for (const dd of dayDemands) {
       if (!dd.isOpen) continue;
       const covers =
@@ -388,13 +400,23 @@ export function calculate(input: CalcInput): CalcResult {
   const weekdayTarget  = dayDemands.filter(d => !d.isWeekend && d.isOpen).reduce((s, d) => s + d.hoursRequired, 0);
 
   const limits = CAND.map(c => {
+    // Días abiertos que este candidato puede cubrir
+    const daysThisCandCovers = c.eligibleDays === "weekend"
+      ? dayDemands.filter(d => d.isWeekend && d.isOpen).length
+      : c.eligibleDays === "weekdays"
+      ? dayDemands.filter(d => !d.isWeekend && d.isOpen).length
+      : dayDemands.filter(d => d.isOpen).length; // "all"
+
     let target = totalTarget;
     if (c.eligibleDays === "weekend")  target = weekendTarget;
     if (c.eligibleDays === "weekdays") target = weekdayTarget;
-    const maxNeeded = c.dailyHours > 0
-      ? Math.ceil(target / (c.dailyHours * (c.eligibleDays === "weekend" ? 2 : c.eligibleDays === "weekdays" ? 5 : 5)))
+
+    // Número máximo de trabajadores para cubrir la demanda de sus días
+    const maxNeeded = (c.dailyHours > 0 && daysThisCandCovers > 0)
+      ? Math.ceil(target / (c.dailyHours * daysThisCandCovers))
       : Math.ceil(target / Math.max(1, c.hoursPerWeek));
-    return Math.min(40, Math.max(2, Math.ceil(maxNeeded * 1.4)));
+
+    return Math.min(40, Math.max(2, Math.ceil(maxNeeded * 1.5)));
   });
 
   const MAX_ITERS = 800_000;
@@ -448,7 +470,21 @@ export function calculate(input: CalcInput): CalcResult {
   }
 
   if (allMixes.length === 0) {
-    warns.push("⚠️ No se encontró ningún mix válido. Revisa que los contratos puedan cubrir todos los días abiertos.");
+    // Diagnosticar qué días no pueden cubrirse con los contratos disponibles
+    const dayNames: Record<DayKey, string> = { mon:"Lun", tue:"Mar", wed:"Mié", thu:"Jue", fri:"Vie", sat:"Sáb", sun:"Dom" };
+    const uncoverable = openDays.filter(dd => {
+      return !cands.some(c =>
+        c.eligibleDays === "all" ||
+        (c.eligibleDays === "weekend" && dd.isWeekend) ||
+        (c.eligibleDays === "weekdays" && !dd.isWeekend)
+      );
+    });
+    if (uncoverable.length > 0) {
+      const names = uncoverable.map(d => dayNames[d.key]).join(", ");
+      warns.push(`⚠️ Ningún contrato puede cubrir: ${names}. Agrega un contrato rotativo o de fin de semana para esos días.`);
+    } else {
+      warns.push("⚠️ No se encontró ningún mix válido. Revisa que los contratos puedan cubrir todos los días abiertos.");
+    }
     return emptyResult(rf, fullH, totalHoursRaw, totalTarget, breakHours, overlapHours, gapHours, warns);
   }
 
