@@ -1,382 +1,932 @@
-// src/app/page.tsx
-import Link from "next/link";
-import type { Metadata } from "next";
-import SiteNav from "@/components/SiteNav";
-import SiteFooter from "@/components/SiteFooter";
-import { getBlogPosts, type BlogPost } from "@/lib/notion-blog";
+"use client";
 
-export const revalidate = 3600;
+import { useState, useEffect } from "react";
 
-export const metadata: Metadata = {
-  title: "Calculadora de dotación laboral Chile | dotaciones.cl",
-  description:
-    "Calcula cuánta gente necesitas para cubrir tus turnos. Retail, hospitales y finiquito. Gratis, sin registro.",
-};
+/* ─────────────────────────────────────────
+   TOKENS
+───────────────────────────────────────── */
+const ACCENT   = "#0F6E56";
+const ACCENT2  = "#168A6C";
+const INK      = "#0D1B2A";
+const INK2     = "#0F2436";
+const LINE     = "#1E3650";
+const FOG      = "#7A8895";
+const BONE     = "#E8ECEF";
+const PAPER    = "#F5F1E8";
 
-// ── Colores por categoría (mismo sistema que blog/page.tsx) ──────────────────
-const catColors: Record<string, { c: string; b: string; bc: string }> = {
-  "Metodología":     { c: "#1E40AF", b: "#DBEAFE", bc: "no" },
-  "Planificación":   { c: "#065F46", b: "#D1FAE5", bc: "tc" },
-  "Normativa":       { c: "#92400E", b: "#FEF3C7", bc: "no" },
-  "Retail":          { c: "#1B4332", b: "#D8F3DC", bc: "tc" },
-  "Salud":           { c: "#991B1B", b: "#FEE2E2", bc: "no" },
-  "Casos prácticos": { c: "#6B21A8", b: "#F3E8FF", bc: "ca" },
-  "Opinión":         { c: "#6D28D9", b: "#EDE9FE", bc: "op" },
-};
+/* ─────────────────────────────────────────
+   GLOBAL STYLES (animations + resets)
+───────────────────────────────────────── */
+const GLOBAL_CSS = `
+  @keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+  .blink { animation: blink 1.05s steps(1,end) infinite; }
 
-const CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;700;800&family=DM+Mono:wght@400;500&display=swap');
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'Sora',sans-serif;}
-  a{text-decoration:none;color:inherit;}
+  .hairline       { border-color: rgba(232,236,239,0.08); }
+  .hairline-strong{ border-color: rgba(232,236,239,0.14); }
 
-  /* ── Hero ── */
-  .hero-bg{background:#0d1f14;}
-  .hero{padding:56px 40px 0;display:grid;grid-template-columns:1fr 320px;gap:36px;align-items:end;max-width:1160px;margin:0 auto;}
-  .hero-left{padding-bottom:52px;}
-  .hero-tag{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#52B788;margin-bottom:20px;display:flex;align-items:center;gap:7px;}
-  .hero-tag::before{content:'';width:6px;height:6px;border-radius:50%;background:#52B788;flex-shrink:0;}
-  .hero-h1{font-size:clamp(34px,4.5vw,52px);font-weight:800;line-height:1.02;letter-spacing:-.04em;color:#fff;margin-bottom:16px;}
-  .hero-h1 em{color:#52B788;font-style:normal;display:block;}
-  .hero-sub{font-size:15px;color:rgba(255,255,255,.4);line-height:1.7;font-weight:300;max-width:400px;margin-bottom:32px;}
-  .hero-btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-  .btn-p{background:#52B788;color:#0d1f14;padding:12px 22px;border-radius:8px;font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:5px;transition:opacity .15s;}
-  .btn-p:hover{opacity:.88;}
-  .btn-s{background:rgba(255,255,255,.07);color:rgba(255,255,255,.65);border:1px solid rgba(255,255,255,.12);padding:12px 22px;border-radius:8px;font-size:13px;font-weight:500;transition:background .15s;}
-  .btn-s:hover{background:rgba(255,255,255,.12);}
-  .btn-g{color:rgba(255,255,255,.35);font-size:12px;padding:12px 4px;display:inline-flex;align-items:center;gap:4px;transition:color .15s;}
-  .btn-g:hover{color:rgba(255,255,255,.6);}
-
-  /* ── Hero card ── */
-  .hero-card{background:#0f2a1b;border:1px solid #1e3d29;border-radius:14px 14px 0 0;padding:20px;align-self:end;}
-  .hc-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
-  .hc-label{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#5a8070;}
-  .hc-badge{background:#0f3320;color:#52B788;border:1px solid #1e5a35;border-radius:99px;padding:3px 10px;font-size:9px;font-weight:700;}
-  .hc-row{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-bottom:1px solid #1a3326;}
-  .hc-row:last-of-type{border-bottom:none;}
-  .hc-k{font-size:12px;color:#8aab96;}
-  .hc-v{font-size:13px;font-weight:700;color:#e8f5e9;}
-  .hc-v.g{color:#52B788;}
-  .hc-v.big{font-size:24px;letter-spacing:-.03em;}
-  .hc-sub{background:#07160d;border-radius:8px;padding:12px;margin-top:12px;}
-  .hcs-l{font-size:9px;color:#3d6050;font-weight:700;letter-spacing:.08em;margin-bottom:8px;}
-  .hcs-r{display:flex;justify-content:space-between;align-items:center;padding:3px 0;}
-  .hcs-k{font-size:11px;color:#8aab96;}
-  .hcs-t{background:#0f2a1b;border:1px solid #1e3d29;color:#52B788;font-size:9px;font-weight:700;padding:2px 8px;border-radius:4px;}
-
-  /* ── Stats ── */
-  .stats-bg{background:#0d1f14;border-top:1px solid #1a3326;}
-  .stats{display:grid;grid-template-columns:repeat(4,1fr);max-width:1160px;margin:0 auto;}
-  .stat{padding:20px 40px;border-right:1px solid #1a3326;}
-  .stat:last-child{border-right:none;}
-  .stat-n{font-size:26px;font-weight:800;color:#52B788;letter-spacing:-.03em;line-height:1;}
-  .stat-l{font-size:9px;color:#3d6050;text-transform:uppercase;letter-spacing:.08em;margin-top:4px;font-weight:600;}
-
-  /* ── Calculadoras ── */
-  .section-bg{background:#f5f3ee;}
-  .section{padding:56px 40px;max-width:1160px;margin:0 auto;}
-  .sk{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#2D6A4F;margin-bottom:8px;}
-  .sh{font-size:clamp(22px,3vw,28px);font-weight:800;color:#111;letter-spacing:-.03em;line-height:1.15;margin-bottom:8px;}
-  .ss{font-size:13px;color:#6B7280;font-weight:300;line-height:1.65;max-width:480px;}
-  .calcs{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:32px;}
-  .calc{background:#fff;border:1.5px solid #E8E6E0;border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:12px;transition:border-color .2s,transform .18s;}
-  .calc:hover{border-color:#52B788;transform:translateY(-2px);}
-  .calc.feat{border-color:#d4a849;background:#fffdf5;}
-  .c-top{display:flex;justify-content:space-between;align-items:flex-start;}
-  .c-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-  .c-icon.g{background:#e8f5e9;color:#2D6A4F;}
-  .c-icon.b{background:#e8f0fb;color:#1a5c9e;}
-  .c-icon.a{background:#fff8e1;color:#856a0b;}
-  .c-new{font-size:9px;font-weight:700;background:#fff8e1;color:#856a0b;border:1px solid #e8d06a;border-radius:99px;padding:2px 9px;letter-spacing:.06em;text-transform:uppercase;}
-  .c-ey{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
-  .c-ey.g{color:#2D6A4F;}.c-ey.b{color:#1a5c9e;}.c-ey.a{color:#856a0b;}
-  .c-ti{font-size:17px;font-weight:800;color:#111;letter-spacing:-.02em;line-height:1.2;}
-  .c-de{font-size:12px;color:#6B7280;line-height:1.65;font-weight:300;flex:1;}
-  .c-lk{font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:3px;transition:opacity .15s;}
-  .c-lk:hover{opacity:.75;}
-  .c-lk.g{color:#2D6A4F;}.c-lk.b{color:#1a5c9e;}.c-lk.a{color:#856a0b;}
-
-  /* ── Blog ── */
-  .blog-bg{background:#fff;}
-  .blog-wrap{padding:56px 40px;max-width:1160px;margin:0 auto;}
-  .blog-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:12px;}
-  .blog-see{font-size:12px;font-weight:700;color:#2D6A4F;display:inline-flex;align-items:center;gap:3px;}
-  .blog-see:hover{opacity:.75;}
-  .cats{display:flex;gap:7px;flex-wrap:wrap;margin:16px 0 28px;}
-  .cat{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 12px;border-radius:99px;border:1.5px solid;transition:opacity .15s;}
-  .cat:hover{opacity:.75;}
-  .cat.tc{color:#2D6A4F;border-color:#b7dfc8;background:#f0faf4;}
-  .cat.op{color:#7c3aed;border-color:#c4b5fd;background:#f5f3ff;}
-  .cat.no{color:#92400E;border-color:#fcd34d;background:#fffbeb;}
-  .cat.ca{color:#1a5c9e;border-color:#bdd3ef;background:#f0f5fb;}
-  .cat.te{color:#0f6e56;border-color:#9FE1CB;background:#e1f5ee;}
-  .cat.em{color:#6B21A8;border-color:#d8b4fe;background:#faf5ff;}
-  .blog-grid{display:grid;grid-template-columns:5fr 3fr;gap:16px;}
-  .post-feat{background:#0d1f14;border-radius:14px;padding:28px;display:flex;flex-direction:column;gap:10px;min-height:210px;transition:opacity .18s;}
-  .post-feat:hover{opacity:.92;}
-  .pf-tag{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 9px;border-radius:99px;display:inline-flex;width:fit-content;}
-  .pf-title{font-size:clamp(16px,2vw,20px);font-weight:800;color:#fff;letter-spacing:-.02em;line-height:1.25;flex:1;}
-  .pf-meta{font-size:11px;color:#5a8070;}
-  .pf-link{font-size:12px;font-weight:700;color:#52B788;display:inline-flex;align-items:center;gap:3px;}
-  .op-strip{background:#1a0f38;border-radius:12px;padding:18px 20px;display:flex;align-items:flex-start;gap:14px;transition:opacity .18s;}
-  .op-strip:hover{opacity:.9;}
-  .op-ico{width:36px;height:36px;border-radius:8px;background:#2d1f4a;border:1px solid #4c3a8a;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;}
-  .op-kicker{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#c4b5fd;margin-bottom:5px;}
-  .op-title{font-size:14px;font-weight:700;color:#fff;line-height:1.35;}
-  .op-link{font-size:11px;font-weight:700;color:#c4b5fd;display:inline-flex;align-items:center;gap:3px;margin-top:8px;}
-  .posts-col{display:flex;flex-direction:column;gap:10px;}
-  .post-sm{background:#f5f3ee;border:1.5px solid #E8E6E0;border-radius:13px;padding:18px;display:flex;flex-direction:column;gap:7px;flex:1;transition:border-color .18s;}
-  .post-sm:hover{border-color:#52B788;}
-  .ps-tag{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:99px;border:1px solid;display:inline-flex;width:fit-content;}
-  .ps-title{font-size:14px;font-weight:700;color:#111;letter-spacing:-.01em;line-height:1.35;flex:1;}
-  .ps-link{font-size:11px;font-weight:700;color:#2D6A4F;display:inline-flex;align-items:center;gap:2px;}
-
-  @media(max-width:960px){
-    .hero{grid-template-columns:1fr;padding:48px 24px 0;}
-    .hero-left{padding-bottom:32px;}
-    .hero-card{border-radius:12px;}
-    .calcs,.blog-grid{grid-template-columns:1fr;}
-    .stats{grid-template-columns:repeat(2,1fr);}
-    .stat{border-right:none;border-bottom:1px solid #1a3326;}
-    .section,.blog-wrap{padding:44px 24px;}
+  .grain {
+    background-color: #0F2436;
+    background-image:
+      repeating-linear-gradient(45deg,rgba(255,255,255,.025) 0 1px,transparent 1px 7px),
+      radial-gradient(120% 80% at 30% 20%,rgba(15,110,86,.12),transparent 60%),
+      radial-gradient(80% 60% at 80% 90%,rgba(255,255,255,.04),transparent 60%);
   }
+
+  .ticks::before,.ticks::after {
+    content:""; position:absolute; width:14px; height:14px;
+    border-color:#7A8895; border-style:solid;
+  }
+  .ticks::before { top:-1px;    left:-1px;  border-width:1px 0 0 1px; }
+  .ticks::after  { bottom:-1px; right:-1px; border-width:0 1px 1px 0; }
+
+  .ulink { position:relative; }
+  .ulink::after {
+    content:""; position:absolute; left:0; right:0; bottom:-3px; height:1px;
+    background:currentColor; transform:scaleX(0); transform-origin:left;
+    transition:transform .35s cubic-bezier(.2,.7,.2,1);
+  }
+  .ulink:hover::after { transform:scaleX(1); }
+
+  .card-hover { transition:background-color .3s ease,border-color .3s ease; }
+  .card-hover:hover { background:#102a40; border-color:rgba(232,236,239,.18); }
+
+  .field {
+    background:transparent; border:0;
+    border-bottom:1px solid rgba(232,236,239,.18);
+    color:#E8ECEF; padding:10px 2px; outline:none; width:100%;
+    font-family:var(--font-geist-sans,inherit); font-size:16px;
+    transition:border-color .2s ease;
+  }
+  .field::placeholder { color:#7A8895; }
+  .field:focus        { border-color:#0F6E56; }
+
+  .tag {
+    border:1px solid rgba(232,236,239,.14); color:#E8ECEF;
+    padding:2px 8px; border-radius:2px;
+    font-family:var(--font-jetbrains-mono,monospace);
+    font-size:10px; text-transform:uppercase; letter-spacing:.08em;
+  }
+
+  .noise::before {
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1px);
+    background-size:3px 3px; mix-blend-mode:overlay; opacity:.5;
+  }
+
+  .btn {
+    display:inline-flex; align-items:center; gap:.6rem;
+    padding:.7rem 1.1rem; font-size:14px;
+    border:1px solid rgba(232,236,239,.16);
+    color:#E8ECEF; background:transparent;
+    transition:background-color .25s ease,border-color .25s ease,color .25s ease;
+    cursor:pointer; text-decoration:none; font-family:inherit;
+  }
+  .btn:hover { background:#102a40; border-color:rgba(232,236,239,.28); }
+  .btn-primary { background:#0F6E56; border-color:#0F6E56; color:#F5F1E8; }
+  .btn-primary:hover { background:#168A6C; border-color:#168A6C; }
+  .btn:disabled { opacity:.55; cursor:not-allowed; }
 `;
 
-export default async function Home() {
-  // Carga posts desde Notion — igual que blog/page.tsx
-  const posts = await getBlogPosts();
+/* ─────────────────────────────────────────
+   ATOMS
+───────────────────────────────────────── */
+function Dot({ color = ACCENT }: { color?: string }) {
+  return (
+    <span
+      className="inline-block align-middle"
+      style={{ width: 6, height: 6, background: color, borderRadius: 1 }}
+    />
+  );
+}
 
-  // Separar: 1 destacado, 1 de opinión para el strip, 3 laterales
-  const featured   = posts.find((p: BlogPost) => p.featured) ?? posts[0];
-  const opinionPost = posts.find((p: BlogPost) => p.category === "Opinión" && p.id !== featured?.id);
-  const laterales  = posts
-    .filter((p: BlogPost) => p.id !== featured?.id && p.id !== opinionPost?.id)
-    .slice(0, 3);
+function MonoLabel({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span
+      className={"font-mono uppercase tracking-[0.16em] text-[10.5px] " + className}
+      style={{ color: FOG }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function SectionRule({
+  label,
+  idx,
+  right,
+}: {
+  label: string;
+  idx: string;
+  right?: string;
+}) {
+  return (
+    <div className="flex items-end justify-between border-b hairline-strong pb-3 mb-10">
+      <div className="flex items-baseline gap-3">
+        <span className="font-mono text-[11px]" style={{ color: FOG }}>
+          {idx}
+        </span>
+        <h2 className="font-serif text-[clamp(28px,3.4vw,44px)] leading-none">
+          {label}
+        </h2>
+      </div>
+      {right && (
+        <div
+          className="font-mono text-[11px] uppercase tracking-[0.16em]"
+          style={{ color: FOG }}
+        >
+          {right}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   STATUS BAR
+───────────────────────────────────────── */
+function StatusBar() {
+  const [time, setTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const hh = String(time.getHours()).padStart(2, "0");
+  const mm = String(time.getMinutes()).padStart(2, "0");
+  const ss = String(time.getSeconds()).padStart(2, "0");
 
   return (
-    <div style={{ background: "#0d1f14" }}>
-      <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <SiteNav />
+    <div className="border-b hairline font-mono text-[11px]" style={{ color: FOG }}>
+      <div className="max-w-[1280px] mx-auto px-8 h-9 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <span className="flex items-center gap-2">
+            <Dot /> EN LÍNEA · SANTIAGO
+          </span>
+          <span className="hidden md:inline">LAT −33.45 · LON −70.66</span>
+        </div>
+        <div className="flex items-center gap-6">
+          <span className="hidden md:inline">v. 04 · ed. mayo 2026</span>
+          <span>
+            {hh}:{mm}
+            <span style={{ opacity: 0.6 }}>:{ss}</span> CLT
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-      {/* ── Hero ── */}
-      <div className="hero-bg">
-        <div className="hero">
-          <div className="hero-left">
-            <div className="hero-tag">Herramienta gratuita · Chile</div>
-            <h1 className="hero-h1">
-              Calcula cuánta<br />
-              gente necesitas.<br />
-              <em>De verdad.</em>
-            </h1>
-            <p className="hero-sub">
-              Mix de contratos, cobertura por día y análisis de dotación.
-              Sin registro, sin costo.
-            </p>
-            <div className="hero-btns">
-              <Link href="/calculadora" className="btn-p">Calculadora Retail →</Link>
-              <Link href="/san" className="btn-s">Calculadora SAN</Link>
-              <Link href="/calculadora/finiquito" className="btn-g">Calcular finiquito ↗</Link>
-            </div>
-          </div>
+/* ─────────────────────────────────────────
+   NAV
+───────────────────────────────────────── */
+function Nav() {
+  const links = [
+    { label: "Blog",          href: "#blog"      },
+    { label: "Calculadoras",  href: "#calc"      },
+    { label: "Contacto",      href: "#contacto"  },
+  ];
 
-          <div className="hero-card">
-            <div className="hc-head">
-              <span className="hc-label">Resultado del cálculo</span>
-              <span className="hc-badge">✓ Óptimo</span>
-            </div>
-            <div className="hc-row">
-              <span className="hc-k">FTE a contratar</span>
-              <span className="hc-v g big">7.4</span>
-            </div>
-            <div className="hc-row">
-              <span className="hc-k">Horas demanda</span>
-              <span className="hc-v">280h/sem</span>
-            </div>
-            <div className="hc-row">
-              <span className="hc-k">Factor reemplazo</span>
-              <span className="hc-v">×1.12</span>
-            </div>
-            <div className="hc-row">
-              <span className="hc-k">Cobertura domingo</span>
-              <span className="hc-v g">✓ Cubierto</span>
-            </div>
-            <div className="hc-sub">
-              <div className="hcs-l">Mix sugerido</div>
-              <div className="hcs-r">
-                <span className="hcs-k">42h · Jornada 6×1</span>
-                <span className="hcs-t">×6</span>
-              </div>
-              <div className="hcs-r">
-                <span className="hcs-k">20h · PT fin de semana</span>
-                <span className="hcs-t">×1</span>
-              </div>
-            </div>
-          </div>
+  return (
+    <nav
+      className="border-b hairline sticky top-0 z-30 backdrop-blur"
+      style={{ background: `${INK}D9` }}
+    >
+      <div className="max-w-[1280px] mx-auto px-8 h-[68px] flex items-center justify-between">
+        <a href="#" className="flex items-baseline gap-2 group">
+          <span className="font-serif text-[22px] tracking-tight">dotaciones</span>
+          <span className="font-mono text-[11px]" style={{ color: FOG }}>.cl</span>
+        </a>
+
+        <div className="flex items-center gap-8">
+          {links.map((l, i) => (
+            <a
+              key={l.label}
+              href={l.href}
+              className="ulink text-[14px]"
+              style={{ color: `${BONE}CC` }}
+              onMouseEnter={(e) =>
+                ((e.target as HTMLElement).style.color = BONE)
+              }
+              onMouseLeave={(e) =>
+                ((e.target as HTMLElement).style.color = `${BONE}CC`)
+              }
+            >
+              <span className="font-mono mr-2 text-[11px]" style={{ color: FOG }}>
+                0{i + 1}
+              </span>
+              {l.label}
+            </a>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+/* ─────────────────────────────────────────
+   HERO — AVATAR
+───────────────────────────────────────── */
+function AvatarBlock() {
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <div className="relative ticks">
+      <div
+        className="aspect-square w-full border hairline-strong relative overflow-hidden"
+      >
+        {!imgError ? (
+          <img
+            src="/juan-alegria.jpg"
+            alt="Juan Alegría"
+            className="w-full h-full object-cover object-top"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className="grain w-full h-full" />
+        )}
+
+        {/* overlay labels (always visible) */}
+        <div
+          className="absolute bottom-3 left-3 font-mono text-[10px] tracking-[0.16em]"
+          style={{ color: FOG }}
+        >
+          JA — 46
+        </div>
+        <div
+          className="absolute top-3 right-3 font-mono text-[10px]"
+          style={{ color: FOG }}
+        >
+          CL
         </div>
       </div>
 
-      {/* ── Stats ── */}
-      <div className="stats-bg">
-        <div className="stats">
+      <div
+        className="mt-3 flex items-center justify-between font-mono text-[10.5px] uppercase tracking-[0.14em]"
+        style={{ color: FOG }}
+      >
+        <span>Santiago, CL</span>
+        <span>2026/05</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────
+   HERO
+───────────────────────────────────────── */
+function Hero() {
+  return (
+    <section className="relative noise overflow-hidden">
+      <div className="max-w-[1280px] mx-auto px-8 pt-20 pb-24 relative">
+
+        {/* meta strip */}
+        <div
+          className="grid grid-cols-12 mb-14 font-mono text-[11px] uppercase tracking-[0.18em]"
+          style={{ color: FOG }}
+        >
+          <div className="col-span-3">Edición · 04</div>
+          <div className="col-span-3">Workforce · HRTech</div>
+          <div className="col-span-3">Independiente</div>
+          <div className="col-span-3 text-right">Chile</div>
+        </div>
+
+        {/* grid */}
+        <div className="grid grid-cols-12 gap-10 items-start">
+
+          {/* avatar col */}
+          <div className="col-span-12 md:col-span-4">
+            <AvatarBlock />
+          </div>
+
+          {/* headline col */}
+          <div className="col-span-12 md:col-span-8">
+            <div className="flex items-center gap-3 mb-8">
+              <Dot />
+              <MonoLabel>El sitio de Juan Alegría</MonoLabel>
+            </div>
+
+            <h1 className="font-serif text-[clamp(44px,7vw,108px)] leading-[0.95] tracking-[-0.02em]">
+              Workforce
+              <br />
+              management en
+              <br />
+              Chile,{" "}
+              <em className="italic" style={{ color: ACCENT }}>
+                sin humo
+              </em>
+              .
+              <span
+                className="blink ml-1 inline-block"
+                style={{
+                  width: "0.55ch",
+                  height: "0.85em",
+                  background: ACCENT,
+                  verticalAlign: "-0.05em",
+                }}
+              />
+            </h1>
+
+            <div
+              className="mt-10 max-w-[58ch] text-[18px] leading-[1.55]"
+              style={{ color: `${BONE}D9` }}
+            >
+              <p>
+                Llevo 15 años dimensionando dotaciones, optimizando turnos y
+                peleando con planillas en retail, casinos, aeropuertos y salud.
+                Aquí escribo lo que realmente funciona — y lo que se vende caro
+                y no sirve.
+              </p>
+            </div>
+
+            <div className="mt-12 flex flex-wrap items-center gap-3">
+              <a
+                href="https://linkedin.com/in/juanalegriadelafuente"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary font-mono text-[13px] tracking-[0.06em]"
+              >
+                LinkedIn →
+              </a>
+              <a
+                href="https://youtube.com/@soyjuanalegria"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn font-mono text-[13px] tracking-[0.06em]"
+              >
+                YouTube →
+              </a>
+              <span
+                className="font-mono text-[11px] ml-2 hidden md:inline"
+                style={{ color: FOG }}
+              >
+                · 1.014 seguidores LinkedIn · canal YouTube en construcción
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* stats — 3 only */}
+        <div className="mt-24 grid grid-cols-2 md:grid-cols-3 border-t hairline-strong">
           {[
-            { n: "+500", l: "Cálculos realizados" },
-            { n: "3",    l: "Sectores cubiertos" },
-            { n: "100%", l: "Gratis, sin registro" },
-            { n: ".xlsx",l: "Exportación incluida" },
-          ].map((s) => (
-            <div key={s.n} className="stat">
-              <div className="stat-n">{s.n}</div>
-              <div className="stat-l">{s.l}</div>
+            ["15", "años en operaciones"],
+            ["11", "artículos publicados"],
+            ["3",  "calculadoras gratuitas"],
+          ].map(([n, l], i) => (
+            <div
+              key={i}
+              className={"py-6 px-1 " + (i > 0 ? "md:border-l hairline" : "")}
+            >
+              <div className="font-serif text-[44px] leading-none">{n}</div>
+              <div
+                className="font-mono text-[11px] uppercase tracking-[0.14em] mt-3"
+                style={{ color: FOG }}
+              >
+                {l}
+              </div>
             </div>
           ))}
         </div>
       </div>
+    </section>
+  );
+}
 
-      {/* ── Calculadoras ── */}
-      <div className="section-bg">
-        <div className="section">
-          <div className="sk">Para quién es</div>
-          <h2 className="sh">Una herramienta,<br />tres realidades.</h2>
-          <p className="ss">
-            Retail, hospitales o tu finiquito — el motor se adapta y genera
-            resultados que puedes presentar a gerencia o usar para negociar.
-          </p>
-          <div className="calcs">
-            <Link href="/calculadora" className="calc">
-              <div className="c-top">
-                <div className="c-icon g">
-                  <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-                    <rect x="2" y="3" width="16" height="14" rx="2"/><path d="M2 8h16M7 3v5"/>
-                  </svg>
-                </div>
-              </div>
-              <div className="c-ey g">Retail y servicios</div>
-              <div className="c-ti">Calculadora Retail</div>
-              <p className="c-de">Tiendas, supermercados, call centers, restaurantes. Dotación por tramo horario y mix de contratos optimizado.</p>
-              <span className="c-lk g">Calcular ahora →</span>
-            </Link>
-
-            <Link href="/san" className="calc">
-              <div className="c-top">
-                <div className="c-icon b">
-                  <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-                    <circle cx="10" cy="10" r="7"/><path d="M10 6v8M6 10h8"/>
-                  </svg>
-                </div>
-              </div>
-              <div className="c-ey b">Hospitales y clínicas</div>
-              <div className="c-ti">Calculadora SAN</div>
-              <p className="c-de">Normativa SAN MINSAL 2025. RTD, RCD y factores de complejidad integrados en tres pasos.</p>
-              <span className="c-lk b">Calcular ahora →</span>
-            </Link>
-
-            <Link href="/calculadora/finiquito" className="calc feat">
-              <div className="c-top">
-                <div className="c-icon a">
-                  <svg width="17" height="17" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-                    <rect x="3" y="3" width="14" height="14" rx="2"/><path d="M7 10h6M7 13h4"/>
-                  </svg>
-                </div>
-                <span className="c-new">Nuevo</span>
-              </div>
-              <div className="c-ey a">Para trabajadores</div>
-              <div className="c-ti">Calculadora de Finiquito</div>
-              <p className="c-de">Indemnización, aviso previo, feriado proporcional y generador de reserva de derechos.</p>
-              <span className="c-lk a">Calcular mi finiquito →</span>
-            </Link>
-          </div>
-        </div>
+/* ─────────────────────────────────────────
+   CALCULADORAS
+───────────────────────────────────────── */
+function CalcCard({
+  idx,
+  title,
+  sub,
+  inputs,
+  output,
+  href,
+}: {
+  idx: string;
+  title: string;
+  sub: string;
+  inputs: [string, string][];
+  output: [string, string];
+  href: string;
+}) {
+  return (
+    <a
+      href={href}
+      className="card-hover group block border hairline-strong p-7 relative overflow-hidden"
+      style={{ background: `${INK2}66` }}
+    >
+      <div className="flex items-center justify-between mb-10">
+        <span className="font-mono text-[11px] tracking-[0.18em]" style={{ color: FOG }}>
+          CALC · {idx}
+        </span>
+        <span
+          className="font-mono text-[11px] transition-colors"
+          style={{ color: FOG }}
+          onMouseEnter={(e) => ((e.target as HTMLElement).style.color = BONE)}
+          onMouseLeave={(e) => ((e.target as HTMLElement).style.color = FOG)}
+        >
+          ABRIR →
+        </span>
       </div>
 
-      {/* ── Blog ── */}
-      <div className="blog-bg">
-        <div className="blog-wrap">
-          <div className="blog-head">
-            <div>
-              <div className="sk">Blog</div>
-              <h2 className="sh" style={{ fontSize: "clamp(20px,2.5vw,24px)", marginBottom: 0 }}>
-                Recursos, análisis y opinión<br />sobre el mundo del trabajo.
-              </h2>
-            </div>
-            <Link href="/blog" className="blog-see">Ver todo →</Link>
+      <h3 className="font-serif text-[28px] leading-[1.05] mb-2">{title}</h3>
+      <p className="text-[13.5px] leading-snug max-w-[34ch]" style={{ color: `${BONE}B3` }}>
+        {sub}
+      </p>
+
+      <div className="mt-8 border-t hairline pt-5 space-y-2.5">
+        {inputs.map((it, i) => (
+          <div key={i} className="flex items-center justify-between font-mono text-[12px]">
+            <span style={{ color: FOG }}>{it[0]}</span>
+            <span style={{ color: `${BONE}E6` }}>{it[1]}</span>
+          </div>
+        ))}
+        <div className="flex items-baseline justify-between pt-4 mt-3 border-t hairline">
+          <span
+            className="font-mono text-[10.5px] uppercase tracking-[0.16em]"
+            style={{ color: FOG }}
+          >
+            {output[0]}
+          </span>
+          <span className="font-serif text-[28px]" style={{ color: ACCENT }}>
+            {output[1]}
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function Calculadoras() {
+  const cards = [
+    {
+      idx: "01",
+      title: "Dotación Retail",
+      sub: "Calcula cuánta gente realmente necesitas según demanda, niveles de servicio y ausentismo.",
+      inputs: [
+        ["Llamadas/día", "4.200"],
+        ["SLA objetivo", "80/20"],
+        ["Shrinkage",    "32%"],
+      ] as [string, string][],
+      output: ["Headcount sugerido", "47"] as [string, string],
+      href: "/calculadora/retail",
+    },
+    {
+      idx: "02",
+      title: "Dotación SAN",
+      sub: "Número adecuado para cubrir turnos continuos 24/7 incluyendo factor de ausentismo y reemplazo.",
+      inputs: [
+        ["Puestos/turno",   "12"],
+        ["Turnos/día",      "3"],
+        ["Factor SAN",      "1.229"],
+      ] as [string, string][],
+      output: ["Dotación base", "44"] as [string, string],
+      href: "/calculadora/san",
+    },
+    {
+      idx: "03",
+      title: "Finiquito",
+      sub: "Estima el costo completo de un finiquito: indemnización, feriados, gratificación proporcional.",
+      inputs: [
+        ["Sueldo base",  "$780.000"],
+        ["Antigüedad",   "4 años"],
+        ["Causal",       "Art. 161"],
+      ] as [string, string][],
+      output: ["Costo estimado", "$3,12M"] as [string, string],
+      href: "/calculadora/finiquito",
+    },
+  ];
+
+  return (
+    <section id="calc" className="border-t hairline-strong">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <SectionRule
+          idx="§ 01"
+          label="Calculadoras"
+          right="Herramientas gratis · sin login"
+        />
+        <p
+          className="font-serif text-[22px] italic max-w-[60ch] mb-12"
+          style={{ color: `${BONE}CC` }}
+        >
+          Hojas de cálculo de verdad, no demos de SaaS. Las uso yo todas las
+          semanas.
+        </p>
+        <div
+          className="grid md:grid-cols-3 gap-px"
+          style={{ background: LINE }}
+        >
+          {cards.map((c) => (
+            <CalcCard key={c.idx} {...c} />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────
+   BLOG
+───────────────────────────────────────── */
+function Article({
+  n,
+  kicker,
+  title,
+  dek,
+  date,
+  read,
+  big,
+  href,
+}: {
+  n: string;
+  kicker: string;
+  title: string;
+  dek?: string;
+  date: string;
+  read: string;
+  big?: boolean;
+  href: string;
+}) {
+  return (
+    <a href={href} className="group block border-b hairline py-8">
+      <div className="grid grid-cols-12 gap-6 items-baseline">
+
+        {/* index + date */}
+        <div className="col-span-12 md:col-span-2">
+          <div
+            className="font-mono text-[11px] uppercase tracking-[0.16em]"
+            style={{ color: FOG }}
+          >
+            N° {n}
+          </div>
+          <div
+            className="font-mono text-[11px] mt-1"
+            style={{ color: FOG }}
+          >
+            {date}
+          </div>
+        </div>
+
+        {/* main content */}
+        <div className="col-span-12 md:col-span-7">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="tag">{kicker}</span>
           </div>
 
-          <div className="cats">
-            {[
-              { cls: "tc", label: "Guías técnicas" },
-              { cls: "op", label: "Opinión" },
-              { cls: "no", label: "Normativa" },
-              { cls: "ca", label: "Casos prácticos" },
-              { cls: "te", label: "Tendencias RRHH" },
-              { cls: "em", label: "Empresa y gestión" },
-            ].map((c) => (
-              <Link key={c.cls} href="/blog" className={`cat ${c.cls}`}>
-                {c.label}
-              </Link>
-            ))}
-          </div>
+          <h3
+            className={
+              "font-serif leading-[1.05] tracking-[-0.01em] " +
+              (big ? "text-[clamp(30px,3.8vw,44px)]" : "text-[30px]")
+            }
+          >
+            <span className="group-hover:underline decoration-[1px] underline-offset-[6px]">
+              {title}
+            </span>
+          </h3>
 
-          {posts.length > 0 && (
-            <div className="blog-grid">
-              {/* Columna izquierda: destacado + opinión */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {featured && (
-                  <Link href={`/blog/${featured.slug}`} className="post-feat">
-                    <span className="pf-tag" style={{
-                      color: catColors[featured.category]?.c ?? "#52B788",
-                      background: catColors[featured.category]?.c ? `${catColors[featured.category].c}22` : "#0f3320",
-                      border: `1px solid ${catColors[featured.category]?.c ?? "#1e5a35"}`,
-                    }}>
-                      {featured.category}
-                    </span>
-                    <div className="pf-title">{featured.title}</div>
-                    <div className="pf-meta">{featured.readTime} de lectura</div>
-                    <span className="pf-link">Leer artículo →</span>
-                  </Link>
-                )}
-
-                {opinionPost && (
-                  <Link href={`/blog/${opinionPost.slug}`} className="op-strip">
-                    <div className="op-ico">
-                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="#c4b5fd" strokeWidth="1.5">
-                        <path d="M10 3c0 0-5 3-5 8a5 5 0 0 0 10 0c0-5-5-8-5-8z"/>
-                        <path d="M10 9v3M10 13.5v.5"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <div className="op-kicker">Opinión</div>
-                      <div className="op-title">{opinionPost.title}</div>
-                      <div className="op-link">Leer columna →</div>
-                    </div>
-                  </Link>
-                )}
-              </div>
-
-              {/* Columna derecha: 3 posts laterales */}
-              <div className="posts-col">
-                {laterales.map((post: BlogPost) => {
-                  const cc = catColors[post.category];
-                  return (
-                    <Link key={post.id} href={`/blog/${post.slug}`} className="post-sm">
-                      <span className="ps-tag" style={{
-                        color: cc?.c ?? "#2D6A4F",
-                        borderColor: cc?.c ?? "#b7dfc8",
-                        background: cc?.b ?? "#f0faf4",
-                      }}>
-                        {post.category}
-                      </span>
-                      <div className="ps-title">{post.title}</div>
-                      <span className="ps-link">Leer →</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
+          {dek && (
+            <p
+              className="mt-3 text-[15px] leading-snug max-w-[56ch]"
+              style={{ color: `${BONE}BF` }}
+            >
+              {dek}
+            </p>
           )}
+
+          <div
+            className="mt-4 flex items-center gap-3 font-mono text-[11px] uppercase tracking-[0.14em]"
+            style={{ color: FOG }}
+          >
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block w-5 h-5 grain border hairline" />
+              Juan Alegría
+            </span>
+            <span>·</span>
+            <span>{read} lectura</span>
+          </div>
+        </div>
+
+        {/* cta */}
+        <div className="col-span-12 md:col-span-3 md:text-right">
+          <span
+            className="font-mono text-[11px] uppercase tracking-[0.14em] transition-colors"
+            style={{ color: FOG }}
+          >
+            Leer ensayo
+            <span className="ml-2" style={{ color: ACCENT }}>
+              →
+            </span>
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function Blog() {
+  const arts = [
+    {
+      n: "011",
+      kicker: "Normativa",
+      date: "19 may 2026",
+      read: "5 min",
+      title: "Ya adaptamos todo a las 42 horas. ¿Y ahora qué?",
+      dek: "Ya hicimos los cambios documentales, rediseñamos los turnos y distribuimos las bajas. Pero el trabajo real recién empieza.",
+      big: true,
+      href: "/blog/42-horas-y-ahora-que",
+    },
+    {
+      n: "010",
+      kicker: "Normativa",
+      date: "27 abr 2026",
+      read: "6 min",
+      title:
+        "Resolución Exenta N°38: qué exige y cómo cumplirla sin morir en el intento.",
+      href: "/blog",
+    },
+    {
+      n: "009",
+      kicker: "Jurisprudencia",
+      date: "16 abr 2026",
+      read: "5 min",
+      title:
+        "Una empresa fue multada por no tener registro de asistencia — y tenía sistema.",
+      href: "/blog",
+    },
+    {
+      n: "008",
+      kicker: "Normativa",
+      date: "16 abr 2026",
+      read: "7 min",
+      title:
+        "Ley 21.561: lo que nadie te explica sobre los turnos rotativos y las 42 horas.",
+      href: "/blog",
+    },
+  ];
+
+  return (
+    <section id="blog" className="border-t hairline-strong">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <SectionRule
+          idx="§ 02"
+          label="Blog"
+          right="Ensayos, no thought-leadership"
+        />
+
+        <div>
+          {arts.map((a) => (
+            <Article key={a.n} {...a} />
+          ))}
+        </div>
+
+        <div className="mt-10 flex items-center justify-between">
+          <span
+            className="font-mono text-[11px] uppercase tracking-[0.16em]"
+            style={{ color: FOG }}
+          >
+            11 artículos · archivo desde abril 2026
+          </span>
+          <a
+            href="/blog"
+            className="ulink font-mono text-[12px] uppercase tracking-[0.16em]"
+            style={{ color: ACCENT }}
+          >
+            Ver archivo completo →
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────
+   CONTACTO
+───────────────────────────────────────── */
+type FormStatus = "idle" | "sending" | "ok" | "error";
+
+function Contacto() {
+  const [nombre,  setNombre]  = useState("");
+  const [email,   setEmail]   = useState("");
+  const [mensaje, setMensaje] = useState("");
+  const [status,  setStatus]  = useState<FormStatus>("idle");
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (status === "sending") return;
+    setStatus("sending");
+
+    try {
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre,
+          email,
+          empresa: "",
+          cargo: "",
+          fuente:  "contacto",
+          source:  "contacto",
+          mensaje,
+        }),
+      });
+      if (!res.ok) throw new Error("Error");
+      setStatus("ok");
+    } catch {
+      setStatus("error");
+    }
+  }
+
+  return (
+    <section id="contacto" className="border-t hairline-strong">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <div className="grid grid-cols-12 gap-10 items-start">
+
+          {/* left — heading */}
+          <div className="col-span-12 md:col-span-6">
+            <MonoLabel className="block mb-6">§ 03 · Contacto</MonoLabel>
+
+            <h2 className="font-serif text-[clamp(34px,5vw,68px)] leading-[1.02] tracking-[-0.01em]">
+              ¿Tienes un problema
+              <br />
+              de dotaciones?
+              <br />
+              <em className="italic" style={{ color: ACCENT }}>
+                Escríbeme.
+              </em>
+            </h2>
+
+            <p
+              className="mt-6 text-[16px] leading-relaxed max-w-[46ch]"
+              style={{ color: `${BONE}B3` }}
+            >
+              Sin formularios largos. Solo cuéntame el problema y te respondo
+              en 24 horas.
+            </p>
+          </div>
+
+          {/* right — form */}
+          <div className="col-span-12 md:col-span-5 md:col-start-8">
+            {status === "ok" ? (
+              <div className="border hairline-strong p-8">
+                <p
+                  className="font-mono text-[13px] leading-relaxed"
+                  style={{ color: BONE }}
+                >
+                  Mensaje enviado.
+                  <br />
+                  Te respondo en 24 horas.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-8">
+                {/* nombre */}
+                <div>
+                  <label
+                    className="block font-mono text-[10.5px] uppercase tracking-[0.16em] mb-2"
+                    style={{ color: FOG }}
+                  >
+                    Nombre
+                  </label>
+                  <input
+                    className="field"
+                    type="text"
+                    placeholder="Tu nombre"
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    required
+                    disabled={status === "sending"}
+                  />
+                </div>
+
+                {/* email */}
+                <div>
+                  <label
+                    className="block font-mono text-[10.5px] uppercase tracking-[0.16em] mb-2"
+                    style={{ color: FOG }}
+                  >
+                    Email
+                  </label>
+                  <input
+                    className="field"
+                    type="email"
+                    placeholder="nombre@empresa.cl"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    disabled={status === "sending"}
+                  />
+                </div>
+
+                {/* mensaje */}
+                <div>
+                  <label
+                    className="block font-mono text-[10.5px] uppercase tracking-[0.16em] mb-2"
+                    style={{ color: FOG }}
+                  >
+                    Mensaje
+                  </label>
+                  <textarea
+                    className="field resize-none"
+                    rows={4}
+                    placeholder="¿En qué te puedo ayudar?"
+                    value={mensaje}
+                    onChange={(e) => setMensaje(e.target.value)}
+                    required
+                    disabled={status === "sending"}
+                  />
+                </div>
+
+                {/* error inline */}
+                {status === "error" && (
+                  <p className="font-mono text-[12px]" style={{ color: "#F87171" }}>
+                    Hubo un error. Escríbeme a juan@dotaciones.cl
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  className="btn btn-primary font-mono text-[13px] tracking-[0.06em]"
+                  disabled={status === "sending"}
+                >
+                  {status === "sending" ? "Enviando..." : "Enviar →"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────────────────────────────
+   FOOTER
+───────────────────────────────────────── */
+function Footer() {
+  function scrollTop() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  return (
+    <footer className="border-t hairline-strong">
+      <div className="max-w-[1280px] mx-auto px-8 py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div>
+          <span className="font-serif text-[22px]">dotaciones.cl</span>
+        </div>
+        <div
+          className="font-mono text-[11px] uppercase tracking-[0.16em]"
+          style={{ color: FOG }}
+        >
+          dotaciones.cl · Juan Alegría · 2026
         </div>
       </div>
 
-      <SiteFooter />
-    </div>
+      <div className="border-t hairline">
+        <div
+          className="max-w-[1280px] mx-auto px-8 py-3 font-mono text-[10.5px] flex justify-between"
+          style={{ color: FOG }}
+        >
+          <span>Hecho con cuaderno cuadriculado, Excel y café.</span>
+          <button
+            onClick={scrollTop}
+            className="hover:text-[#E8ECEF] transition-colors cursor-pointer bg-transparent border-0 p-0 font-mono text-[10.5px]"
+            style={{ color: FOG }}
+          >
+            ↑ volver arriba
+          </button>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ─────────────────────────────────────────
+   PAGE (default export)
+───────────────────────────────────────── */
+export default function Home() {
+  return (
+    <>
+      {/* inject global styles */}
+      <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
+
+      <StatusBar />
+      <Nav />
+
+      <main>
+        <Hero />
+        <Calculadoras />
+        <Blog />
+        <Contacto />
+      </main>
+
+      <Footer />
+    </>
   );
 }
