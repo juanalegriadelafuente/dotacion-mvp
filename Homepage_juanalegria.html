@@ -133,80 +133,6 @@
 <script type="text/babel">
 const { useEffect, useState, useRef } = React;
 
-// ---------- tweaks panel inline ----------
-function useTweaks(defaults) {
-  const [tweaks, setTweaksState] = useState(defaults);
-  const setTweak = (key, val) => setTweaksState(prev => ({...prev, [key]: val}));
-  return [tweaks, setTweak];
-}
-
-function TweaksPanel({title, children}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{position:"fixed",bottom:20,right:20,zIndex:9999,fontFamily:"monospace"}}>
-      {open && (
-        <div style={{background:"#0F2436",border:"1px solid rgba(232,236,239,0.14)",padding:"16px",marginBottom:"8px",minWidth:"220px",borderRadius:"4px"}}>
-          <div style={{fontSize:"10px",textTransform:"uppercase",letterSpacing:"0.16em",color:"#7A8895",marginBottom:"12px"}}>{title}</div>
-          {children}
-        </div>
-      )}
-      <button onClick={()=>setOpen(o=>!o)}
-        style={{background:"#0F2436",border:"1px solid rgba(232,236,239,0.14)",color:"#E8ECEF",padding:"6px 12px",fontSize:"11px",fontFamily:"monospace",cursor:"pointer",borderRadius:"4px",display:"block",marginLeft:"auto"}}>
-        {open ? "✕ cerrar" : "⚙ tweaks"}
-      </button>
-    </div>
-  );
-}
-
-function TweakSection({title, children}) {
-  return (
-    <div style={{marginBottom:"12px"}}>
-      <div style={{fontSize:"9px",textTransform:"uppercase",letterSpacing:"0.16em",color:"#7A8895",marginBottom:"6px"}}>{title}</div>
-      {children}
-    </div>
-  );
-}
-
-function TweakColor({label, value, options, onChange}) {
-  return (
-    <div style={{marginBottom:"8px"}}>
-      <div style={{fontSize:"10px",color:"#7A8895",marginBottom:"4px"}}>{label}</div>
-      <div style={{display:"flex",gap:"6px"}}>
-        {options.map(o => (
-          <div key={o} onClick={()=>onChange(o)}
-            style={{width:20,height:20,background:o,borderRadius:"2px",cursor:"pointer",border: o===value?"2px solid #E8ECEF":"2px solid transparent"}}/>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function TweakSelect({label, value, options, onChange}) {
-  return (
-    <div style={{marginBottom:"8px"}}>
-      <div style={{fontSize:"10px",color:"#7A8895",marginBottom:"4px"}}>{label}</div>
-      <select value={value} onChange={e=>onChange(e.target.value)}
-        style={{background:"#0D1B2A",color:"#E8ECEF",border:"1px solid rgba(232,236,239,0.14)",fontSize:"11px",padding:"3px 6px",fontFamily:"monospace",width:"100%"}}>
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
-    </div>
-  );
-}
-
-function TweakToggle({label, value, onChange}) {
-  return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"8px"}}>
-      <span style={{fontSize:"10px",color:"#7A8895"}}>{label}</span>
-      <div onClick={()=>onChange(!value)}
-        style={{width:32,height:18,background:value?"#0F6E56":"#1E3650",borderRadius:"9px",cursor:"pointer",position:"relative",transition:"background .2s"}}>
-        <div style={{position:"absolute",top:2,left:value?14:2,width:14,height:14,background:"#E8ECEF",borderRadius:"50%",transition:"left .2s"}}/>
-      </div>
-    </div>
-  );
-}
-// ---------- fin tweaks panel ----------
-
-
 
 // ---------- atoms ----------
 const Dot = ({color="#0F6E56"}) => (
@@ -588,51 +514,17 @@ function Footer() {
   );
 }
 
-// ---------- tweaks ----------
-const ACCENT_OPTS = ["#0F6E56", "#168A6C", "#1F8A5B", "#5BAE92", "#C8553D"];
-const FONT_OPTS = ["Instrument Serif", "Source Serif 4", "EB Garamond"];
+const ACCENT = "#0F6E56";
 
 function App() {
-  const [tweaks, setTweak] = useTweaks(TWEAKS_DEFAULTS);
-
-  // re-apply headline family
-  useEffect(()=>{
-    document.documentElement.style.setProperty('--headline-font', `"${tweaks.headlineFamily}"`);
-  }, [tweaks.headlineFamily]);
-
   return (
-    <div style={{
-      // dynamic accent css var available everywhere
-      // and headline font override
-    }}>
-      <style>{`
-        .serif, h1, h2, h3 { font-family: var(--headline-font, "Instrument Serif"), serif; }
-      `}</style>
-
-      <StatusBar show={tweaks.showStatusBar}/>
+    <div>
       <Nav/>
-      <Hero accent={tweaks.accent}/>
-      <Calculadoras accent={tweaks.accent}/>
-      <Blog accent={tweaks.accent}/>
-      <Newsletter accent={tweaks.accent}/>
+      <Hero accent={ACCENT}/>
+      <Calculadoras accent={ACCENT}/>
+      <Blog accent={ACCENT}/>
+      <Newsletter accent={ACCENT}/>
       <Footer/>
-
-      <TweaksPanel title="Tweaks">
-        <TweakSection title="Color & tono">
-          <TweakColor label="Acento" value={tweaks.accent}
-            options={ACCENT_OPTS}
-            onChange={v=>setTweak("accent", v)} />
-        </TweakSection>
-        <TweakSection title="Tipografía">
-          <TweakSelect label="Headline" value={tweaks.headlineFamily}
-            options={FONT_OPTS}
-            onChange={v=>setTweak("headlineFamily", v)} />
-        </TweakSection>
-        <TweakSection title="Chrome">
-          <TweakToggle label="Status bar superior" value={tweaks.showStatusBar}
-            onChange={v=>setTweak("showStatusBar", v)} />
-        </TweakSection>
-      </TweaksPanel>
     </div>
   );
 }
