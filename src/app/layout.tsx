@@ -1,7 +1,7 @@
 // src/app/layout.tsx
 import { Analytics } from "@vercel/analytics/react";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,13 +14,20 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+});
+
 export const metadata: Metadata = {
   title: {
-    default: "Dotaciones.cl — Calculadora de turnos y dotación de personal",
+    default: "Dotaciones.cl — Juan Alegría · Workforce Management Chile",
     template: "%s | Dotaciones.cl",
   },
   description:
-    "Calcula cuánta gente necesitas para cubrir tus turnos. Calculadora gratuita de dotación para retail, restaurantes, hospitales y más. Incluye mix de contratos y normativa chilena.",
+    "15 años dimensionando dotaciones, optimizando turnos y calculando en retail, casinos, aeropuertos y salud. Calculadoras gratuitas y artículos sobre normativa laboral chilena.",
   metadataBase: new URL("https://dotaciones.cl"),
   keywords: [
     "calculadora dotación personal",
@@ -34,16 +41,16 @@ export const metadata: Metadata = {
     "dimensionamiento personal",
     "jornada laboral 42 horas Chile",
   ],
-  authors: [{ name: "Dotaciones.cl" }],
-  creator: "Dotaciones.cl",
+  authors: [{ name: "Juan Alegría" }],
+  creator: "Juan Alegría",
   publisher: "Dotaciones.cl",
   alternates: {
     canonical: "https://dotaciones.cl",
   },
   openGraph: {
-    title: "Dotaciones.cl — Calculadora de turnos y dotación de personal",
+    title: "Dotaciones.cl — Juan Alegría · Workforce Management Chile",
     description:
-      "Calcula cuánta gente necesitas para cubrir tus turnos. Gratis, para retail, restaurantes y hospitales. Normativa chilena incluida.",
+      "15 años dimensionando dotaciones en retail, casinos, aeropuertos y salud. Calculadoras gratuitas y normativa laboral chilena.",
     url: "https://dotaciones.cl",
     siteName: "Dotaciones.cl",
     locale: "es_CL",
@@ -53,15 +60,15 @@ export const metadata: Metadata = {
         url: "https://dotaciones.cl/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Dotaciones.cl — Calculadora de dotación de personal",
+        alt: "Dotaciones.cl — Juan Alegría · Workforce Management Chile",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Dotaciones.cl — Calculadora de turnos y dotación",
+    title: "Dotaciones.cl — Juan Alegría",
     description:
-      "Calcula cuánta gente necesitas para cubrir tus turnos. Gratis.",
+      "15 años dimensionando dotaciones en Chile. Calculadoras gratuitas.",
     images: ["https://dotaciones.cl/og-image.png"],
   },
   robots: {
@@ -84,7 +91,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es-CL">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} antialiased`}
+      >
         {children}
         <Analytics />
       </body>
