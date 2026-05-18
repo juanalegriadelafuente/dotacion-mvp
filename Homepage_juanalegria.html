@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>dotaciones.cl — Juan Alegría</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          ink:    "#0D1B2A",
+          ink2:   "#0F2436",
+          ink3:   "#15314A",
+          line:   "#1E3650",
+          line2: "#26425F",
+          fog:    "#7A8895",
+          bone:   "#E8ECEF",
+          paper:  "#F5F1E8",
+          teal:   "#0F6E56",
+          teal2:  "#168A6C",
+        },
+        fontFamily: {
+          serif: ['"Instrument Serif"', 'ui-serif', 'Georgia', 'serif'],
+          sans:  ['"Geist"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono:  ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        },
+      }
+    }
+  }
+</script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  html, body { background:#0D1B2A; color:#E8ECEF; }
+  body { font-family: "Geist", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  ::selection { background:#0F6E56; color:#E8ECEF; }
+  .serif { font-family:"Instrument Serif", serif; font-weight:400; letter-spacing:-0.01em; }
+  .mono  { font-family:"JetBrains Mono", monospace; }
+  .hairline { border-color: rgba(232,236,239,0.08); }
+  .hairline-strong { border-color: rgba(232,236,239,0.14); }
+
+  /* grain placeholder */
+  .grain {
+    background-color: #0F2436;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 7px),
+      radial-gradient(120% 80% at 30% 20%, rgba(15,110,86,0.12), transparent 60%),
+      radial-gradient(80% 60% at 80% 90%, rgba(255,255,255,0.04), transparent 60%);
+  }
+  .stripe {
+    background-image: repeating-linear-gradient(135deg, rgba(232,236,239,0.05) 0 1px, transparent 1px 9px);
+  }
+  .dotgrid {
+    background-image: radial-gradient(rgba(232,236,239,0.10) 1px, transparent 1px);
+    background-size: 14px 14px;
+  }
+
+  /* underline link */
+  .ulink { position:relative; }
+  .ulink::after {
+    content:""; position:absolute; left:0; right:0; bottom:-3px; height:1px;
+    background: currentColor; transform: scaleX(0); transform-origin: left;
+    transition: transform .35s cubic-bezier(.2,.7,.2,1);
+  }
+  .ulink:hover::after { transform: scaleX(1); }
+
+  /* tag pill */
+  .tag {
+    border:1px solid rgba(232,236,239,0.14);
+    color:#E8ECEF; padding:2px 8px; border-radius:2px;
+    font-family:"JetBrains Mono",monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.08em;
+  }
+
+  /* card hover */
+  .card-hover { transition: background-color .3s ease, border-color .3s ease, transform .3s ease; }
+  .card-hover:hover { background:#102a40; border-color: rgba(232,236,239,0.18); }
+
+  /* blinking cursor */
+  @keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+  .blink { animation: blink 1.05s steps(1,end) infinite; }
+
+  /* subtle marquee separator */
+  .rule-dotted { background-image: linear-gradient(to right, rgba(232,236,239,0.18) 50%, transparent 0); background-size: 8px 1px; background-repeat: repeat-x; background-position: 0 50%; }
+
+  /* avatar frame ticks */
+  .ticks::before, .ticks::after {
+    content:""; position:absolute; width:14px; height:14px; border-color:#7A8895; border-style:solid;
+  }
+  .ticks::before { top:-1px; left:-1px; border-width:1px 0 0 1px; }
+  .ticks::after  { bottom:-1px; right:-1px; border-width:0 1px 1px 0; }
+
+  /* button */
+  .btn {
+    display:inline-flex; align-items:center; gap:.6rem;
+    padding: 0.7rem 1rem; font-size:14px;
+    border:1px solid rgba(232,236,239,0.16);
+    color:#E8ECEF; background: transparent;
+    transition: background-color .25s ease, border-color .25s ease, color .25s ease;
+  }
+  .btn:hover { background:#102a40; border-color: rgba(232,236,239,0.28); }
+  .btn-primary {
+    background:#0F6E56; border-color:#0F6E56; color:#F5F1E8;
+  }
+  .btn-primary:hover { background:#168A6C; border-color:#168A6C; }
+
+  /* email input */
+  .field {
+    background: transparent; border:0; border-bottom:1px solid rgba(232,236,239,0.18);
+    color:#E8ECEF; padding: 10px 2px; outline:none; width:100%;
+    font-family:"Geist",sans-serif; font-size:16px;
+  }
+  .field::placeholder { color:#7A8895; }
+  .field:focus { border-color:#0F6E56; }
+
+  /* tiny noise overlay on hero */
+  .noise::before {
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background-image: radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 3px 3px; mix-blend-mode: overlay; opacity:.5;
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<div id="root"></div>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+const { useEffect, useState, useRef } = React;
+
+const TWEAKS_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "accent": "#0F6E56",
+  "headlineFamily": "EB Garamond",
+  "showStatusBar": false,
+  "heroLayout": "split"
+}/*EDITMODE-END*/;
+
+// ---------- atoms ----------
+const Dot = ({color="#0F6E56"}) => (
+  <span className="inline-block align-middle" style={{width:6,height:6,background:color,borderRadius:1}} />
+);
+
+const MonoLabel = ({children, className=""}) => (
+  <span className={"mono uppercase tracking-[0.16em] text-[10.5px] text-fog "+className}>{children}</span>
+);
+
+const SectionRule = ({label, idx, right}) => (
+  <div className="flex items-end justify-between border-b hairline-strong pb-3 mb-10">
+    <div className="flex items-baseline gap-3">
+      <span className="mono text-[11px] text-fog">{idx}</span>
+      <h2 className="serif text-[clamp(28px,3.4vw,44px)] leading-none">{label}</h2>
+    </div>
+    {right && <div className="mono text-[11px] uppercase tracking-[0.16em] text-fog">{right}</div>}
+  </div>
+);
+
+// ---------- chrome ----------
+function StatusBar({show}) {
+  const [time, setTime] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(()=>setTime(new Date()), 1000);
+    return () => clearInterval(t);
+  },[]);
+  if (!show) return null;
+  const hh = String(time.getHours()).padStart(2,"0");
+  const mm = String(time.getMinutes()).padStart(2,"0");
+  const ss = String(time.getSeconds()).padStart(2,"0");
+  return (
+    <div className="border-b hairline mono text-[11px] text-fog">
+      <div className="max-w-[1280px] mx-auto px-8 h-9 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <span className="flex items-center gap-2"><Dot/> EN LÍNEA · SANTIAGO</span>
+          <span className="hidden md:inline">LAT −33.45 · LON −70.66</span>
+        </div>
+        <div className="flex items-center gap-6">
+          <span className="hidden md:inline">v. 04 · ed. mayo 2026</span>
+          <span>{hh}:{mm}<span className="text-fog/60">:{ss}</span> CLT</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Nav() {
+  const links = [
+    {label:"Blog", href:"#blog"},
+    {label:"Sobre mí", href:"#sobre"},
+    {label:"YouTube", href:"#youtube"},
+    {label:"Calculadoras", href:"#calc"},
+  ];
+  return (
+    <nav className="border-b hairline sticky top-0 z-30 backdrop-blur bg-ink/85">
+      <div className="max-w-[1280px] mx-auto px-8 h-[68px] flex items-center justify-between">
+        <a href="#" className="flex items-baseline gap-2 group" data-screen-label="logo">
+          <span className="serif text-[22px] tracking-tight">dotaciones</span>
+          <span className="mono text-[11px] text-fog">.cl</span>
+        </a>
+        <div className="flex items-center gap-8">
+          {links.map((l,i)=>(
+            <a key={l.label} href={l.href}
+               className="text-[14px] text-bone/85 hover:text-bone ulink">
+              <span className="mono text-fog mr-2 text-[11px]">0{i+1}</span>{l.label}
+            </a>
+          ))}
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+// ---------- hero ----------
+function AvatarPlaceholder() {
+  return (
+    <div className="relative ticks">
+      <div className="aspect-square w-full border hairline-strong relative overflow-hidden">
+        <img
+          src="https://dotaciones.cl/juan-alegria.jpg"
+          alt="Juan Alegría"
+          className="w-full h-full object-cover object-top"
+          onError={(e)=>{
+            e.target.style.display='none';
+            e.target.parentNode.classList.add('grain');
+          }}
+        />
+        <div className="absolute bottom-3 left-3 mono text-[10px] text-fog tracking-[0.16em]">JA — 46</div>
+        <div className="absolute top-3 right-3 mono text-[10px] text-fog">CL</div>
+      </div>
+      <div className="mt-3 flex items-center justify-between mono text-[10.5px] text-fog uppercase tracking-[0.14em]">
+        <span>Santiago, CL</span>
+        <span>2026/05</span>
+      </div>
+    </div>
+  );
+}
+
+function Hero({accent}) {
+  return (
+    <section className="relative noise">
+      <div className="max-w-[1280px] mx-auto px-8 pt-20 pb-24">
+        {/* top meta strip */}
+        <div className="grid grid-cols-12 mb-14 mono text-[11px] uppercase tracking-[0.18em] text-fog">
+          <div className="col-span-3">Edición · 04</div>
+          <div className="col-span-3">Workforce · HRTech</div>
+          <div className="col-span-3">Independiente</div>
+          <div className="col-span-3 text-right">Chile</div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-10 items-start">
+          {/* avatar */}
+          <div className="col-span-12 md:col-span-4">
+            <AvatarPlaceholder/>
+          </div>
+
+          {/* headline + bio */}
+          <div className="col-span-12 md:col-span-8">
+            <div className="flex items-center gap-3 mb-8">
+              <Dot color={accent}/>
+              <MonoLabel>El sitio de Juan Alegría</MonoLabel>
+            </div>
+
+            <h1 className="serif text-[clamp(44px,7vw,108px)] leading-[0.95] tracking-[-0.02em]">
+              Workforce<br/>
+              management en<br/>
+              Chile, <em className="italic" style={{color:accent}}>sin humo</em>.
+              <span className="blink ml-1 inline-block align-baseline" style={{width:'0.55ch',height:'0.85em',background:accent,verticalAlign:'-0.05em'}}></span>
+            </h1>
+
+            <div className="mt-10 max-w-[58ch] text-[18px] leading-[1.55] text-bone/85">
+              <p>
+                Llevo 15 años dimensionando dotaciones, optimizando turnos
+                y peleando con planillas en retail, casinos, aeropuertos y salud.
+                Aquí escribo lo que <span className="italic serif text-[22px]" style={{color:'#E8ECEF'}}>realmente</span> funciona —
+                y lo que se vende caro y no sirve.
+              </p>
+            </div>
+
+            <div className="mt-12 flex flex-wrap items-center gap-3">
+              <a href="#" className="btn btn-primary" style={{background:accent,borderColor:accent}}>
+                <span className="mono text-[11px] uppercase tracking-[0.16em]">in</span>
+                LinkedIn
+                <span className="opacity-70 mono text-[11px]">→</span>
+              </a>
+              <a href="#" className="btn">
+                <span className="mono text-[11px] uppercase tracking-[0.16em]">▶</span>
+                YouTube
+                <span className="opacity-50 mono text-[11px]">→</span>
+              </a>
+              <span className="mono text-[11px] text-fog ml-2 hidden md:inline">
+                · 1.014 seguidores LinkedIn · canal YouTube en construcción
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* baseline stats row */}
+        <div className="mt-24 grid grid-cols-2 md:grid-cols-4 border-t hairline-strong">
+          {[
+            ["15", "años en operaciones"],
+            ["11", "artículos publicados"],
+            ["478", "visitas este mes"],
+            ["05:15", "hora a la que escribe esto"],
+          ].map(([n,l],i)=>(
+            <div key={i} className={"py-6 px-1 "+(i>0?"md:border-l hairline":"")}>
+              <div className="serif text-[44px] leading-none">{n}</div>
+              <div className="mono text-[11px] uppercase tracking-[0.14em] text-fog mt-3">{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------- calculadoras ----------
+function CalcCard({idx, title, sub, inputs, output, accent}) {
+  return (
+    <a href="#" className="card-hover group block border hairline-strong p-7 bg-ink2/40 relative overflow-hidden">
+      <div className="flex items-center justify-between mb-10">
+        <span className="mono text-[11px] text-fog tracking-[0.18em]">CALC · {idx}</span>
+        <span className="mono text-[11px] text-fog group-hover:text-bone transition">ABRIR →</span>
+      </div>
+      <h3 className="serif text-[28px] leading-[1.05] mb-2">{title}</h3>
+      <p className="text-[13.5px] text-bone/70 leading-snug max-w-[34ch]">{sub}</p>
+
+      <div className="mt-8 border-t hairline pt-5 space-y-2.5">
+        {inputs.map((it,i)=>(
+          <div key={i} className="flex items-center justify-between mono text-[12px]">
+            <span className="text-fog">{it[0]}</span>
+            <span className="text-bone/90">{it[1]}</span>
+          </div>
+        ))}
+        <div className="flex items-baseline justify-between pt-4 mt-3 border-t hairline">
+          <span className="mono text-[10.5px] text-fog uppercase tracking-[0.16em]">{output[0]}</span>
+          <span className="serif text-[28px]" style={{color:accent}}>{output[1]}</span>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function Calculadoras({accent}) {
+  const cards = [
+    {
+      idx:"01",
+      title:"Dotación óptima",
+      sub:"Calcula cuánta gente realmente necesitas según demanda, niveles de servicio y ausentismo.",
+      inputs:[["Llamadas/día","4.200"],["SLA objetivo","80/20"],["Shrinkage","32%"]],
+      output:["Headcount sugerido","47"]
+    },
+    {
+      idx:"02",
+      title:"Costo real por hora",
+      sub:"Más allá del sueldo bruto: incluye cargas, vacaciones, ausentismo y rotación.",
+      inputs:[["Sueldo base","$780.000"],["Cargas + leyes","42,1%"],["Días efectivos","218"]],
+      output:["Costo/hora real","$6.412"]
+    },
+    {
+      idx:"03",
+      title:"Rotación y su costo",
+      sub:"Cuánto te cuesta cada renuncia en reemplazo, curva de aprendizaje y productividad perdida.",
+      inputs:[["Rotación anual","38%"],["Time-to-fill","24 días"],["Curva","60 días"]],
+      output:["Costo anual","$184M"]
+    },
+  ];
+  return (
+    <section id="calc" className="border-t hairline-strong">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <SectionRule
+          idx="§ 01"
+          label="Calculadoras"
+          right="Herramientas gratis · sin login"
+        />
+        <p className="serif text-[22px] italic text-bone/80 max-w-[60ch] mb-12">
+          Hojas de cálculo de verdad, no demos de SaaS. Las uso yo todas las semanas.
+        </p>
+        <div className="grid md:grid-cols-3 gap-px bg-line">
+          {cards.map(c => <CalcCard key={c.idx} {...c} accent={accent}/>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------- blog ----------
+function Article({n, kicker, title, dek, date, read, accent, big}) {
+  return (
+    <a href="#" className="group block border-b hairline py-8">
+      <div className="grid grid-cols-12 gap-6 items-baseline">
+        <div className="col-span-12 md:col-span-2">
+          <div className="mono text-[11px] text-fog uppercase tracking-[0.16em]">N° {n}</div>
+          <div className="mono text-[11px] text-fog mt-1">{date}</div>
+        </div>
+        <div className="col-span-12 md:col-span-7">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="tag">{kicker}</span>
+          </div>
+          <h3 className={"serif leading-[1.05] tracking-[-0.01em] "+(big?"text-[44px]":"text-[30px]")}>
+            <span className="group-hover:[text-decoration:underline] [text-decoration-thickness:1px] [text-underline-offset:6px]">{title}</span>
+          </h3>
+          {dek && <p className="mt-3 text-[15px] text-bone/75 leading-snug max-w-[56ch]">{dek}</p>}
+          <div className="mt-4 flex items-center gap-3 mono text-[11px] text-fog uppercase tracking-[0.14em]">
+            <span className="inline-flex items-center gap-2">
+              <span className="inline-block w-5 h-5 grain border hairline"></span>
+              Juan Alegría
+            </span>
+            <span>·</span>
+            <span>{read}</span>
+          </div>
+        </div>
+        <div className="col-span-12 md:col-span-3 md:text-right">
+          <span className="mono text-[11px] text-fog group-hover:text-bone transition" style={{color:undefined}}>
+            Leer ensayo
+            <span className="ml-2" style={{color:accent}}>→</span>
+          </span>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function Blog({accent}) {
+  const arts = [
+    {n:"011", kicker:"Normativa", date:"19 may 2026", read:"5 min",
+     title:"Ya adaptamos todo a las 42 horas. ¿Y ahora qué?",
+     dek:"Ya hicimos los cambios documentales, rediseñamos los turnos y distribuimos las bajas. Pero el trabajo real recién empieza: verificar el cumplimiento real, analizar horas efectivas y medir productividad.",
+     big:true},
+    {n:"010", kicker:"Normativa", date:"27 abr 2026", read:"6 min",
+     title:"Resolución Exenta N°38: qué exige y cómo cumplirla sin morir en el intento."},
+    {n:"009", kicker:"Jurisprudencia", date:"16 abr 2026", read:"5 min",
+     title:"Una empresa fue multada por no tener registro de asistencia — y tenía sistema."},
+    {n:"008", kicker:"Normativa", date:"16 abr 2026", read:"7 min",
+     title:"Ley 21.561: lo que nadie te explica sobre los turnos rotativos y las 42 horas."},
+  ];
+  return (
+    <section id="blog" className="border-t hairline-strong">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <SectionRule
+          idx="§ 02"
+          label="Blog"
+          right="Ensayos, no thought-leadership"
+        />
+        <div>
+          {arts.map(a => <Article key={a.n} {...a} accent={accent}/>)}
+        </div>
+        <div className="mt-10 flex items-center justify-between">
+          <span className="mono text-[11px] text-fog uppercase tracking-[0.16em]">
+            11 artículos · archivo desde abril 2026
+          </span>
+          <a href="#" className="ulink mono text-[12px] uppercase tracking-[0.16em]" style={{color:accent}}>
+            Ver archivo completo →
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------- newsletter ----------
+function Newsletter({accent}) {
+  const [email, setEmail] = useState("");
+  const [done, setDone] = useState(false);
+  return (
+    <section id="newsletter" className="border-t hairline-strong">
+      <div className="max-w-[1280px] mx-auto px-8 py-24">
+        <div className="grid grid-cols-12 gap-10 items-end">
+          <div className="col-span-12 md:col-span-7">
+            <MonoLabel className="block mb-6">§ 03 · Newsletter</MonoLabel>
+            <h2 className="serif text-[clamp(34px,5vw,68px)] leading-[1.02] tracking-[-0.01em]">
+              Un correo al mes.<br/>
+              <em className="italic" style={{color:accent}}>Cero growth-hacks.</em> Lo que estoy aprendiendo, en bruto.
+            </h2>
+          </div>
+          <div className="col-span-12 md:col-span-5">
+            <form onSubmit={(e)=>{e.preventDefault(); if(email.includes("@")) setDone(true);}}
+                  className="flex items-end gap-4">
+              <div className="flex-1">
+                <label className="block mono text-[10.5px] uppercase tracking-[0.16em] text-fog mb-2">Tu correo</label>
+                <input className="field" type="email" placeholder="nombre@empresa.cl"
+                       value={email} onChange={e=>setEmail(e.target.value)} required />
+              </div>
+              <button className="btn btn-primary" style={{background:accent,borderColor:accent}}>
+                {done ? "Listo ✓" : "Suscribirme"}
+              </button>
+            </form>
+            <div className="mt-4 mono text-[11px] text-fog">
+              Newsletter en construcción · sin spam · puedes irte cuando quieras
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------- footer ----------
+function Footer() {
+  return (
+    <footer className="border-t hairline-strong">
+      <div className="max-w-[1280px] mx-auto px-8 py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="flex items-baseline gap-3">
+          <span className="serif text-[22px]">dotaciones.cl</span>
+          <span className="mono text-[11px] text-fog">— construido en Santiago, antes del amanecer</span>
+        </div>
+        <div className="mono text-[11px] text-fog uppercase tracking-[0.16em]">
+          Juan Alegría · dotaciones.cl · 2026
+        </div>
+      </div>
+      <div className="border-t hairline">
+        <div className="max-w-[1280px] mx-auto px-8 py-3 mono text-[10.5px] text-fog flex justify-between">
+          <span>Hecho con cuaderno cuadriculado, Excel y café.</span>
+          <span>↑ volver arriba</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// ---------- tweaks ----------
+const ACCENT_OPTS = ["#0F6E56", "#168A6C", "#1F8A5B", "#5BAE92", "#C8553D"];
+const FONT_OPTS = ["Instrument Serif", "Source Serif 4", "EB Garamond"];
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAKS_DEFAULTS);
+
+  // re-apply headline family
+  useEffect(()=>{
+    document.documentElement.style.setProperty('--headline-font', `"${tweaks.headlineFamily}"`);
+  }, [tweaks.headlineFamily]);
+
+  return (
+    <div style={{
+      // dynamic accent css var available everywhere
+      // and headline font override
+    }}>
+      <style>{`
+        .serif, h1, h2, h3 { font-family: var(--headline-font, "Instrument Serif"), serif; }
+      `}</style>
+
+      <StatusBar show={tweaks.showStatusBar}/>
+      <Nav/>
+      <Hero accent={tweaks.accent}/>
+      <Calculadoras accent={tweaks.accent}/>
+      <Blog accent={tweaks.accent}/>
+      <Newsletter accent={tweaks.accent}/>
+      <Footer/>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Color & tono">
+          <TweakColor label="Acento" value={tweaks.accent}
+            options={ACCENT_OPTS}
+            onChange={v=>setTweak("accent", v)} />
+        </TweakSection>
+        <TweakSection title="Tipografía">
+          <TweakSelect label="Headline" value={tweaks.headlineFamily}
+            options={FONT_OPTS}
+            onChange={v=>setTweak("headlineFamily", v)} />
+        </TweakSection>
+        <TweakSection title="Chrome">
+          <TweakToggle label="Status bar superior" value={tweaks.showStatusBar}
+            onChange={v=>setTweak("showStatusBar", v)} />
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+}
+
+// load EB Garamond + Source Serif 4 lazily for tweak option
+const fontPreload = document.createElement("link");
+fontPreload.rel = "stylesheet";
+fontPreload.href = "https://fonts.googleapis.com/css2?family=EB+Garamond:ital@0;1&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;1,8..60,400&display=swap";
+document.head.appendChild(fontPreload);
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+
+</body>
+</html>
