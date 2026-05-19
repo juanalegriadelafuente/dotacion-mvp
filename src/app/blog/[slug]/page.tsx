@@ -31,70 +31,244 @@ export async function generateStaticParams() {
   return slugs.map((slug) => ({ slug }));
 }
 
+// Paleta por categoría (acento teal para las legales, hueso para las demás)
 const catColors: Record<string, { c: string; b: string }> = {
-  "Metodología":      { c: "#1E40AF", b: "#DBEAFE" },
-  "Planificación":    { c: "#065F46", b: "#D1FAE5" },
-  "Normativa":        { c: "#92400E", b: "#FEF3C7" },
-  "Retail":           { c: "#1B4332", b: "#D8F3DC" },
-  "Salud":            { c: "#991B1B", b: "#FEE2E2" },
-  "Casos prácticos":  { c: "#6B21A8", b: "#F3E8FF" },
+  "Normativa":        { c: "#0F6E56", b: "rgba(15,110,86,0.35)"  },
+  "Jurisprudencia":   { c: "#0F6E56", b: "rgba(15,110,86,0.35)"  },
+  "Planificación":    { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
+  "Metodología":      { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
+  "Retail":           { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
+  "Salud":            { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
+  "Casos prácticos":  { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
 };
 
 const S = `
-  @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'Sora',sans-serif;background:#FAFAF7;}
-  a{text-decoration:none;color:inherit;}
+  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  body {
+    font-family: 'Geist', system-ui, sans-serif;
+    background: #0D1B2A;
+    color: #E8ECEF;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { text-decoration:none; color:inherit; }
+  ::selection { background:#0F6E56; color:#E8ECEF; }
 
-  .art-hero{background:#0C1F15;padding:56px 40px 64px;}
-  .art-hero-in{max-width:760px;margin:0 auto;}
-  .back{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:rgba(255,255,255,.45);margin-bottom:28px;}
-  .back:hover{color:rgba(255,255,255,.8);}
-  .art-tag{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:4px 12px;border-radius:100px;border:1.5px solid;display:inline-block;margin-bottom:16px;}
-  .art-h1{font-size:clamp(26px,4vw,44px);font-weight:800;color:#fff;letter-spacing:-.03em;line-height:1.08;margin-bottom:16px;}
-  .art-meta{font-size:12px;color:rgba(255,255,255,.4);display:flex;gap:10px;align-items:center;}
-  .art-dot{width:3px;height:3px;border-radius:50%;background:rgba(255,255,255,.25);}
+  /* ── Hero ── */
+  .art-hero {
+    background: #0F2436;
+    border-bottom: 1px solid rgba(232,236,239,0.10);
+    padding: 56px 40px 64px;
+  }
+  .art-hero-in { max-width: 760px; margin: 0 auto; }
 
-  .art-body{max-width:760px;margin:0 auto;padding:56px 40px;}
+  .back {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase;
+    color: rgba(232,236,239,0.40); margin-bottom: 32px;
+    transition: color .25s ease;
+  }
+  .back:hover { color: #E8ECEF; }
 
-  /* CTA top */
-  .cta-top{background:#0C1F15;border-radius:12px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:48px;flex-wrap:wrap;}
-  .cta-top-t{font-size:13px;font-weight:600;color:#fff;}
-  .cta-top-s{font-size:12px;color:rgba(255,255,255,.45);margin-top:2px;}
-  .cta-top-btn{background:#52B788;color:#0C1F15;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;white-space:nowrap;}
+  /* Tag pill */
+  .art-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 2px; border: 1px solid;
+    display: inline-block; margin-bottom: 20px;
+  }
 
-  /* Content */
-  .prose h2{font-size:clamp(18px,2.5vw,24px);font-weight:800;color:#111;letter-spacing:-.02em;margin:48px 0 14px;}
-  .prose h3{font-size:18px;font-weight:700;color:#111;margin:36px 0 10px;}
-  .prose h4{font-size:16px;font-weight:700;color:#111;margin:28px 0 8px;}
-  .prose p{font-size:16px;color:#374151;line-height:1.75;margin:14px 0;font-weight:300;}
-  .prose ul,.prose ol{padding-left:24px;margin:14px 0;}
-  .prose li{font-size:15px;color:#374151;line-height:1.7;margin:6px 0;font-weight:300;}
-  .prose blockquote{border-left:3px solid #52B788;padding-left:18px;margin:20px 0;color:#6B7280;font-style:italic;}
-  .prose code{background:#F3F4F6;padding:2px 7px;border-radius:5px;font-size:13px;font-family:'DM Mono',monospace;color:#111;}
-  .prose pre{background:#111;border-radius:10px;overflow:hidden;margin:20px 0;}
-  .prose pre .lang{padding:8px 16px;background:#1A1A1A;font-size:11px;color:#555;font-family:'DM Mono',monospace;}
-  .prose pre code{background:none;padding:16px;display:block;font-size:13px;color:#ddd;line-height:1.65;}
-  .prose hr{border:none;border-top:1.5px solid #E5E3DB;margin:36px 0;}
-  .prose .callout{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:16px 20px;margin:20px 0;font-size:14px;color:#166534;line-height:1.65;}
-  .prose strong{font-weight:700;color:#111;}
-  .prose a{color:#2D6A4F;text-decoration:underline;text-underline-offset:3px;}
+  /* Título */
+  .art-h1 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(30px, 4.5vw, 52px);
+    font-weight: 400; color: #E8ECEF;
+    letter-spacing: -0.01em; line-height: 1.06; margin-bottom: 20px;
+  }
 
-  /* CTA bottom */
-  .cta-bot{background:#0C1F15;border-radius:16px;padding:40px;margin-top:56px;}
-  .cta-bot-h{font-size:20px;font-weight:800;color:#fff;margin-bottom:8px;}
-  .cta-bot-s{font-size:13px;color:rgba(255,255,255,.45);font-weight:300;margin-bottom:24px;}
-  .cta-bot-btns{display:flex;gap:10px;flex-wrap:wrap;}
-  .cta-bot-p{display:inline-flex;align-items:center;gap:6px;background:#52B788;color:#0C1F15;padding:12px 22px;border-radius:8px;font-size:13px;font-weight:700;}
-  .cta-bot-s2{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:rgba(255,255,255,.8);padding:11px 18px;border-radius:8px;font-size:13px;font-weight:500;}
+  /* Meta */
+  .art-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: rgba(232,236,239,0.40);
+    display: flex; gap: 12px; align-items: center;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .art-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(232,236,239,0.25); }
 
-  @media(max-width:768px){
-    .art-hero,.art-body{padding-left:20px;padding-right:20px;}
-    .cta-top{flex-direction:column;align-items:flex-start;}
+  /* ── Body ── */
+  .art-body { max-width: 760px; margin: 0 auto; padding: 56px 40px; }
+
+  /* Lead / excerpt */
+  .art-lead {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(17px, 2.2vw, 21px);
+    font-style: italic;
+    color: rgba(232,236,239,0.72);
+    line-height: 1.55; margin-bottom: 32px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid rgba(232,236,239,0.10);
+  }
+
+  /* ── CTA top ── */
+  .cta-top {
+    background: rgba(15,110,86,0.09);
+    border: 1px solid rgba(15,110,86,0.25);
+    border-radius: 4px;
+    padding: 18px 22px;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; margin-bottom: 48px; flex-wrap: wrap;
+  }
+  .cta-top-t { font-size: 14px; font-weight: 500; color: #E8ECEF; }
+  .cta-top-s {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: rgba(232,236,239,0.45);
+    margin-top: 4px; letter-spacing: 0.06em;
+  }
+  .cta-top-btn {
+    background: #0F6E56; color: #F5F1E8;
+    padding: 10px 20px; border-radius: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 500; letter-spacing: 0.08em;
+    white-space: nowrap; transition: background .2s ease;
+  }
+  .cta-top-btn:hover { background: #168A6C; }
+
+  /* ── Prose ── */
+  .prose h2 {
+    font-family: 'Instrument Serif', serif;
+    font-size: clamp(22px, 3vw, 32px); font-weight: 400;
+    color: #E8ECEF; letter-spacing: -0.01em;
+    margin: 52px 0 16px; line-height: 1.1;
+  }
+  .prose h3 {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px; font-weight: 400;
+    color: #E8ECEF; margin: 40px 0 12px; line-height: 1.2;
+  }
+  .prose h4 {
+    font-size: 15px; font-weight: 600;
+    color: #E8ECEF; margin: 30px 0 10px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .prose p {
+    font-size: 16px; color: rgba(232,236,239,0.80);
+    line-height: 1.75; margin: 16px 0; font-weight: 300;
+  }
+  .prose ul, .prose ol { padding-left: 24px; margin: 16px 0; }
+  .prose li {
+    font-size: 15px; color: rgba(232,236,239,0.75);
+    line-height: 1.7; margin: 6px 0; font-weight: 300;
+  }
+  .prose blockquote {
+    border-left: 2px solid #0F6E56;
+    padding-left: 20px; margin: 28px 0;
+    color: rgba(232,236,239,0.60); font-style: italic;
+  }
+  .prose code {
+    background: rgba(232,236,239,0.08);
+    padding: 2px 7px; border-radius: 3px;
+    font-size: 13px; font-family: 'JetBrains Mono', monospace;
+    color: #E8ECEF;
+  }
+  .prose pre {
+    background: #061421;
+    border: 1px solid rgba(232,236,239,0.10);
+    border-radius: 4px; overflow: hidden; margin: 28px 0;
+  }
+  .prose pre .lang {
+    padding: 8px 16px;
+    background: rgba(232,236,239,0.04);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: rgba(232,236,239,0.35);
+    border-bottom: 1px solid rgba(232,236,239,0.08);
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .prose pre code {
+    background: none; padding: 16px; display: block;
+    font-size: 13px; color: rgba(232,236,239,0.85); line-height: 1.65;
+  }
+  .prose hr {
+    border: none;
+    border-top: 1px solid rgba(232,236,239,0.10);
+    margin: 44px 0;
+  }
+  .prose .callout {
+    background: rgba(15,110,86,0.10);
+    border: 1px solid rgba(15,110,86,0.25);
+    border-radius: 4px; padding: 18px 20px; margin: 24px 0;
+    font-size: 14px; color: rgba(232,236,239,0.85); line-height: 1.65;
+  }
+  .prose strong { font-weight: 600; color: #E8ECEF; }
+  .prose a {
+    color: #0F6E56; text-decoration: underline;
+    text-underline-offset: 3px; transition: color .2s ease;
+  }
+  .prose a:hover { color: #168A6C; }
+  figure figcaption {
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center; font-size: 11px;
+    color: rgba(232,236,239,0.35); margin-top: 10px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+
+  /* ── CTA bottom ── */
+  .cta-bot {
+    background: #0F2436;
+    border: 1px solid rgba(232,236,239,0.10);
+    border-radius: 4px; padding: 40px; margin-top: 56px;
+  }
+  .cta-bot-h {
+    font-family: 'Instrument Serif', serif;
+    font-size: 28px; font-weight: 400; color: #E8ECEF;
+    margin-bottom: 10px; line-height: 1.1;
+  }
+  .cta-bot-s {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: rgba(232,236,239,0.45);
+    margin-bottom: 28px; letter-spacing: 0.06em;
+  }
+  .cta-bot-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .cta-bot-p {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #0F6E56; color: #F5F1E8;
+    padding: 12px 22px; border-radius: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 500; letter-spacing: 0.08em;
+    transition: background .2s ease;
+  }
+  .cta-bot-p:hover { background: #168A6C; }
+  .cta-bot-s2 {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent;
+    border: 1px solid rgba(232,236,239,0.14);
+    color: rgba(232,236,239,0.80);
+    padding: 11px 18px; border-radius: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 400; letter-spacing: 0.08em;
+    transition: background .2s ease, border-color .2s ease;
+  }
+  .cta-bot-s2:hover { background: rgba(232,236,239,0.05); border-color: rgba(232,236,239,0.28); }
+
+  /* ── Back bottom ── */
+  .art-back-bottom {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: rgba(232,236,239,0.40);
+    display: inline-flex; align-items: center; gap: 6px;
+    letter-spacing: 0.10em; text-transform: uppercase;
+    transition: color .25s ease;
+  }
+  .art-back-bottom:hover { color: #E8ECEF; }
+
+  @media (max-width: 768px) {
+    .art-hero, .art-body { padding-left: 20px; padding-right: 20px; }
+    .cta-top { flex-direction: column; align-items: flex-start; }
+    .cta-bot { padding: 28px 20px; }
   }
 `;
 
-// ── Renderizador de texto con formato ─────────────────────────────────────────
+// ── Texto con formato inline ──────────────────────────────────────────────────
 
 function RichText({ text }: { text: string }) {
   const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\)|`[^`]+`)/g);
@@ -115,7 +289,7 @@ function RichText({ text }: { text: string }) {
 
 // ── Tipos de agrupación ───────────────────────────────────────────────────────
 
-type ListGroup  = { kind: "list"; type: "bullet" | "numbered"; items: NotionBlock[] };
+type ListGroup   = { kind: "list"; type: "bullet" | "numbered"; items: NotionBlock[] };
 type SingleBlock = { kind: "block"; block: NotionBlock };
 type GroupEntry  = ListGroup | SingleBlock;
 
@@ -182,9 +356,15 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
             return <hr key={i} />;
           case "image":
             return (
-              <figure key={i} style={{ margin: "24px 0" }}>
-                <img src={block.url} alt={block.caption ?? ""} style={{ width: "100%", borderRadius: 10, border: "1px solid #E5E3DB" }} />
-                {block.caption && <figcaption style={{ textAlign: "center", fontSize: 12, color: "#9CA3AF", marginTop: 8 }}>{block.caption}</figcaption>}
+              <figure key={i} style={{ margin: "28px 0" }}>
+                <img
+                  src={block.url}
+                  alt={block.caption ?? ""}
+                  style={{ width: "100%", borderRadius: 4, border: "1px solid rgba(232,236,239,0.10)" }}
+                />
+                {block.caption && (
+                  <figcaption>{block.caption}</figcaption>
+                )}
               </figure>
             );
           default:
@@ -215,12 +395,12 @@ export default async function BlogArticle(
   };
 
   return (
-    <div style={{ fontFamily: "'Sora', sans-serif", background: "#FAFAF7" }}>
+    <div style={{ fontFamily: "'Geist', system-ui, sans-serif", background: "#0D1B2A" }}>
       <style dangerouslySetInnerHTML={{ __html: S }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <SiteNav />
 
-      {/* HERO del artículo */}
+      {/* HERO */}
       <div className="art-hero">
         <div className="art-hero-in">
           <Link href="/blog" className="back">
@@ -229,11 +409,13 @@ export default async function BlogArticle(
             </svg>
             Volver al blog
           </Link>
-          <span className="art-tag" style={{
-            color: cc?.c ?? "#D8F3DC",
-            borderColor: cc?.c ?? "#52B788",
-            background: "rgba(82,183,136,0.1)",
-          }}>
+          <span
+            className="art-tag"
+            style={{
+              color:       cc?.c ?? "#E8ECEF",
+              borderColor: cc?.b ?? "rgba(232,236,239,0.18)",
+            }}
+          >
             {post.category}
           </span>
           <h1 className="art-h1">{post.title}</h1>
@@ -248,10 +430,8 @@ export default async function BlogArticle(
       {/* CUERPO */}
       <div className="art-body">
 
-        {/* Excerpt como lead */}
-        <p style={{ fontSize: 18, color: "#374151", lineHeight: 1.65, fontWeight: 300, marginBottom: 32, borderBottom: "1.5px solid #E5E3DB", paddingBottom: 32 }}>
-          {post.excerpt}
-        </p>
+        {/* Lead */}
+        <p className="art-lead">{post.excerpt}</p>
 
         {/* CTA top */}
         <div className="cta-top">
@@ -276,8 +456,8 @@ export default async function BlogArticle(
         </div>
 
         {/* Nav inferior */}
-        <div style={{ borderTop: "1.5px solid #E5E3DB", paddingTop: 28, marginTop: 28 }}>
-          <Link href="/blog" style={{ fontSize: 13, fontWeight: 600, color: "#2D6A4F", display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <div style={{ borderTop: "1px solid rgba(232,236,239,0.10)", paddingTop: 28, marginTop: 28 }}>
+          <Link href="/blog" className="art-back-bottom">
             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>

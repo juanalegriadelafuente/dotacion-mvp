@@ -189,6 +189,7 @@ function StatusBar() {
 function Nav() {
   const links = [
     { label: "Blog",          href: "#blog"      },
+    { label: "Sobre mí", href: "/sobre-mi" },
     { label: "Calculadoras",  href: "#calc"      },
     { label: "Contacto",      href: "#contacto"  },
   ];
