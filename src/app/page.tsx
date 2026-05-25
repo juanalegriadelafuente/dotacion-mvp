@@ -15,6 +15,20 @@ const BONE     = "#E8ECEF";
 const PAPER    = "#F5F1E8";
 
 /* ─────────────────────────────────────────
+   TYPES
+───────────────────────────────────────── */
+interface BlogPost {
+  id:       string;
+  n:        string;   // "012"
+  title:    string;
+  slug:     string;
+  excerpt:  string;
+  category: string;
+  readTime: string;
+  date:     string;   // "26 may 2026"
+}
+
+/* ─────────────────────────────────────────
    GLOBAL STYLES (animations + resets)
 ───────────────────────────────────────── */
 const GLOBAL_CSS = `
@@ -185,13 +199,15 @@ function StatusBar() {
 
 /* ─────────────────────────────────────────
    NAV
+   — "Blog" ahora apunta a /blog (página independiente)
+   — "#calc" y "#contacto" siguen siendo anchors locales
 ───────────────────────────────────────── */
 function Nav() {
   const links = [
-    { label: "Blog",          href: "#blog"      },
-    { label: "Sobre mí", href: "/sobre-mi" },
-    { label: "Calculadoras",  href: "#calc"      },
-    { label: "Contacto",      href: "#contacto"  },
+    { label: "Blog",         href: "/blog"      }, // ← CAMBIADO de #blog a /blog
+    { label: "Sobre mí",     href: "/sobre-mi"  },
+    { label: "Calculadoras", href: "#calc"       },
+    { label: "Contacto",     href: "#contacto"   },
   ];
 
   return (
@@ -281,8 +297,9 @@ function AvatarBlock() {
 
 /* ─────────────────────────────────────────
    HERO
+   — articleCount viene del fetch centralizado en Home
 ───────────────────────────────────────── */
-function Hero() {
+function Hero({ articleCount }: { articleCount: number }) {
   return (
     <section className="relative noise overflow-hidden">
       <div className="max-w-[1280px] mx-auto px-8 pt-20 pb-24 relative">
@@ -373,11 +390,11 @@ function Hero() {
           </div>
         </div>
 
-        {/* stats — 3 only */}
+        {/* stats — el contador de artículos viene de Notion en tiempo real */}
         <div className="mt-24 grid grid-cols-2 md:grid-cols-3 border-t hairline-strong">
           {[
             ["15", "años en operaciones"],
-            ["11", "artículos publicados"],
+            [articleCount > 0 ? String(articleCount) : "—", "artículos publicados"],
             ["3",  "calculadoras gratuitas"],
           ].map(([n, l], i) => (
             <div
@@ -534,7 +551,7 @@ function Calculadoras() {
 }
 
 /* ─────────────────────────────────────────
-   BLOG
+   BLOG — ARTICLE ROW
 ───────────────────────────────────────── */
 function Article({
   n,
@@ -631,47 +648,20 @@ function Article({
   );
 }
 
-function Blog() {
-  const arts = [
-    {
-      n: "011",
-      kicker: "Normativa",
-      date: "19 may 2026",
-      read: "5 min",
-      title: "Ya adaptamos todo a las 42 horas. ¿Y ahora qué?",
-      dek: "Ya hicimos los cambios documentales, rediseñamos los turnos y distribuimos las bajas. Pero el trabajo real recién empieza.",
-      big: true,
-      href: "/blog/42-horas-y-ahora-que",
-    },
-    {
-      n: "010",
-      kicker: "Normativa",
-      date: "27 abr 2026",
-      read: "6 min",
-      title:
-        "Resolución Exenta N°38: qué exige y cómo cumplirla sin morir en el intento.",
-      href: "/blog",
-    },
-    {
-      n: "009",
-      kicker: "Jurisprudencia",
-      date: "16 abr 2026",
-      read: "5 min",
-      title:
-        "Una empresa fue multada por no tener registro de asistencia — y tenía sistema.",
-      href: "/blog",
-    },
-    {
-      n: "008",
-      kicker: "Normativa",
-      date: "16 abr 2026",
-      read: "7 min",
-      title:
-        "Ley 21.561: lo que nadie te explica sobre los turnos rotativos y las 42 horas.",
-      href: "/blog",
-    },
-  ];
-
+/* ─────────────────────────────────────────
+   BLOG SECTION
+   — Recibe posts y total desde el fetch centralizado en Home
+   — Sin hardcode: cada artículo nuevo en Notion aparece automáticamente
+───────────────────────────────────────── */
+function Blog({
+  posts,
+  total,
+  loading,
+}: {
+  posts: BlogPost[];
+  total: number;
+  loading: boolean;
+}) {
   return (
     <section id="blog" className="border-t hairline-strong">
       <div className="max-w-[1280px] mx-auto px-8 py-24">
@@ -682,9 +672,61 @@ function Blog() {
         />
 
         <div>
-          {arts.map((a) => (
-            <Article key={a.n} {...a} />
-          ))}
+          {loading ? (
+            /* Skeleton — mantiene la altura mientras carga */
+            [0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="border-b hairline py-8 animate-pulse"
+              >
+                <div className="grid grid-cols-12 gap-6">
+                  <div className="col-span-2">
+                    <div
+                      className="h-3 w-12 rounded"
+                      style={{ background: `${FOG}30` }}
+                    />
+                    <div
+                      className="h-3 w-16 rounded mt-2"
+                      style={{ background: `${FOG}20` }}
+                    />
+                  </div>
+                  <div className="col-span-7 space-y-3">
+                    <div
+                      className="h-3 w-16 rounded"
+                      style={{ background: `${FOG}20` }}
+                    />
+                    <div
+                      className={
+                        "rounded " + (i === 0 ? "h-8 w-3/4" : "h-6 w-2/3")
+                      }
+                      style={{ background: `${FOG}25` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : posts.length === 0 ? (
+            <p
+              className="py-16 font-mono text-[12px] text-center"
+              style={{ color: FOG }}
+            >
+              No hay artículos disponibles.
+            </p>
+          ) : (
+            posts.map((a, i) => (
+              <Article
+                key={a.id}
+                n={a.n}
+                kicker={a.category}
+                date={a.date}
+                read={a.readTime}
+                title={a.title}
+                dek={i === 0 ? a.excerpt : undefined}
+                big={i === 0}
+                href={`/blog/${a.slug}`}
+              />
+            ))
+          )}
         </div>
 
         <div className="mt-10 flex items-center justify-between">
@@ -692,7 +734,9 @@ function Blog() {
             className="font-mono text-[11px] uppercase tracking-[0.16em]"
             style={{ color: FOG }}
           >
-            11 artículos · archivo desde abril 2026
+            {loading
+              ? "Cargando..."
+              : `${total} artículo${total !== 1 ? "s" : ""} · archivo desde abril 2026`}
           </span>
           <a
             href="/blog"
@@ -910,28 +954,47 @@ function Footer() {
 
 /* ─────────────────────────────────────────
    PAGE (default export)
+   — Un solo fetch centralizado para blog posts
+   — Pasa datos a Hero (contador) y Blog (artículos)
 ───────────────────────────────────────── */
 export default function Home() {
+  // Blog data — fetch único, compartido entre Hero y Blog
+  const [posts,   setPosts]   = useState<BlogPost[]>([]);
+  const [total,   setTotal]   = useState(0);
+  const [loading, setLoading] = useState(true);
+
   // Force dark background on html/body regardless of globals.css
   useEffect(() => {
     const root = document.documentElement;
     const body = document.body;
     const prev = {
-      htmlBg: root.style.background,
+      htmlBg:    root.style.background,
       htmlColor: root.style.color,
-      bodyBg: body.style.background,
+      bodyBg:    body.style.background,
       bodyColor: body.style.color,
     };
     root.style.background = INK;
-    root.style.color = BONE;
+    root.style.color      = BONE;
     body.style.background = INK;
-    body.style.color = BONE;
+    body.style.color      = BONE;
     return () => {
       root.style.background = prev.htmlBg;
-      root.style.color = prev.htmlColor;
+      root.style.color      = prev.htmlColor;
       body.style.background = prev.bodyBg;
-      body.style.color = prev.bodyColor;
+      body.style.color      = prev.bodyColor;
     };
+  }, []);
+
+  // Fetch blog posts desde la API route (que lee Notion)
+  useEffect(() => {
+    fetch("/api/blog-posts")
+      .then((r) => r.json())
+      .then((d) => {
+        setPosts(d.articles ?? []);
+        setTotal(d.total   ?? 0);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -952,9 +1015,9 @@ export default function Home() {
         <Nav />
 
         <main>
-          <Hero />
+          <Hero articleCount={total} />
           <Calculadoras />
-          <Blog />
+          <Blog posts={posts} total={total} loading={loading} />
           <Contacto />
         </main>
 
