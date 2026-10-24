@@ -12,9 +12,7 @@ export const metadata: Metadata = {
 
 const S = `
   @import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700;800&family=DM+Mono:wght@400;500&display=swap');
-  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Sora',sans-serif;background:#FAFAF7;}
-  a{text-decoration:none;color:inherit;}
 
   .hero{background:#0C1F15;padding:56px 40px 64px;}
   .hero-in{max-width:760px;margin:0 auto;}

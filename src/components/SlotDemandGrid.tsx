@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -20,7 +20,9 @@ const SLOT_COUNT = 48;
 
 function slotLabel(slot: number, startHour = 0) {
   const totalMinutes = (startHour * 60 + slot * 30) % (24 * 60);
-  const h = Math.floor(totalMinutes / 60).toString().padStart(2, "0");
+  const h = Math.floor(totalMinutes / 60)
+    .toString()
+    .padStart(2, "0");
   const m = totalMinutes % 60 === 0 ? "00" : "30";
   return `${h}:${m}`;
 }
@@ -52,7 +54,7 @@ export function SlotDemandGrid({
       const ratio = 1 - (clientY - rect.top) / rect.height;
       return Math.round(Math.max(0, Math.min(maxPeople, ratio * maxPeople)));
     },
-    [maxPeople]
+    [maxPeople],
   );
 
   // ── Pintar un slot ──
@@ -63,7 +65,7 @@ export function SlotDemandGrid({
       next[index] = newValue;
       onChange(next);
     },
-    [values, onChange]
+    [values, onChange],
   );
 
   // ── Handlers de mouse ──
@@ -75,7 +77,7 @@ export function SlotDemandGrid({
       dragValue.current = newVal;
       paintSlot(index, newVal);
     },
-    [valueFromY, paintSlot]
+    [valueFromY, paintSlot],
   );
 
   const handleMouseEnter = useCallback(
@@ -84,7 +86,7 @@ export function SlotDemandGrid({
       const newVal = valueFromY(e.currentTarget, e.clientY);
       paintSlot(index, dragValue.current); // mantiene valor del inicio del drag
     },
-    [valueFromY, paintSlot]
+    [valueFromY, paintSlot],
   );
 
   // ── Touch support ──
@@ -96,11 +98,13 @@ export function SlotDemandGrid({
       dragValue.current = newVal;
       paintSlot(index, newVal);
     },
-    [valueFromY, paintSlot]
+    [valueFromY, paintSlot],
   );
 
   useEffect(() => {
-    const stop = () => { isDragging.current = false; };
+    const stop = () => {
+      isDragging.current = false;
+    };
     window.addEventListener("mouseup", stop);
     window.addEventListener("touchend", stop);
     return () => {
@@ -127,7 +131,8 @@ export function SlotDemandGrid({
   }
 
   // Altura de la barra para cada slot
-  const barHeightPct = (v: number) => (maxPeople > 0 ? (v / maxPeople) * 100 : 0);
+  const barHeightPct = (v: number) =>
+    maxPeople > 0 ? (v / maxPeople) * 100 : 0;
 
   // Color según nivel de ocupación
   const barColor = (v: number) => {
@@ -164,11 +169,17 @@ export function SlotDemandGrid({
       {/* ── Eje Y + Grilla ── */}
       <div className="flex gap-2">
         {/* Eje Y */}
-        <div className="flex flex-col justify-between text-right pr-1" style={{ width: 20, height: 80 }}>
+        <div
+          className="flex flex-col justify-between text-right pr-1"
+          style={{ width: 20, height: 80 }}
+        >
           {Array.from({ length: 4 }, (_, i) => {
             const v = Math.round(maxPeople * (1 - i / 3));
             return (
-              <span key={i} className="text-[10px] text-slate-400 font-mono leading-none">
+              <span
+                key={i}
+                className="text-[10px] text-slate-400 font-mono leading-none"
+              >
                 {v}
               </span>
             );
@@ -201,7 +212,10 @@ export function SlotDemandGrid({
                 {/* Barra */}
                 <div
                   className={`w-full rounded-t-sm transition-all duration-75 ${barColor(v)}`}
-                  style={{ height: `${barHeightPct(v)}%`, minHeight: v > 0 ? 3 : 0 }}
+                  style={{
+                    height: `${barHeightPct(v)}%`,
+                    minHeight: v > 0 ? 3 : 0,
+                  }}
                 />
                 {/* Tooltip */}
                 {v > 0 && (
@@ -233,16 +247,28 @@ export function SlotDemandGrid({
       {/* ── Stats derivados ── */}
       <div className="flex gap-4 mt-3 pt-3 border-t border-slate-100">
         <div>
-          <p className="text-[10px] text-slate-400 uppercase tracking-wide">Peak</p>
-          <p className="text-sm font-bold text-slate-800 font-mono">{stats.peak} pers.</p>
+          <p className="text-[10px] text-slate-400 uppercase tracking-wide">
+            Peak
+          </p>
+          <p className="text-sm font-bold text-slate-800 font-mono">
+            {stats.peak} pers.
+          </p>
         </div>
         <div>
-          <p className="text-[10px] text-slate-400 uppercase tracking-wide">Horas abiertas</p>
-          <p className="text-sm font-bold text-slate-800 font-mono">{stats.hoursOpen}h</p>
+          <p className="text-[10px] text-slate-400 uppercase tracking-wide">
+            Horas abiertas
+          </p>
+          <p className="text-sm font-bold text-slate-800 font-mono">
+            {stats.hoursOpen}h
+          </p>
         </div>
         <div>
-          <p className="text-[10px] text-slate-400 uppercase tracking-wide">Horas‑persona</p>
-          <p className="text-sm font-bold text-blue-700 font-mono">{stats.personHours}h</p>
+          <p className="text-[10px] text-slate-400 uppercase tracking-wide">
+            Horas‑persona
+          </p>
+          <p className="text-sm font-bold text-blue-700 font-mono">
+            {stats.personHours}h
+          </p>
         </div>
         <div className="ml-auto self-end">
           <p className="text-[10px] text-slate-400">

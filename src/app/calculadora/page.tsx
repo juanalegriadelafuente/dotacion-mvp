@@ -449,13 +449,14 @@ export default function CalculadoraPage() {
   }));
   const [activeDay, setActiveDay] = useState<DayKey>("mon");
 
-  const [fullHours,         setFullHours]         = useState(40);
+  // Jornada completa vigente: 42 h desde el 26-04-2026; 40 h desde el 26-04-2028 (Ley 21.561).
+  const [fullHours,         setFullHours]         = useState(42);
   const [replacementFactor, setReplacementFactor] = useState(1.15);
   const [ptWeekdays,        setPtWeekdays]        = useState(false);
   const [flexTolerance,     setFlexTolerance]     = useState(3);
 
   const [contracts, setContracts] = useState<Contract[]>([
-    { id: "1", name: "40h", hoursPerWeek: 40, patterns: ["5x2_rot"] },
+    { id: "1", name: "42h", hoursPerWeek: 42, patterns: ["5x2_rot"] },
     { id: "2", name: "30h", hoursPerWeek: 30, patterns: ["5x2_rot"] },
     { id: "3", name: "20h", hoursPerWeek: 20, patterns: ["weekend"] },
   ]);
@@ -714,7 +715,7 @@ export default function CalculadoraPage() {
                     <input type="number" min={20} max={60} step={1} value={fullHours}
                       onChange={e => setFullHours(parseInt(e.target.value) || 40)}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mono focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    <p className="text-xs text-slate-400 mt-1">Ley 40h vigente</p>
+                    <p className="text-xs text-slate-400 mt-1">42 h vigente desde el 26-04-2026 (Ley 21.561)</p>
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500 mb-1.5">Factor reemplazo</label>

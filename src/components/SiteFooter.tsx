@@ -1,6 +1,8 @@
 // src/components/SiteFooter.tsx
+// Diseño A (D-ING-9).
 import Link from "next/link";
 import { URL_REVISAR } from "@/lib/sitio";
+import { Logo } from "./SiteNav";
 
 const columnas: {
   titulo: string;
@@ -17,18 +19,18 @@ const columnas: {
     ],
   },
   {
-    titulo: "Guías",
+    titulo: "Blog",
     enlaces: [
+      { label: "Todos los artículos", href: "/blog" },
       {
         label: "Planificador de turnos",
         href: "/blog/planificador-turnos-chile",
       },
       { label: "Jornada 6x1", href: "/blog/jornada-6x1-retail-chile" },
       {
-        label: "Ley de 42 horas",
+        label: "Dictamen 253/21 y 42 horas",
         href: "/blog/dictamen-253-21-42-horas-implementacion",
       },
-      { label: "Todas las guías", href: "/blog" },
     ],
   },
   {
@@ -43,42 +45,34 @@ const columnas: {
 
 export default function SiteFooter() {
   return (
-    <footer
-      className="border-t px-4 py-12 sm:px-10"
-      style={{ background: "#0D1B2A", borderColor: "rgba(232,236,239,0.10)" }}
-    >
-      <div className="mx-auto grid max-w-[1120px] gap-10 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="fuente-a border-t border-slate-200 bg-slate-50 px-4 py-14 sm:px-5">
+      <div className="mx-auto grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <div
-            className="text-[15px] font-extrabold text-[#E8ECEF]"
-            style={{ fontFamily: "var(--font-geist-mono), monospace" }}
-          >
-            dotaciones<span style={{ color: "#168A6C" }}>.cl</span>
-          </div>
-          <p className="mt-3 max-w-[30ch] text-[13px] leading-relaxed text-[#E8ECEF]/50">
-            Herramientas gratuitas para planificar turnos y dotación según la
+          <Logo />
+          <p className="mt-4 max-w-[30ch] text-[14px] leading-relaxed text-slate-500">
+            Herramientas gratuitas y un blog sobre turnos y dotación según la
             ley laboral chilena.
           </p>
         </div>
         {columnas.map((c) => (
           <div key={c.titulo}>
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7A8895]">
+            <div className="mb-3 text-[12px] font-bold uppercase tracking-[0.1em] text-slate-400">
               {c.titulo}
             </div>
-            <ul className="space-y-2">
+            <ul className="space-y-2.5">
               {c.enlaces.map((l) => (
                 <li key={l.href}>
                   {l.href.startsWith("http") ? (
                     <a
                       href={l.href}
-                      className="text-[13px] text-[#E8ECEF]/65 hover:text-[#E8ECEF]"
+                      className="text-[14px] text-slate-600 hover:text-[#5B4BEA]"
                     >
                       {l.label}
                     </a>
                   ) : (
                     <Link
                       href={l.href}
-                      className="text-[13px] text-[#E8ECEF]/65 hover:text-[#E8ECEF]"
+                      className="text-[14px] text-slate-600 hover:text-[#5B4BEA]"
                     >
                       {l.label}
                     </Link>
@@ -89,10 +83,7 @@ export default function SiteFooter() {
           </div>
         ))}
       </div>
-      <div
-        className="mx-auto mt-10 max-w-[1120px] border-t pt-5 text-[12px] text-[#E8ECEF]/35"
-        style={{ borderColor: "rgba(232,236,239,0.08)" }}
-      >
+      <div className="mx-auto mt-12 max-w-6xl border-t border-slate-200 pt-6 text-[13px] text-slate-400">
         © {new Date().getFullYear()} dotaciones.cl · Nexwork SpA · Chile. Las
         herramientas orientan; no reemplazan la asesoría legal.
       </div>

@@ -80,7 +80,7 @@ export default function SanPage() {
 
   // ── Etapa 1: Normativa SAN ──────────────────────────────────────────────
 
-  const [maxWeekHours, setMaxWeekHours] = useState<44 | 42 | 40>(44);
+  const [maxWeekHours, setMaxWeekHours] = useState<44 | 42 | 40>(42);
   const [roundingMode, setRoundingMode] = useState<RoundingMode>("normativo");
 
   // RTD
@@ -332,7 +332,7 @@ export default function SanPage() {
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-slate-400 mt-1">Ley 21.561 reduce a 42h el 26 abr 2025</p>
+              <p className="text-xs text-slate-400 mt-1">Ley 21.561: 42 h desde el 26-04-2026 y 40 h desde el 26-04-2028</p>
             </Field>
             <Field label="Modo de redondeo">
               <div className="flex gap-2">

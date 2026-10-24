@@ -32,26 +32,23 @@ const principios = [
 
 export default function Nosotros() {
   return (
-    <div className="min-h-screen bg-[#0D1B2A] text-[#E8ECEF]">
+    <div className="fuente-a min-h-screen bg-white text-slate-900">
       <SiteNav />
       <main className="px-4 py-16 sm:px-10 sm:py-24">
         <div className="mx-auto max-w-[760px]">
-          <p className="mb-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#168A6C]">
+          <p className="mb-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#5B4BEA]">
             Quiénes somos
           </p>
-          <h1
-            className="text-[clamp(34px,5vw,52px)] leading-[1.05]"
-            style={{ fontFamily: "var(--font-instrument-serif), serif" }}
-          >
+          <h1 className="font-extrabold tracking-tight text-[clamp(34px,5vw,52px)] leading-[1.05]">
             Turnos y dotación, dentro de la ley y sin adivinar
           </h1>
-          <p className="mt-6 text-[17px] leading-relaxed text-[#E8ECEF]/75">
+          <p className="mt-6 text-[17px] leading-relaxed text-slate-600">
             dotaciones.cl es un sitio de{" "}
-            <strong className="text-[#E8ECEF]">Nexwork SpA</strong>, empresa
+            <strong className="text-slate-900">Nexwork SpA</strong>, empresa
             chilena de optimización de capital humano. Hacemos{" "}
             <a
               href="https://kaden.cl"
-              className="text-[#168A6C] underline-offset-4 hover:underline"
+              className="text-[#5B4BEA] underline-offset-4 hover:underline"
             >
               Kaden
             </a>
@@ -63,16 +60,16 @@ export default function Nosotros() {
 
           <div className="mt-12 space-y-8">
             {principios.map((p) => (
-              <div key={p.titulo} className="border-l-2 border-[#0F6E56] pl-5">
+              <div key={p.titulo} className="border-l-4 border-[#6D5EFC] pl-5">
                 <h2 className="text-[18px] font-semibold">{p.titulo}</h2>
-                <p className="mt-2 text-[15px] leading-relaxed text-[#E8ECEF]/70">
+                <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
                   {p.texto}
                 </p>
               </div>
             ))}
           </div>
 
-          <p className="mt-12 rounded-lg border border-[#E8ECEF]/12 bg-[#0F2436] p-5 text-[14px] leading-relaxed text-[#E8ECEF]/65">
+          <p className="mt-12 rounded-2xl border border-slate-200 bg-slate-50 p-5 text-[14px] leading-relaxed text-slate-600">
             Las herramientas orientan y no reemplazan la asesoría legal. La
             responsabilidad de los turnos y contratos es de cada empleador. Si
             encuentras un error, escríbenos: lo corregimos.
@@ -81,14 +78,13 @@ export default function Nosotros() {
           <div className="mt-10 flex flex-col gap-3 sm:flex-row">
             <a
               href={URL_REVISAR}
-              className="inline-flex items-center justify-center rounded-md bg-[#0F6E56] px-6 py-3.5 text-[15px] font-semibold text-[#F5F1E8] hover:bg-[#168A6C]"
+              className="inline-flex items-center justify-center degradado-marca rounded-full px-6 py-3.5 text-[15px] font-bold text-white shadow-lg shadow-indigo-500/25"
             >
               Revisar mi turno gratis
             </a>
             <Link
               href="/contacto"
-              className="inline-flex items-center justify-center rounded-md border px-6 py-3.5 text-[15px] font-semibold hover:bg-[#15314A]"
-              style={{ borderColor: "rgba(232,236,239,0.22)" }}
+              className="inline-flex items-center justify-center rounded-full border border-slate-300 px-6 py-3.5 text-[15px] font-semibold hover:bg-slate-50"
             >
               Escribirnos
             </Link>
