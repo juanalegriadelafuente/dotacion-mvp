@@ -9,9 +9,11 @@
 //    supabase/uso_diario.sql): el tope que de verdad manda, compartido por todas
 //    las instancias.
 //
-// Si el contador de Supabase no responde, se CIERRA (fail-closed): el análisis
-// con IA o el correo no salen, pero la calculadora sigue funcionando. Preferimos
-// perder un análisis a pagar un bucle de otro.
+// Si el contador de Supabase no responde:
+// - la IA se CIERRA (fail-closed): preferimos perder un análisis a pagar un
+//   bucle de otro; la calculadora sigue funcionando sin el texto.
+// - el correo sigue saliendo, frenado solo por la memoria de la instancia: el
+//   interesado que dejó su correo tiene que recibir su resultado.
 //
 // Ni la IP ni el correo se guardan en claro: se guarda un hash con sal
 // (Ley 21.719, minimización).
@@ -77,7 +79,11 @@ function superaEnMemoria(clave: string, maximo: number, ventanaMs: number) {
 
 // ─── Capa 2: contador diario compartido (Supabase) ───────────────────────────
 
-async function dentroDelTopeDiario(clave: string, tope: number) {
+/** `true`/`false` según el tope; `null` si el contador no está disponible. */
+async function dentroDelTopeDiario(
+  clave: string,
+  tope: number,
+): Promise<boolean | null> {
   try {
     // Import diferido: supabaseServer lanza error al importarse si faltan las
     // variables, y eso no debe botar la ruta entera.
@@ -88,12 +94,12 @@ async function dentroDelTopeDiario(clave: string, tope: number) {
     });
     if (error) {
       console.error("proteccion: contador diario no disponible", error.message);
-      return false;
+      return null;
     }
     return data === true;
   } catch (e) {
     console.error("proteccion: contador diario no disponible", String(e));
-    return false;
+    return null;
   }
 }
 
@@ -113,9 +119,17 @@ function tope(nombre: string, porDefecto: number): number {
 export async function permiteIA(req: Request): Promise<boolean> {
   const ip = huella(ipDe(req));
   if (superaEnMemoria(`ia:${ip}`, 5, 60 * 60 * 1000)) return false;
-  if (!(await dentroDelTopeDiario(`ia:ip:${ip}`, tope("IA_TOPE_IP_DIA", 10))))
+  if (
+    (await dentroDelTopeDiario(`ia:ip:${ip}`, tope("IA_TOPE_IP_DIA", 10))) !==
+    true
+  )
     return false;
-  return dentroDelTopeDiario("ia:global", tope("IA_TOPE_GLOBAL_DIA", 200));
+  return (
+    (await dentroDelTopeDiario(
+      "ia:global",
+      tope("IA_TOPE_GLOBAL_DIA", 200),
+    )) === true
+  );
 }
 
 /**
@@ -129,17 +143,16 @@ export async function permiteCorreo(
 ): Promise<boolean> {
   const ip = huella(ipDe(req));
   if (superaEnMemoria(`correo:${ip}`, 10, 60 * 60 * 1000)) return false;
-  if (
-    !(await dentroDelTopeDiario(
-      `correo:dest:${huella(destino)}`,
-      tope("CORREO_TOPE_DESTINO_DIA", 3),
-    ))
-  )
-    return false;
-  return dentroDelTopeDiario(
+  const porDestino = await dentroDelTopeDiario(
+    `correo:dest:${huella(destino)}`,
+    tope("CORREO_TOPE_DESTINO_DIA", 3),
+  );
+  if (porDestino === false) return false;
+  const global = await dentroDelTopeDiario(
     "correo:global",
     tope("CORREO_TOPE_GLOBAL_DIA", 300),
   );
+  return global !== false;
 }
 
 export function correoValido(email: unknown): email is string {
