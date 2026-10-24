@@ -1,269 +1,299 @@
+// src/app/blog/dotacion-hospitalaria-san/page.tsx
+//
+// Reescrito el 24-10-2026. La versión anterior describía un «Sistema de Análisis
+// de Necesidades» para toda la dotación hospitalaria, que no corresponde: SAN es
+// el Servicio de Alimentación y Nutrición. Este texto explica solo lo que la
+// calculadora implementa de la orientación técnica SAN del Minsal (enero 2025),
+// con un ejemplo calculado con sus mismas tablas (src/lib/san/v2025).
+import type { Metadata } from "next";
 import Link from "next/link";
-import { SanLeadForm } from "./SanLeadForm";
+import SiteFooter from "@/components/SiteFooter";
+import SiteNav from "@/components/SiteNav";
 
-export const metadata = {
-  title: "Dotación hospitalaria según el SAN (Sistema de Análisis de Necesidades)",
+export const metadata: Metadata = {
+  title:
+    "Dotación del Servicio de Alimentación y Nutrición (SAN): cómo se calcula",
   description:
-    "El método SAN es el estándar del Ministerio de Salud para calcular dotación en hospitales públicos. Explicamos cómo aplicarlo, sus indicadores clave y sus limitaciones.",
+    "Cómo se calcula la dotación de un SAN hospitalario: raciones totales día (RTD), factores de complejidad, ración completa día (RCD), personal por área y nutricionistas clínicos por camas.",
+  alternates: {
+    canonical: "https://dotaciones.cl/blog/dotacion-hospitalaria-san",
+  },
 };
+
+const serif = { fontFamily: "var(--font-instrument-serif), serif" };
+
+const h2 = "mt-12 text-[clamp(24px,3vw,32px)] leading-tight";
+const p = "mt-4 text-[16.5px] leading-[1.75] text-[#E8ECEF]/80";
+const li = "text-[16px] leading-[1.7] text-[#E8ECEF]/80";
+
+function Tabla({
+  cabeza,
+  filas,
+}: {
+  cabeza: string[];
+  filas: (string | number)[][];
+}) {
+  return (
+    <div className="mt-5 overflow-x-auto rounded-lg border border-[#E8ECEF]/12">
+      <table className="w-full min-w-[480px] text-left text-[14.5px]">
+        <thead className="bg-[#0F2436] text-[12px] uppercase tracking-[0.06em] text-[#7A8895]">
+          <tr>
+            {cabeza.map((c) => (
+              <th key={c} className="px-4 py-3 font-semibold">
+                {c}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => (
+            <tr key={String(f[0])} className="border-t border-[#E8ECEF]/8">
+              {f.map((c, i) => (
+                <td
+                  // biome-ignore lint/suspicious/noArrayIndexKey: columnas fijas de una tabla estática
+                  key={i}
+                  className={`px-4 py-2.5 ${i === 0 ? "font-semibold" : "text-[#E8ECEF]/80"}`}
+                >
+                  {c}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function ArticuloSAN() {
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 group">
-            <span className="text-xl font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600 transition-colors">
-              dotaciones<span className="text-blue-600">.cl</span>
+    <div className="min-h-screen bg-[#0D1B2A] text-[#E8ECEF]">
+      <SiteNav />
+      <main className="px-4 py-12 sm:px-10 sm:py-16">
+        <article className="mx-auto max-w-[760px]">
+          <Link
+            href="/blog"
+            className="text-[12px] uppercase tracking-[0.1em] text-[#E8ECEF]/45 hover:text-[#E8ECEF]"
+          >
+            ← Volver a las guías
+          </Link>
+          <p className="mt-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#168A6C]">
+            Salud · actualizado el 24-10-2026
+          </p>
+          <h1
+            className="mt-3 text-[clamp(32px,5vw,48px)] leading-[1.06]"
+            style={serif}
+          >
+            Dotación del Servicio de Alimentación y Nutrición (SAN): cómo se
+            calcula
+          </h1>
+          <p
+            className="mt-5 text-[19px] italic leading-relaxed text-[#E8ECEF]/70"
+            style={serif}
+          >
+            El SAN es la unidad del hospital o la clínica que produce y
+            distribuye la alimentación de los pacientes y, cuando hay casino, la
+            de los funcionarios. Su dotación no se estima a ojo: se calcula a
+            partir de las raciones que produce, la complejidad del proceso y las
+            camas que atiende.
+          </p>
+
+          <div className="mt-8 flex flex-col items-start gap-3 rounded-lg border border-[#0F6E56]/40 bg-[#0F6E56]/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-[15px]">
+              ¿Prefieres calcularlo directo con tus datos?
             </span>
-          </Link>
-          <Link
-            href="/blog"
-            className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors flex items-center gap-1.5"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Volver al blog
-          </Link>
-        </div>
-      </header>
-
-      <article className="max-w-3xl mx-auto px-6 py-12">
-        {/* Meta */}
-        <div className="flex items-center gap-3 mb-6">
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-            Normativa
-          </span>
-          <span className="text-slate-400 text-sm">25 de junio, 2025</span>
-          <span className="text-slate-400 text-sm">·</span>
-          <span className="text-slate-400 text-sm">10 min de lectura</span>
-        </div>
-
-        <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 leading-tight mb-4 tracking-tight">
-          Dotación hospitalaria según el Sistema de Análisis de Necesidades (SAN)
-        </h1>
-        <p className="text-xl text-slate-500 leading-relaxed mb-10 border-b border-gray-200 pb-10">
-          El método SAN es el estándar del Ministerio de Salud para calcular dotación en hospitales públicos chilenos. Explicamos cómo aplicarlo, sus indicadores clave y sus limitaciones.
-        </p>
-
-        <div className="prose prose-slate max-w-none prose-headings:font-bold prose-headings:tracking-tight prose-a:text-blue-600">
-
-          <h2>¿Qué es el SAN?</h2>
-          <p>
-            El <strong>Sistema de Análisis de Necesidades (SAN)</strong> es la metodología oficial que el Ministerio de Salud de Chile utiliza para determinar las necesidades de dotación en hospitales públicos. Fue desarrollado con el objetivo de homologar los criterios de dimensionamiento entre los distintos servicios de salud del país y dar una base técnica objetiva a las negociaciones de dotación.
-          </p>
-          <p>
-            A diferencia de metodologías internacionales como el <em>Nurse Staffing Ratios</em> californiano o los modelos basados en DRG europeos, el SAN está calibrado específicamente con la realidad de la red asistencial chilena: sus estadísticas, su estructura contractual y sus patrones de ausentismo.
-          </p>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 my-6 not-prose">
-            <p className="text-sm font-semibold text-amber-800 mb-1">⚠️ Importante</p>
-            <p className="text-sm text-amber-700">
-              El SAN aplica formalmente a hospitales de la red pública (Servicios de Salud). Clínicas privadas y centros de atención primaria tienen metodologías distintas, aunque pueden usar el SAN como referencia.
-            </p>
+            <Link
+              href="/san"
+              className="rounded-md bg-[#0F6E56] px-5 py-2.5 text-[14px] font-semibold text-[#F5F1E8] hover:bg-[#168A6C]"
+            >
+              Abrir la calculadora SAN →
+            </Link>
           </div>
 
-          <h2>Los componentes del modelo SAN</h2>
-          <p>El SAN organiza la dotación hospitalaria en torno a tres grandes dimensiones:</p>
-
-          <h3>1. Producción asistencial</h3>
-          <p>
-            Es la base del cálculo. Se mide en unidades de producción relevantes para cada servicio: egresos hospitalarios, días-cama, número de intervenciones quirúrgicas, consultas de urgencia, etc. El modelo utiliza datos históricos de los últimos 2–3 años con proyección a 12 meses.
+          <h2 className={h2} style={serif}>
+            La referencia: la orientación técnica SAN
+          </h2>
+          <p className={p}>
+            El método que se describe aquí, y que usa la calculadora de
+            dotaciones.cl, sigue la orientación técnica para Servicios de
+            Alimentación y Nutrición del Ministerio de Salud en su versión de
+            enero de 2025. Tiene cuatro pasos: medir la producción (RTD),
+            ajustarla por complejidad (RCD), convertirla en personal por área y
+            sumar a los nutricionistas clínicos según las camas.
           </p>
 
-          <h3>2. Estándares de recurso humano</h3>
-          <p>
-            Para cada unidad productiva, el SAN define cuántas horas de cada categoría profesional se requieren. Estos estándares se expresan como <em>horas por unidad de producción</em> (por ejemplo, "horas de enfermería por egreso en medicina interna") y están diferenciados por nivel de complejidad del hospital.
+          <h2 className={h2} style={serif}>
+            1. Raciones totales día (RTD)
+          </h2>
+          <p className={p}>
+            La RTD es el total de raciones que el SAN produce en un día. Se
+            suman las raciones de cada tiempo de comida (desayuno, colaciones,
+            almuerzo, once y cena), ponderadas por un{" "}
+            <strong>coeficiente de ración (CR)</strong> que lleva cada tiempo de
+            comida a una medida comparable. Se calcula por separado para los
+            pacientes y para el casino de funcionarios, porque cada una se
+            distribuye distinto.
           </p>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 my-6 not-prose">
-            <p className="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">
-              Estándares SAN de referencia — Hospitalización adultos
-            </p>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-500 border-b border-slate-200">
-                  <th className="pb-2 font-semibold">Categoría</th>
-                  <th className="pb-2 font-semibold">Indicador</th>
-                  <th className="pb-2 font-semibold text-right">Estándar</th>
-                </tr>
-              </thead>
-              <tbody className="text-slate-700">
-                {[
-                  ["Enfermero/a", "Horas enf. / paciente-día", "2,5 – 4,0 hrs"],
-                  ["TENS", "Horas TENS / paciente-día", "3,5 – 6,0 hrs"],
-                  ["Médico", "Horas méd. / egreso", "4,0 – 8,0 hrs"],
-                  ["Kinesiólogo/a", "Sesiones / paciente-día", "0,3 – 0,8"],
-                  ["Administrativo", "% dotación clínica", "12 – 18 %"],
-                ].map(([cat, ind, est]) => (
-                  <tr key={cat} className="border-b border-slate-100 last:border-0">
-                    <td className="py-2 font-medium">{cat}</td>
-                    <td className="py-2 text-slate-500 text-xs">{ind}</td>
-                    <td className="py-2 text-right font-mono text-xs text-blue-700">{est}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="text-xs text-slate-400 mt-3">
-              * Rangos orientativos. Los valores exactos dependen del nivel de complejidad del hospital y del servicio específico. Consultar los documentos técnicos del MINSAL.
-            </p>
-          </div>
-
-          <h3>3. Dotación de mantenimiento</h3>
-          <p>
-            Además de la dotación asistencial, el SAN considera el personal de apoyo no clínico: servicios generales, esterilización, farmacia, nutrición, mantenimiento y otros. Estos se calculan como función del tamaño del hospital (camas) y su nivel de complejidad.
+          <h2 className={h2} style={serif}>
+            2. Factores de complejidad y ración completa día (RCD)
+          </h2>
+          <p className={p}>
+            No todos los SAN producen igual. La RCD ajusta la RTD con{" "}
+            <strong>factores de complejidad (FC)</strong>. Los factores no se
+            multiplican entre sí: se suman sus excedentes sobre 1 (FC total = 1
+            + la suma de cada FC menos 1), y la RCD es la RTD por ese FC total.
+          </p>
+          <Tabla
+            cabeza={["Factor", "Situación", "FC"]}
+            filas={[
+              [
+                "Equipamiento",
+                "Tiene lavavajillas, hornos combinados y marmitas automáticas",
+                "1,0",
+              ],
+              ["", "Tiene al menos uno de ellos", "1,1"],
+              ["", "No tiene ninguno", "1,2"],
+              [
+                "Líneas adicionales de producción",
+                "0 a 29 raciones adicionales (la mayor entre almuerzo y cena)",
+                "1,0",
+              ],
+              [" ", "30 a 59", "1,1"],
+              ["  ", "60 a 89", "1,2"],
+              ["   ", "90 a 120", "1,3"],
+              [
+                "Materia prima vegetal sin procesar",
+                "Menos de 30 % (sin contar fruta natural)",
+                "1,0",
+              ],
+              ["    ", "30 % o más", "1,1"],
+            ]}
+          />
+          <p className={p}>
+            La RCD también define la complejidad de la Unidad Central de
+            Producción (UCP): <strong>mínima</strong> bajo 150,{" "}
+            <strong>mediana</strong> entre 150 y 299, y <strong>máxima</strong>{" "}
+            desde 300.
           </p>
 
-          <h2>El proceso de aplicación paso a paso</h2>
-
-          <h3>Paso 1: Levantamiento de producción</h3>
-          <p>
-            Se recopilan los datos de producción del período de referencia desde el REM (Resumen Estadístico Mensual) u otras fuentes del hospital. Se ajustan los datos atípicos (pandemias, cierres de servicio, etc.) para obtener una base representativa.
+          <h2 className={h2} style={serif}>
+            3. Personal de la Unidad Central de Producción
+          </h2>
+          <p className={p}>
+            Cada área tiene una razón de personas por raciones que cambia según
+            el tramo de producción. Recepción y almacenamiento, producción y
+            lavado se calculan sobre la RCD; la distribución a pacientes y al
+            casino, sobre la RTD de cada uno. Cada área se expresa con un
+            decimal y el total de la UCP se redondea al entero, con un mínimo de
+            3 personas.
           </p>
 
-          <h3>Paso 2: Aplicación de estándares</h3>
-          <p>
-            Las unidades de producción se multiplican por los estándares de horas por categoría. El resultado es el <strong>total de horas requeridas</strong> por servicio y categoría para el período proyectado.
+          <h2 className={h2} style={serif}>
+            4. Nutricionistas clínicos
+          </h2>
+          <p className={p}>
+            Los nutricionistas clínicos se calculan por camas, según el nivel de
+            cuidado: <strong>uno cada 32 camas básicas</strong>,{" "}
+            <strong>uno cada 24 camas medias</strong> y{" "}
+            <strong>uno cada 16 camas críticas</strong>.
           </p>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 my-6 not-prose font-mono text-sm">
-            <p className="text-slate-500 mb-3">Ejemplo — Servicio de Medicina Interna:</p>
-            <p className="text-slate-700">Pacientes-día anuales proyectados: <strong>18.250</strong></p>
-            <p className="text-slate-700">Estándar enfermería: <strong>3,2 hrs / paciente-día</strong></p>
-            <p className="text-slate-700 mt-2">→ Horas enf. requeridas: 18.250 × 3,2 = <strong>58.400 hrs/año</strong></p>
-            <p className="text-slate-500 mt-3">Horas netas por enfermero/a (jornada 44 hrs): <strong>1.950 hrs/año</strong></p>
-            <p className="text-blue-700 font-bold mt-1">→ Dotación requerida: 58.400 / 1.950 = <strong>30 enfermeros/as</strong></p>
-          </div>
-
-          <h3>Paso 3: Ajuste por factor de disponibilidad</h3>
-          <p>
-            Las horas brutas contratadas se reducen por el <strong>factor de disponibilidad</strong>, que descuenta vacaciones, licencias médicas, capacitaciones y permisos. En el sistema público chileno este factor se sitúa típicamente entre <strong>0,82 y 0,87</strong> (es decir, solo el 82–87% de las horas contratadas están efectivamente disponibles).
+          <h2 className={h2} style={serif}>
+            Un ejemplo completo
+          </h2>
+          <p className={p}>
+            Un hospital produce 450 raciones al día para pacientes y 150 para el
+            casino (RTD total de 600). Tiene algunos equipos automatizados (FC
+            1,1) y el 35 % de su materia prima vegetal llega sin procesar (FC
+            1,1). Tiene 120 camas básicas, 48 medias y 16 críticas.
           </p>
-
-          <h3>Paso 4: Validación con el equipo directivo</h3>
-          <p>
-            El resultado técnico del SAN se contrasta con la realidad operativa del hospital: disponibilidad presupuestaria, existencia de profesionales en el mercado local, y restricciones físicas de la planta. Normalmente hay una brecha entre la dotación SAN ideal y la dotación posible, que debe abordarse con priorización.
-          </p>
-
-          <h2>Indicadores clave del SAN</h2>
-          <p>El SAN monitorea varios indicadores para evaluar si la dotación actual está alineada con la necesidad:</p>
-
-          <div className="not-prose space-y-3 my-6">
-            {[
-              {
-                nombre: "Índice de ocupación",
-                descripcion: "Porcentaje de camas ocupadas sobre el total disponible. Un valor sobre 85% es señal de subdotación potencial.",
-                umbral: "> 85% = alerta",
-                color: "border-red-200 bg-red-50 text-red-700",
-              },
-              {
-                nombre: "Horas de enfermería / paciente-día",
-                descripcion: "Indicador central de calidad asistencial. Valores bajo 2,5 hrs se asocian a mayor mortalidad y eventos adversos.",
-                umbral: "< 2,5 hrs = riesgo",
-                color: "border-orange-200 bg-orange-50 text-orange-700",
-              },
-              {
-                nombre: "Tasa de ausentismo",
-                descripcion: "Porcentaje de horas perdidas por licencias médicas. Sobre el 10% es indicador de carga excesiva o clima laboral deteriorado.",
-                umbral: "> 10% = revisar",
-                color: "border-amber-200 bg-amber-50 text-amber-700",
-              },
-              {
-                nombre: "Horas extras sobre dotación base",
-                descripcion: "Si las horas extras superan el 5% de las horas totales, hay subdotación crónica que no se está corrigiendo estructuralmente.",
-                umbral: "> 5% = subdotación",
-                color: "border-yellow-200 bg-yellow-50 text-yellow-700",
-              },
-            ].map((ind) => (
-              <div key={ind.nombre} className="bg-white border border-gray-200 rounded-xl p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-bold text-slate-800 text-sm">{ind.nombre}</p>
-                    <p className="text-slate-500 text-sm mt-1">{ind.descripcion}</p>
-                  </div>
-                  <span className={`text-xs font-bold px-2.5 py-1 rounded-lg border flex-shrink-0 ${ind.color}`}>
-                    {ind.umbral}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <h2>Limitaciones del método SAN</h2>
-          <p>
-            El SAN es una herramienta útil, pero tiene limitaciones reales que sus usuarios deben conocer:
-          </p>
-          <ul>
-            <li>
-              <strong>Estándares desactualizados</strong>: algunos parámetros del SAN no han sido revisados en años. La complejidad de los pacientes hospitalizados ha aumentado significativamente, lo que hace que los estándares subestimen la dotación real necesaria en muchos servicios.
+          <ul className="mt-4 list-disc space-y-1.5 pl-6">
+            <li className={li}>FC total = 1 + 0,1 + 0,1 = 1,2</li>
+            <li className={li}>
+              RCD = 600 × 1,2 = 720 → UCP de complejidad máxima
             </li>
-            <li>
-              <strong>No captura variabilidad</strong>: el SAN trabaja con promedios. No modela bien los picos de demanda ni las variaciones estacionales (invierno, brotes, etc.).
+          </ul>
+          <Tabla
+            cabeza={["Área", "Base", "Razón", "Personas"]}
+            filas={[
+              ["Recepción y almacenamiento", "RCD 720", "1:150", "4,8"],
+              ["Producción", "RCD 720", "1:50", "14,4"],
+              ["Lavado", "RCD 720", "1:70", "10,3"],
+              ["Distribución a pacientes", "RTD 450", "1:20", "22,5"],
+              ["Distribución al casino", "RTD 150", "1:100", "1,5"],
+              ["Total UCP", "", "", "53,5 → 54"],
+              [
+                "Nutricionistas clínicos",
+                "120/32 + 48/24 + 16/16",
+                "",
+                "6,8 → 7",
+              ],
+            ]}
+          />
+          <p className={p}>
+            En total son <strong>61 jornadas completas de 44 horas</strong>, es
+            decir 2.684 horas semanales. Como desde el 26 de abril de 2026 la
+            jornada completa es de 42 horas (Ley 21.561), cubrir esas mismas
+            horas requiere el equivalente a{" "}
+            <strong>63,9 jornadas de 42 horas</strong>.
+          </p>
+
+          <h2 className={h2} style={serif}>
+            Lo que este cálculo no incluye
+          </h2>
+          <ul className="mt-4 list-disc space-y-2 pl-6">
+            <li className={li}>
+              <strong>Reemplazos.</strong> La dotación normativa cubre la
+              operación, no las vacaciones, licencias y ausencias. Para eso se
+              suma un{" "}
+              <Link
+                href="/blog/factor-reemplazo-dotacion-chile"
+                className="text-[#168A6C] underline-offset-4 hover:underline"
+              >
+                factor de reemplazo
+              </Link>
+              ; la calculadora lo permite.
             </li>
-            <li>
-              <strong>Brecha entre dotación SAN y dotación presupuestada</strong>: en la práctica, los hospitales públicos operan con dotaciones por debajo de lo que indica el SAN. La metodología sirve más como argumento técnico en negociaciones que como guía operativa directa.
-            </li>
-            <li>
-              <strong>Difícil aplicación en APS</strong>: el SAN fue diseñado para hospitales. Su aplicación en centros de salud familiar o CESFAM requiere adaptaciones significativas.
+            <li className={li}>
+              <strong>Cómo se reparten los turnos.</strong> Saber cuántas
+              personas necesitas no dice cómo cubrir cada horario con contratos
+              completos y parciales. La calculadora propone esas combinaciones.
             </li>
           </ul>
 
-          <h2>¿Cómo usar el SAN en la práctica?</h2>
-          <p>
-            La recomendación es usar el SAN como <em>marco de referencia</em> y no como receta exacta. Úsalo para:
-          </p>
-          <ul>
-            <li>Fundamentar solicitudes de aumento de dotación al Servicio de Salud o al MINSAL</li>
-            <li>Identificar los servicios con mayor brecha entre dotación real y necesaria</li>
-            <li>Priorizar en qué unidades es más urgente reforzar el equipo</li>
-            <li>Comparar tu hospital con hospitales de complejidad similar</li>
-          </ul>
-          <p>
-            Para el dimensionamiento operativo día a día — turnos, programación, suplencias — el SAN necesita complementarse con herramientas más granulares.
-          </p>
-
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white rounded-2xl p-8 my-10 not-prose">
-            <h3 className="text-lg font-bold mb-2">¿Trabajas en un hospital público y quieres aplicar el SAN?</h3>
-            <p className="text-slate-300 text-sm mb-4">
-              Estamos preparando una guía detallada de aplicación del SAN para hospitales de mediana y alta complejidad. Suscríbete y te avisamos.
+          <div className="mt-12 rounded-xl border border-[#0F6E56] bg-[#0F6E56]/10 p-6 sm:p-8">
+            <h2 className="text-[22px] font-semibold">
+              Calcula la dotación de tu SAN
+            </h2>
+            <p className="mt-2 text-[15px] leading-relaxed text-[#E8ECEF]/75">
+              Ingresa tus raciones, factores y camas. La calculadora aplica las
+              mismas tablas de este artículo y propone cómo cubrir las horas con
+              contratos.
             </p>
-            <SanLeadForm />
+            <Link
+              href="/san"
+              className="mt-5 inline-block rounded-md bg-[#0F6E56] px-6 py-3 text-[15px] font-semibold text-[#F5F1E8] hover:bg-[#168A6C]"
+            >
+              Abrir la calculadora SAN →
+            </Link>
+            <p className="mt-4 text-[13px] text-[#E8ECEF]/50">
+              Las herramientas orientan y no reemplazan la orientación técnica
+              oficial ni la evaluación de cada establecimiento.
+            </p>
           </div>
 
-          <h2>Conclusión</h2>
-          <p>
-            El SAN es el lenguaje común que habla el sistema público chileno cuando se trata de dotación hospitalaria. Conocerlo no es opcional para cualquier jefe de RRHH, supervisor o directivo que quiera defender sus necesidades de personal con argumentos técnicos sólidos. Sus limitaciones son reales, pero sus indicadores siguen siendo el punto de partida más legítimo para las conversaciones de dotación en la red pública.
-          </p>
-        </div>
-
-        {/* Navigation */}
-        <div className="border-t border-gray-200 pt-10 mt-10 flex flex-col sm:flex-row justify-between gap-4">
-          <Link
-            href="/blog/mix-contratos-jornada-parcial"
-            className="inline-flex items-center gap-2 text-blue-600 font-semibold text-sm hover:text-blue-700 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Anterior: Mix de contratos
-          </Link>
-          <Link
-            href="/blog"
-            className="inline-flex items-center gap-2 text-blue-600 font-semibold text-sm hover:text-blue-700 transition-colors"
-          >
-            Ver todos los artículos
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
-        </div>
-      </article>
-
-      <footer className="border-t border-gray-200 py-8 px-6 text-center text-sm text-slate-400">
-        © {new Date().getFullYear()} dotaciones.cl — Todos los derechos reservados
-      </footer>
-    </main>
+          <div className="mt-12 border-t border-[#E8ECEF]/10 pt-8 text-[14px]">
+            <Link
+              href="/blog/mix-contratos-jornada-parcial-chile"
+              className="text-[#168A6C] hover:text-[#E8ECEF]"
+            >
+              ← Mix de contratos y jornada parcial
+            </Link>
+          </div>
+        </article>
+      </main>
+      <SiteFooter />
+    </div>
   );
 }
