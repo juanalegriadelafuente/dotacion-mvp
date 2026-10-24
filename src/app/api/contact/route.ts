@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
+import { origenValido } from "@/lib/proteccion";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,12 @@ function emailLooksOk(email: string) {
 
 export async function POST(req: Request) {
   try {
+    if (!origenValido(req)) {
+      return NextResponse.json(
+        { ok: false, error: "Origen no permitido." },
+        { status: 403 },
+      );
+    }
     const body = await req.json();
 
     const name = String(body?.name ?? "")

@@ -1,6 +1,14 @@
 // src/app/api/leads/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
+import {
+  correoValido,
+  escaparHtml,
+  limpiarResultados,
+  origenValido,
+  permiteCorreo,
+  permiteIA,
+} from "@/lib/proteccion";
 
 const NOTION_API_KEY     = process.env.NOTION_API_KEY!;
 const NOTION_DATABASE_ID = process.env.NOTION_LEADS_DATABASE_ID!;
@@ -63,40 +71,7 @@ async function saveToNotion(payload: {
   }
 }
 
-// ─── Diagnóstico (GET /api/leads) ─────────────────────────────────────────────
-
-export async function GET() {
-  const results: Record<string, unknown> = {
-    notion_key_set:  !!NOTION_API_KEY,
-    notion_db_set:   !!NOTION_DATABASE_ID,
-    resend_key_set:  !!RESEND_API_KEY,
-    anthropic_key_set: !!ANTHROPIC_API_KEY,
-  };
-
-  // Verificar acceso a la base de datos de Notion
-  if (NOTION_API_KEY && NOTION_DATABASE_ID) {
-    try {
-      const r = await fetch(`https://api.notion.com/v1/databases/${NOTION_DATABASE_ID}`, {
-        headers: {
-          Authorization: `Bearer ${NOTION_API_KEY}`,
-          "Notion-Version": "2022-06-28",
-        },
-      });
-      results.notion_db_accessible = r.ok;
-      if (!r.ok) {
-        results.notion_db_error = await r.json();
-      } else {
-        const db = await r.json();
-        results.notion_db_title     = db.title?.[0]?.plain_text ?? "sin título";
-        results.notion_db_props     = Object.keys(db.properties ?? {});
-      }
-    } catch (e) {
-      results.notion_db_error = String(e);
-    }
-  }
-
-  return NextResponse.json(results);
-}
+// Sin GET: el diagnóstico público exponía la estructura de la base de Notion.
 
 // ─── Anthropic ────────────────────────────────────────────────────────────────
 
@@ -281,7 +256,7 @@ async function sendEmailDotacion(payload: {
       <p style="margin:0;font-size:11px;color:#94a3b8;">${fecha}</p>
     </div>
     <div style="padding:32px;">
-      <p style="margin:0 0 6px;font-size:15px;font-weight:600;color:#0f172a;">Hola${payload.nombre ? ` ${payload.nombre}` : ""},</p>
+      <p style="margin:0 0 6px;font-size:15px;font-weight:600;color:#0f172a;">Hola${payload.nombre ? ` ${escaparHtml(payload.nombre)}` : ""},</p>
       <p style="margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.6;">
         Adjunto encontrarás el Excel con las <strong>${payload.totalMixes} combinaciones válidas</strong> de dotación calculadas para tu operación, ordenadas por eficiencia.
       </p>
@@ -291,7 +266,7 @@ async function sendEmailDotacion(payload: {
       </div>
       <div style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;border-left:3px solid #2563eb;padding:20px 24px;margin-bottom:28px;">
         <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">Análisis ejecutivo</p>
-        <p style="margin:0;font-size:14px;color:#1e293b;line-height:1.75;white-space:pre-wrap;">${payload.analisis}</p>
+        <p style="margin:0;font-size:14px;color:#1e293b;line-height:1.75;white-space:pre-wrap;">${escaparHtml(payload.analisis, 5000)}</p>
       </div>
       <a href="https://dotaciones.cl/calculadora" style="display:inline-block;padding:11px 22px;background:#0f172a;color:#fff;font-size:13px;font-weight:600;border-radius:6px;text-decoration:none;">Volver a la calculadora →</a>
     </div>
@@ -344,7 +319,7 @@ async function sendEmailFiniquito(payload: {
     </div>
 
     <div style="padding:32px;">
-      <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#0f172a;">Hola${payload.nombre ? ` ${payload.nombre}` : ""},</p>
+      <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#0f172a;">Hola${payload.nombre ? ` ${escaparHtml(payload.nombre)}` : ""},</p>
       <p style="margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.65;">
         Aquí tienes tu resumen del finiquito y la guía de qué revisar antes de firmar.
       </p>
@@ -390,8 +365,8 @@ async function sendEmailFiniquito(payload: {
   <div style="max-width:500px;margin:32px auto;background:#fff;border-radius:8px;border:1px solid #e2e8f0;padding:24px;">
     <p style="margin:0 0 16px;font-size:14px;font-weight:700;color:#0f172a;">Nuevo lead — ${payload.origenLabel}</p>
     <table style="width:100%;font-size:13px;border-collapse:collapse;">
-      <tr><td style="padding:6px 0;color:#64748b;width:100px;">Nombre</td><td style="padding:6px 0;color:#0f172a;font-weight:600;">${payload.nombre || "—"}</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b;">Email</td><td style="padding:6px 0;color:#0f172a;">${payload.to}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;width:100px;">Nombre</td><td style="padding:6px 0;color:#0f172a;font-weight:600;">${escaparHtml(payload.nombre) || "—"}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;">Email</td><td style="padding:6px 0;color:#0f172a;">${escaparHtml(payload.to)}</td></tr>
       <tr><td style="padding:6px 0;color:#64748b;">Origen</td><td style="padding:6px 0;color:#0f172a;">${payload.origenLabel}</td></tr>
       <tr><td style="padding:6px 0;color:#64748b;">Fecha</td><td style="padding:6px 0;color:#0f172a;">${fecha}</td></tr>
     </table>
@@ -450,8 +425,18 @@ export async function POST(req: NextRequest) {
     const origenLabel = sourceLabel(origenRaw);
     const esFiniquito = origenRaw === "calculadora-finiquito";
 
-    if (!email) {
+    if (!origenValido(req)) {
+      return NextResponse.json({ error: "Origen no permitido" }, { status: 403 });
+    }
+    if (!correoValido(email)) {
       return NextResponse.json({ error: "Email requerido" }, { status: 400 });
+    }
+
+    // Todo lo que sigue manda correos a la dirección que escribió el visitante:
+    // con tope, para que nadie use dotaciones.cl para llenar la casilla de otro.
+    // Si se pasa, se responde ok igual (no le contamos al abusador qué frenó).
+    if (!(await permiteCorreo(req, email))) {
+      return NextResponse.json({ ok: true, analisis: null });
     }
 
     // 1. Guardar en Notion con origen legible
@@ -487,10 +472,10 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           from: "Dotaciones <no-reply@dotaciones.cl>",
           to: [NOTIFY_EMAIL],
-          subject: `Nuevo lead: ${origenLabel} — ${nombre || email}`,
+          subject: `Nuevo lead: ${origenLabel} — ${String(nombre || email).slice(0, 80)}`,
           html: `<p style="font-family:Arial;font-size:14px;color:#0f172a;">
-            <strong>${nombre || "Sin nombre"}</strong> (${email})<br>
-            Empresa: ${empresa || "—"}<br>
+            <strong>${escaparHtml(nombre) || "Sin nombre"}</strong> (${escaparHtml(email)})<br>
+            Empresa: ${escaparHtml(empresa) || "—"}<br>
             Origen: ${origenLabel}<br>
             Fecha: ${new Date().toLocaleDateString("es-CL")}
           </p>`,
@@ -502,22 +487,22 @@ export async function POST(req: NextRequest) {
 
     // Solo enviar email al usuario si hay resultados + mixes (flujo completo)
     let analisis: string | null = null;
-    if (resultados) {
+    if (resultados && (await permiteIA(req))) {
       try {
         analisis = await generateAnalisis(
-          resultados,
-          sector       || "Retail / Servicios",
-          calculadora  || "Retail / Servicios",
+          limpiarResultados(resultados) as Record<string, unknown>,
+          String(sector       || "Retail / Servicios").slice(0, 60),
+          String(calculadora  || "Retail / Servicios").slice(0, 60),
         );
       } catch (e) {
         console.error("Análisis IA failed (non-fatal):", e);
       }
     }
 
-    if (mixes?.length) {
+    if (Array.isArray(mixes) && mixes.length) {
       try {
         const excelBuffer = await buildExcel(
-          mixes,
+          mixes.slice(0, 500),
           hasCosts ?? false,
           {
             requiredHours:         resultados?.requiredHours         ?? 0,
@@ -540,7 +525,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, analisis, notionError });
+    return NextResponse.json({ ok: true, analisis, notionError: notionError ? "No se pudo guardar" : null });
   } catch (e) {
     console.error("leads route error:", e);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
