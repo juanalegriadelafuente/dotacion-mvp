@@ -17,14 +17,14 @@ export default function Imagen() {
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        background: "#0D1B2A",
-        color: "#E8ECEF",
+        background: "linear-gradient(135deg, #6D5EFC, #22C1C3)",
+        color: "#FFFFFF",
         padding: "72px 80px",
         fontFamily: "sans-serif",
       }}
     >
       <div style={{ display: "flex", fontSize: 34, fontWeight: 800 }}>
-        dotaciones<span style={{ color: "#168A6C" }}>.cl</span>
+        dotaciones.cl
       </div>
       <div style={{ display: "flex", flexDirection: "column" }}>
         <div style={{ fontSize: 76, lineHeight: 1.05, maxWidth: 980 }}>
@@ -35,7 +35,7 @@ export default function Imagen() {
             fontSize: 76,
             lineHeight: 1.05,
             maxWidth: 980,
-            color: "#168A6C",
+            color: "#0F172A",
           }}
         >
           ¿Cuánta gente necesitas?
@@ -45,7 +45,7 @@ export default function Imagen() {
         style={{
           display: "flex",
           fontSize: 28,
-          color: "rgba(232,236,239,0.6)",
+          color: "rgba(255,255,255,0.85)",
         }}
       >
         Herramientas gratuitas · ley laboral chilena · jornada de 42 horas

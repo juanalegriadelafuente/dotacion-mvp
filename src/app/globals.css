@@ -13,10 +13,28 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-a { color: inherit; text-decoration: none; }
-button { font-family: inherit; cursor: pointer; }
+/* En la capa base para que las utilidades de Tailwind (text-white, etc.) le
+   ganen: fuera de una capa, esta regla pisaba el color de todos los enlaces. */
+@layer base {
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; }
+}
 code, pre { font-family: var(--font-geist-mono, ui-monospace, monospace); }
 ::selection { background: #0F6E56; color: #E8ECEF; }
+
+/* ===== Diseño A de dotaciones.cl (D-ING-9) ===== */
+.fuente-a {
+  font-family: var(--font-jakarta), system-ui, sans-serif;
+}
+.degradado-marca {
+  background-image: linear-gradient(135deg, #6d5efc, #22c1c3);
+}
+.texto-degradado {
+  background-image: linear-gradient(90deg, #6d5efc, #22c1c3);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 
 /* ===== Tokens ===== */
 :root {

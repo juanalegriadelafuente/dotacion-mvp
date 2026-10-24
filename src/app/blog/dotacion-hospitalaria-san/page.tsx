@@ -20,11 +20,10 @@ export const metadata: Metadata = {
   },
 };
 
-const serif = { fontFamily: "var(--font-instrument-serif), serif" };
-
-const h2 = "mt-12 text-[clamp(24px,3vw,32px)] leading-tight";
-const p = "mt-4 text-[16.5px] leading-[1.75] text-[#E8ECEF]/80";
-const li = "text-[16px] leading-[1.7] text-[#E8ECEF]/80";
+const h2 =
+  "font-extrabold tracking-tight mt-12 text-[clamp(24px,3vw,32px)] leading-tight";
+const p = "mt-4 text-[16.5px] leading-[1.75] text-slate-700";
+const li = "text-[16px] leading-[1.7] text-slate-700";
 
 function Tabla({
   cabeza,
@@ -34,9 +33,9 @@ function Tabla({
   filas: (string | number)[][];
 }) {
   return (
-    <div className="mt-5 overflow-x-auto rounded-lg border border-[#E8ECEF]/12">
+    <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
       <table className="w-full min-w-[480px] text-left text-[14.5px]">
-        <thead className="bg-[#0F2436] text-[12px] uppercase tracking-[0.06em] text-[#7A8895]">
+        <thead className="bg-slate-50 text-[12px] uppercase tracking-[0.06em] text-slate-500">
           <tr>
             {cabeza.map((c) => (
               <th key={c} className="px-4 py-3 font-semibold">
@@ -47,12 +46,12 @@ function Tabla({
         </thead>
         <tbody>
           {filas.map((f) => (
-            <tr key={String(f[0])} className="border-t border-[#E8ECEF]/8">
+            <tr key={String(f[0])} className="border-t border-slate-100">
               {f.map((c, i) => (
                 <td
                   // biome-ignore lint/suspicious/noArrayIndexKey: columnas fijas de una tabla estática
                   key={i}
-                  className={`px-4 py-2.5 ${i === 0 ? "font-semibold" : "text-[#E8ECEF]/80"}`}
+                  className={`px-4 py-2.5 ${i === 0 ? "font-semibold" : "text-slate-700"}`}
                 >
                   {c}
                 </td>
@@ -67,30 +66,24 @@ function Tabla({
 
 export default function ArticuloSAN() {
   return (
-    <div className="min-h-screen bg-[#0D1B2A] text-[#E8ECEF]">
+    <div className="fuente-a min-h-screen bg-white text-slate-900">
       <SiteNav />
       <main className="px-4 py-12 sm:px-10 sm:py-16">
         <article className="mx-auto max-w-[760px]">
           <Link
             href="/blog"
-            className="text-[12px] uppercase tracking-[0.1em] text-[#E8ECEF]/45 hover:text-[#E8ECEF]"
+            className="text-[12px] uppercase tracking-[0.1em] text-slate-500 hover:text-[#4338CA]"
           >
             ← Volver a las guías
           </Link>
-          <p className="mt-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#168A6C]">
+          <p className="mt-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#5B4BEA]">
             Salud · actualizado el 24-10-2026
           </p>
-          <h1
-            className="mt-3 text-[clamp(32px,5vw,48px)] leading-[1.06]"
-            style={serif}
-          >
+          <h1 className="font-extrabold tracking-tight mt-3 text-[clamp(32px,5vw,48px)] leading-[1.06]">
             Dotación del Servicio de Alimentación y Nutrición (SAN): cómo se
             calcula
           </h1>
-          <p
-            className="mt-5 text-[19px] italic leading-relaxed text-[#E8ECEF]/70"
-            style={serif}
-          >
+          <p className="mt-5 text-[19px] italic leading-relaxed text-slate-600">
             El SAN es la unidad del hospital o la clínica que produce y
             distribuye la alimentación de los pacientes y, cuando hay casino, la
             de los funcionarios. Su dotación no se estima a ojo: se calcula a
@@ -98,21 +91,19 @@ export default function ArticuloSAN() {
             camas que atiende.
           </p>
 
-          <div className="mt-8 flex flex-col items-start gap-3 rounded-lg border border-[#0F6E56]/40 bg-[#0F6E56]/10 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-[15px]">
               ¿Prefieres calcularlo directo con tus datos?
             </span>
             <Link
               href="/san"
-              className="rounded-md bg-[#0F6E56] px-5 py-2.5 text-[14px] font-semibold text-[#F5F1E8] hover:bg-[#168A6C]"
+              className="degradado-marca rounded-full px-5 py-2.5 text-[14px] font-bold text-white"
             >
               Abrir la calculadora SAN →
             </Link>
           </div>
 
-          <h2 className={h2} style={serif}>
-            La referencia: la orientación técnica SAN
-          </h2>
+          <h2 className={h2}>La referencia: la orientación técnica SAN</h2>
           <p className={p}>
             El método que se describe aquí, y que usa la calculadora de
             dotaciones.cl, sigue la orientación técnica para Servicios de
@@ -122,9 +113,7 @@ export default function ArticuloSAN() {
             sumar a los nutricionistas clínicos según las camas.
           </p>
 
-          <h2 className={h2} style={serif}>
-            1. Raciones totales día (RTD)
-          </h2>
+          <h2 className={h2}>1. Raciones totales día (RTD)</h2>
           <p className={p}>
             La RTD es el total de raciones que el SAN produce en un día. Se
             suman las raciones de cada tiempo de comida (desayuno, colaciones,
@@ -135,7 +124,7 @@ export default function ArticuloSAN() {
             distribuye distinto.
           </p>
 
-          <h2 className={h2} style={serif}>
+          <h2 className={h2}>
             2. Factores de complejidad y ración completa día (RCD)
           </h2>
           <p className={p}>
@@ -177,9 +166,7 @@ export default function ArticuloSAN() {
             desde 300.
           </p>
 
-          <h2 className={h2} style={serif}>
-            3. Personal de la Unidad Central de Producción
-          </h2>
+          <h2 className={h2}>3. Personal de la Unidad Central de Producción</h2>
           <p className={p}>
             Cada área tiene una razón de personas por raciones que cambia según
             el tramo de producción. Recepción y almacenamiento, producción y
@@ -189,9 +176,7 @@ export default function ArticuloSAN() {
             3 personas.
           </p>
 
-          <h2 className={h2} style={serif}>
-            4. Nutricionistas clínicos
-          </h2>
+          <h2 className={h2}>4. Nutricionistas clínicos</h2>
           <p className={p}>
             Los nutricionistas clínicos se calculan por camas, según el nivel de
             cuidado: <strong>uno cada 32 camas básicas</strong>,{" "}
@@ -199,9 +184,7 @@ export default function ArticuloSAN() {
             <strong>uno cada 16 camas críticas</strong>.
           </p>
 
-          <h2 className={h2} style={serif}>
-            Un ejemplo completo
-          </h2>
+          <h2 className={h2}>Un ejemplo completo</h2>
           <p className={p}>
             Un hospital produce 450 raciones al día para pacientes y 150 para el
             casino (RTD total de 600). Tiene algunos equipos automatizados (FC
@@ -239,9 +222,7 @@ export default function ArticuloSAN() {
             <strong>63,9 jornadas de 42 horas</strong>.
           </p>
 
-          <h2 className={h2} style={serif}>
-            Lo que este cálculo no incluye
-          </h2>
+          <h2 className={h2}>Lo que este cálculo no incluye</h2>
           <ul className="mt-4 list-disc space-y-2 pl-6">
             <li className={li}>
               <strong>Reemplazos.</strong> La dotación normativa cubre la
@@ -249,7 +230,7 @@ export default function ArticuloSAN() {
               suma un{" "}
               <Link
                 href="/blog/factor-reemplazo-dotacion-chile"
-                className="text-[#168A6C] underline-offset-4 hover:underline"
+                className="text-[#5B4BEA] underline-offset-4 hover:underline"
               >
                 factor de reemplazo
               </Link>
@@ -262,31 +243,31 @@ export default function ArticuloSAN() {
             </li>
           </ul>
 
-          <div className="mt-12 rounded-xl border border-[#0F6E56] bg-[#0F6E56]/10 p-6 sm:p-8">
+          <div className="mt-12 rounded-xl border border-indigo-200 bg-indigo-50/70 p-6 sm:p-8">
             <h2 className="text-[22px] font-semibold">
               Calcula la dotación de tu SAN
             </h2>
-            <p className="mt-2 text-[15px] leading-relaxed text-[#E8ECEF]/75">
+            <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
               Ingresa tus raciones, factores y camas. La calculadora aplica las
               mismas tablas de este artículo y propone cómo cubrir las horas con
               contratos.
             </p>
             <Link
               href="/san"
-              className="mt-5 inline-block rounded-md bg-[#0F6E56] px-6 py-3 text-[15px] font-semibold text-[#F5F1E8] hover:bg-[#168A6C]"
+              className="mt-5 inline-block degradado-marca rounded-full px-6 py-3 text-[15px] font-bold text-white shadow-lg shadow-indigo-500/25"
             >
               Abrir la calculadora SAN →
             </Link>
-            <p className="mt-4 text-[13px] text-[#E8ECEF]/50">
+            <p className="mt-4 text-[13px] text-slate-500">
               Las herramientas orientan y no reemplazan la orientación técnica
               oficial ni la evaluación de cada establecimiento.
             </p>
           </div>
 
-          <div className="mt-12 border-t border-[#E8ECEF]/10 pt-8 text-[14px]">
+          <div className="mt-12 border-t border-slate-200 pt-8 text-[14px]">
             <Link
               href="/blog/mix-contratos-jornada-parcial-chile"
-              className="text-[#168A6C] hover:text-[#E8ECEF]"
+              className="text-[#5B4BEA] hover:text-[#4338CA]"
             >
               ← Mix de contratos y jornada parcial
             </Link>

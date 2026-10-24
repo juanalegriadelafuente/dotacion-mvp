@@ -65,7 +65,7 @@ export default function DividirTurnos() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0D1B2A] text-[#E8ECEF]">
+    <div className="fuente-a min-h-screen bg-white text-slate-900">
       <script
         type="application/ld+json"
         // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD estático, sin datos del usuario
@@ -74,16 +74,13 @@ export default function DividirTurnos() {
       <SiteNav />
       <main className="px-4 py-12 sm:px-10 sm:py-16">
         <div className="mx-auto max-w-[900px]">
-          <p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#168A6C]">
+          <p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#5B4BEA]">
             Herramienta gratuita
           </p>
-          <h1
-            className="text-[clamp(32px,5vw,50px)] leading-[1.05]"
-            style={{ fontFamily: "var(--font-instrument-serif), serif" }}
-          >
+          <h1 className="font-extrabold tracking-tight text-[clamp(32px,5vw,50px)] leading-[1.05]">
             Dividir turnos: reparte un horario en partes iguales
           </h1>
-          <p className="mt-5 max-w-[62ch] text-[17px] leading-relaxed text-[#E8ECEF]/75">
+          <p className="mt-5 max-w-[62ch] text-[17px] leading-relaxed text-slate-600">
             Elige el horario que hay que cubrir y en cuántos turnos lo divides.
             Si quieres, agrega los nombres de tu equipo y te armamos la rotación
             de los próximos días. Después, revisa gratis si el reparto cumple la
@@ -95,20 +92,17 @@ export default function DividirTurnos() {
           </div>
 
           <section className="mt-16">
-            <h2
-              className="text-[clamp(26px,3.4vw,36px)]"
-              style={{ fontFamily: "var(--font-instrument-serif), serif" }}
-            >
+            <h2 className="font-extrabold tracking-tight text-[clamp(26px,3.4vw,36px)]">
               Ejemplos
             </h2>
             <dl className="mt-6 grid gap-4 sm:grid-cols-2">
               {ejemplos.map(([t, d]) => (
                 <div
                   key={t}
-                  className="rounded-lg border border-[#E8ECEF]/10 p-5"
+                  className="rounded-2xl border border-slate-200 p-5"
                 >
                   <dt className="text-[16px] font-semibold">{t}</dt>
-                  <dd className="mt-1.5 text-[14.5px] leading-relaxed text-[#E8ECEF]/70">
+                  <dd className="mt-1.5 text-[14.5px] leading-relaxed text-slate-600">
                     {d}
                   </dd>
                 </div>
@@ -117,19 +111,16 @@ export default function DividirTurnos() {
           </section>
 
           <section className="mt-16">
-            <h2
-              className="text-[clamp(26px,3.4vw,36px)]"
-              style={{ fontFamily: "var(--font-instrument-serif), serif" }}
-            >
+            <h2 className="font-extrabold tracking-tight text-[clamp(26px,3.4vw,36px)]">
               Preguntas frecuentes
             </h2>
-            <div className="mt-6 divide-y divide-[#E8ECEF]/10 border-y border-[#E8ECEF]/10">
+            <div className="mt-6 divide-y divide-slate-200 border-y border-slate-200">
               {preguntas.map((q) => (
                 <details key={q.p} className="group py-4">
                   <summary className="cursor-pointer list-none text-[16px] font-semibold marker:hidden">
                     {q.p}
                   </summary>
-                  <p className="mt-2 text-[15px] leading-relaxed text-[#E8ECEF]/70">
+                  <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
                     {q.r}
                   </p>
                 </details>

@@ -1,17 +1,20 @@
 // src/app/blog/[slug]/page.tsx
+
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { Metadata } from "next";
-import { getBlogPost, getBlogSlugs, type NotionBlock } from "@/lib/notion-blog";
-import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
+import SiteNav from "@/components/SiteNav";
+import { getBlogPost, getBlogSlugs, type NotionBlock } from "@/lib/notion-blog";
 import { URL_REVISAR } from "@/lib/sitio";
 
 export const revalidate = 3600;
 
-export async function generateMetadata(
-  { params }: { params: Promise<{ slug: string }> }
-): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
   const post = await getBlogPost(slug);
   if (!post) return { title: "Artículo no encontrado" };
@@ -20,8 +23,10 @@ export async function generateMetadata(
     description: post.metaDescription,
     alternates: { canonical: `https://dotaciones.cl/blog/${slug}` },
     openGraph: {
-      title: post.title, description: post.metaDescription,
-      url: `https://dotaciones.cl/blog/${slug}`, type: "article",
+      title: post.title,
+      description: post.metaDescription,
+      url: `https://dotaciones.cl/blog/${slug}`,
+      type: "article",
       authors: ["https://dotaciones.cl"],
     },
   };
@@ -32,240 +37,99 @@ export async function generateStaticParams() {
   return slugs.map((slug) => ({ slug }));
 }
 
-// Paleta por categoría (acento teal para las legales, hueso para las demás)
-const catColors: Record<string, { c: string; b: string }> = {
-  "Normativa":        { c: "#0F6E56", b: "rgba(15,110,86,0.35)"  },
-  "Jurisprudencia":   { c: "#0F6E56", b: "rgba(15,110,86,0.35)"  },
-  "Planificación":    { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
-  "Metodología":      { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
-  "Retail":           { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
-  "Salud":            { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
-  "Casos prácticos":  { c: "#E8ECEF", b: "rgba(232,236,239,0.18)" },
-};
-
 const S = `
-  @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
-  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
-  body {
-    font-family: 'Geist', system-ui, sans-serif;
-    background: #0D1B2A;
-    color: #E8ECEF;
-    -webkit-font-smoothing: antialiased;
-  }
-  a { text-decoration:none; color:inherit; }
-  ::selection { background:#0F6E56; color:#E8ECEF; }
+  /* Sin resets globales: Tailwind ya los trae, y uno sin capa pisaría sus utilidades. */
+  ::selection { background:#E0DCFF; color:#0F172A; }
 
-  /* ── Hero ── */
-  .art-hero {
-    background: #0F2436;
-    border-bottom: 1px solid rgba(232,236,239,0.10);
-    padding: 56px 40px 64px;
+  /* ── Hero (diseño A, D-ING-9) ── */
+  .art-hero { position:relative; overflow:hidden; padding: 56px 20px 48px; }
+  .art-hero::before {
+    content:""; position:absolute; top:-260px; right:-120px; width:560px; height:560px;
+    border-radius:50%; background:linear-gradient(135deg,#6D5EFC,#22C1C3);
+    opacity:.18; filter:blur(70px); pointer-events:none;
   }
-  .art-hero-in { max-width: 760px; margin: 0 auto; }
-
+  .art-hero-in { position:relative; max-width: 760px; margin: 0 auto; }
   .back {
-    display: inline-flex; align-items: center; gap: 6px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase;
-    color: rgba(232,236,239,0.40); margin-bottom: 32px;
-    transition: color .25s ease;
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:14px; font-weight:600; color:#64748B; margin-bottom:28px;
   }
-  .back:hover { color: #E8ECEF; }
-
-  /* Tag pill */
+  .back:hover { color:#5B4BEA; }
   .art-tag {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
-    padding: 2px 8px; border-radius: 2px; border: 1px solid;
-    display: inline-block; margin-bottom: 20px;
+    display:inline-block; margin-bottom:18px;
+    font-size:12px; font-weight:700; padding:4px 12px; border-radius:999px;
+    background:#EEF2FF; color:#5B4BEA; border:0;
   }
-
-  /* Título */
   .art-h1 {
-    font-family: 'Instrument Serif', serif;
-    font-size: clamp(30px, 4.5vw, 52px);
-    font-weight: 400; color: #E8ECEF;
-    letter-spacing: -0.01em; line-height: 1.06; margin-bottom: 20px;
+    font-size: clamp(30px, 5vw, 46px); font-weight: 800; color:#0F172A;
+    letter-spacing:-0.02em; line-height:1.1; margin-bottom:18px;
   }
+  .art-meta { font-size:14px; color:#64748B; display:flex; gap:10px; align-items:center; }
+  .art-dot { width:4px; height:4px; border-radius:50%; background:#CBD5E1; }
 
-  /* Meta */
-  .art-meta {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; color: rgba(232,236,239,0.40);
-    display: flex; gap: 12px; align-items: center;
-    letter-spacing: 0.08em; text-transform: uppercase;
-  }
-  .art-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(232,236,239,0.25); }
-
-  /* ── Body ── */
-  .art-body { max-width: 760px; margin: 0 auto; padding: 56px 40px; }
-
-  /* Lead / excerpt */
+  /* ── Cuerpo ── */
+  .art-body { max-width: 760px; margin: 0 auto; padding: 8px 20px 64px; }
   .art-lead {
-    font-family: 'Instrument Serif', serif;
-    font-size: clamp(17px, 2.2vw, 21px);
-    font-style: italic;
-    color: rgba(232,236,239,0.72);
-    line-height: 1.55; margin-bottom: 32px;
-    padding-bottom: 32px;
-    border-bottom: 1px solid rgba(232,236,239,0.10);
+    font-size: clamp(18px, 2.2vw, 20px); color:#334155; line-height:1.6;
+    margin-bottom:32px; padding-bottom:32px; border-bottom:1px solid #E2E8F0;
   }
 
-  /* ── CTA top ── */
+  /* ── CTA arriba ── */
   .cta-top {
-    background: rgba(15,110,86,0.09);
-    border: 1px solid rgba(15,110,86,0.25);
-    border-radius: 4px;
-    padding: 18px 22px;
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 16px; margin-bottom: 48px; flex-wrap: wrap;
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    background:#F5F3FF; border:1px solid #DDD6FE; border-radius:16px;
+    padding:18px 22px; margin-bottom:44px;
   }
-  .cta-top-t { font-size: 14px; font-weight: 500; color: #E8ECEF; }
-  .cta-top-s {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; color: rgba(232,236,239,0.45);
-    margin-top: 4px; letter-spacing: 0.06em;
-  }
+  .cta-top-t { font-size:15px; font-weight:700; color:#0F172A; }
+  .cta-top-s { font-size:13.5px; color:#64748B; margin-top:3px; }
   .cta-top-btn {
-    background: #0F6E56; color: #F5F1E8;
-    padding: 10px 20px; border-radius: 2px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px; font-weight: 500; letter-spacing: 0.08em;
-    white-space: nowrap; transition: background .2s ease;
+    background:linear-gradient(135deg,#6D5EFC,#22C1C3); color:#fff;
+    padding:11px 20px; border-radius:999px; font-size:14px; font-weight:700; white-space:nowrap;
+    box-shadow:0 8px 20px -8px rgba(109,94,252,.6);
   }
-  .cta-top-btn:hover { background: #168A6C; }
+  .cta-top-btn:hover { filter:brightness(1.05); }
 
-  /* ── Prose ── */
-  .prose h2 {
-    font-family: 'Instrument Serif', serif;
-    font-size: clamp(22px, 3vw, 32px); font-weight: 400;
-    color: #E8ECEF; letter-spacing: -0.01em;
-    margin: 52px 0 16px; line-height: 1.1;
-  }
-  .prose h3 {
-    font-family: 'Instrument Serif', serif;
-    font-size: 22px; font-weight: 400;
-    color: #E8ECEF; margin: 40px 0 12px; line-height: 1.2;
-  }
-  .prose h4 {
-    font-size: 15px; font-weight: 600;
-    color: #E8ECEF; margin: 30px 0 10px;
-    font-family: 'JetBrains Mono', monospace;
-    letter-spacing: 0.06em; text-transform: uppercase;
-  }
-  .prose p {
-    font-size: 16px; color: rgba(232,236,239,0.80);
-    line-height: 1.75; margin: 16px 0; font-weight: 300;
-  }
-  .prose ul, .prose ol { padding-left: 24px; margin: 16px 0; }
-  .prose li {
-    font-size: 15px; color: rgba(232,236,239,0.75);
-    line-height: 1.7; margin: 6px 0; font-weight: 300;
-  }
-  .prose blockquote {
-    border-left: 2px solid #0F6E56;
-    padding-left: 20px; margin: 28px 0;
-    color: rgba(232,236,239,0.60); font-style: italic;
-  }
-  .prose code {
-    background: rgba(232,236,239,0.08);
-    padding: 2px 7px; border-radius: 3px;
-    font-size: 13px; font-family: 'JetBrains Mono', monospace;
-    color: #E8ECEF;
-  }
-  .prose pre {
-    background: #061421;
-    border: 1px solid rgba(232,236,239,0.10);
-    border-radius: 4px; overflow: hidden; margin: 28px 0;
-  }
-  .prose pre .lang {
-    padding: 8px 16px;
-    background: rgba(232,236,239,0.04);
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 10px; color: rgba(232,236,239,0.35);
-    border-bottom: 1px solid rgba(232,236,239,0.08);
-    letter-spacing: 0.12em; text-transform: uppercase;
-  }
-  .prose pre code {
-    background: none; padding: 16px; display: block;
-    font-size: 13px; color: rgba(232,236,239,0.85); line-height: 1.65;
-  }
-  .prose hr {
-    border: none;
-    border-top: 1px solid rgba(232,236,239,0.10);
-    margin: 44px 0;
-  }
-  .prose .callout {
-    background: rgba(15,110,86,0.10);
-    border: 1px solid rgba(15,110,86,0.25);
-    border-radius: 4px; padding: 18px 20px; margin: 24px 0;
-    font-size: 14px; color: rgba(232,236,239,0.85); line-height: 1.65;
-  }
-  .prose strong { font-weight: 600; color: #E8ECEF; }
-  .prose a {
-    color: #0F6E56; text-decoration: underline;
-    text-underline-offset: 3px; transition: color .2s ease;
-  }
-  .prose a:hover { color: #168A6C; }
-  figure figcaption {
-    font-family: 'JetBrains Mono', monospace;
-    text-align: center; font-size: 11px;
-    color: rgba(232,236,239,0.35); margin-top: 10px;
-    letter-spacing: 0.08em; text-transform: uppercase;
-  }
+  /* ── Texto ── */
+  .prose h2 { font-size: clamp(24px, 3vw, 30px); font-weight:800; color:#0F172A; letter-spacing:-0.015em; margin:48px 0 14px; line-height:1.2; }
+  .prose h3 { font-size:21px; font-weight:700; color:#0F172A; margin:36px 0 10px; line-height:1.3; }
+  .prose h4 { font-size:14px; font-weight:700; color:#5B4BEA; margin:28px 0 8px; letter-spacing:.06em; text-transform:uppercase; }
+  .prose p { font-size:17px; color:#334155; line-height:1.8; margin:16px 0; }
+  .prose ul, .prose ol { padding-left:24px; margin:16px 0; }
+  .prose li { font-size:17px; color:#334155; line-height:1.75; margin:6px 0; }
+  .prose li::marker { color:#6D5EFC; }
+  .prose blockquote { border-left:4px solid #6D5EFC; background:#F8FAFC; padding:14px 20px; margin:28px 0; color:#475569; font-style:italic; border-radius:0 12px 12px 0; }
+  .prose code { background:#F1F5F9; padding:2px 7px; border-radius:6px; font-size:14px; color:#0F172A; font-family: var(--font-geist-mono), monospace; }
+  .prose pre { background:#0F172A; border-radius:14px; overflow:hidden; margin:28px 0; }
+  .prose pre .lang { padding:8px 16px; font-size:11px; color:#94A3B8; border-bottom:1px solid #1E293B; letter-spacing:.1em; text-transform:uppercase; }
+  .prose pre code { background:none; padding:16px; display:block; font-size:13.5px; color:#E2E8F0; line-height:1.65; }
+  .prose hr { border:none; border-top:1px solid #E2E8F0; margin:44px 0; }
+  .prose .callout { background:#F5F3FF; border:1px solid #DDD6FE; border-radius:14px; padding:18px 20px; margin:24px 0; font-size:16px; color:#334155; line-height:1.7; }
+  .prose strong { font-weight:700; color:#0F172A; }
+  .prose a { color:#5B4BEA; text-decoration:underline; text-underline-offset:3px; }
+  .prose a:hover { color:#4338CA; }
+  .prose table { width:100%; border-collapse:collapse; margin:24px 0; font-size:15px; }
+  .prose th, .prose td { border-bottom:1px solid #E2E8F0; padding:10px 12px; text-align:left; color:#334155; }
+  .prose th { color:#0F172A; font-weight:700; background:#F8FAFC; }
+  figure figcaption { text-align:center; font-size:13px; color:#94A3B8; margin-top:10px; }
 
-  /* ── CTA bottom ── */
+  /* ── CTA abajo ── */
   .cta-bot {
-    background: #0F2436;
-    border: 1px solid rgba(232,236,239,0.10);
-    border-radius: 4px; padding: 40px; margin-top: 56px;
+    background:linear-gradient(135deg,#6D5EFC,#22C1C3); color:#fff;
+    border-radius:24px; padding:36px; margin-top:56px;
   }
-  .cta-bot-h {
-    font-family: 'Instrument Serif', serif;
-    font-size: 28px; font-weight: 400; color: #E8ECEF;
-    margin-bottom: 10px; line-height: 1.1;
-  }
-  .cta-bot-s {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; color: rgba(232,236,239,0.45);
-    margin-bottom: 28px; letter-spacing: 0.06em;
-  }
-  .cta-bot-btns { display: flex; gap: 10px; flex-wrap: wrap; }
-  .cta-bot-p {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: #0F6E56; color: #F5F1E8;
-    padding: 12px 22px; border-radius: 2px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px; font-weight: 500; letter-spacing: 0.08em;
-    transition: background .2s ease;
-  }
-  .cta-bot-p:hover { background: #168A6C; }
-  .cta-bot-s2 {
-    display: inline-flex; align-items: center; gap: 6px;
-    background: transparent;
-    border: 1px solid rgba(232,236,239,0.14);
-    color: rgba(232,236,239,0.80);
-    padding: 11px 18px; border-radius: 2px;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 12px; font-weight: 400; letter-spacing: 0.08em;
-    transition: background .2s ease, border-color .2s ease;
-  }
-  .cta-bot-s2:hover { background: rgba(232,236,239,0.05); border-color: rgba(232,236,239,0.28); }
+  .cta-bot-h { font-size:26px; font-weight:800; line-height:1.2; margin-bottom:10px; color:#fff; }
+  .cta-bot-s { font-size:15.5px; color:rgba(255,255,255,.88); line-height:1.6; margin-bottom:24px; }
+  .cta-bot-btns { display:flex; gap:10px; flex-wrap:wrap; }
+  .cta-bot-p { display:inline-flex; align-items:center; gap:6px; background:#fff; color:#0F172A; padding:12px 22px; border-radius:999px; font-size:15px; font-weight:700; }
+  .cta-bot-p:hover { background:#F1F5F9; }
+  .cta-bot-s2 { display:inline-flex; align-items:center; gap:6px; border:1.5px solid rgba(255,255,255,.6); color:#fff; padding:11px 20px; border-radius:999px; font-size:15px; font-weight:600; }
+  .cta-bot-s2:hover { background:rgba(255,255,255,.12); }
 
-  /* ── Back bottom ── */
-  .art-back-bottom {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 11px; color: rgba(232,236,239,0.40);
-    display: inline-flex; align-items: center; gap: 6px;
-    letter-spacing: 0.10em; text-transform: uppercase;
-    transition: color .25s ease;
-  }
-  .art-back-bottom:hover { color: #E8ECEF; }
+  .art-back-bottom { font-size:14px; font-weight:600; color:#64748B; display:inline-flex; align-items:center; gap:6px; }
+  .art-back-bottom:hover { color:#5B4BEA; }
 
   @media (max-width: 768px) {
-    .art-hero, .art-body { padding-left: 20px; padding-right: 20px; }
-    .cta-top { flex-direction: column; align-items: flex-start; }
-    .cta-bot { padding: 28px 20px; }
+    .cta-top { flex-direction:column; align-items:flex-start; }
+    .cta-bot { padding:28px 22px; }
   }
 `;
 
@@ -281,7 +145,12 @@ function RichText({ text }: { text: string }) {
         if (part.startsWith("`") && part.endsWith("`"))
           return <code key={i}>{part.slice(1, -1)}</code>;
         const lm = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
-        if (lm) return <a key={i} href={lm[2]}>{lm[1]}</a>;
+        if (lm)
+          return (
+            <a key={i} href={lm[2]}>
+              {lm[1]}
+            </a>
+          );
         return <span key={i}>{part}</span>;
       })}
     </>
@@ -290,9 +159,13 @@ function RichText({ text }: { text: string }) {
 
 // ── Tipos de agrupación ───────────────────────────────────────────────────────
 
-type ListGroup   = { kind: "list"; type: "bullet" | "numbered"; items: NotionBlock[] };
+type ListGroup = {
+  kind: "list";
+  type: "bullet" | "numbered";
+  items: NotionBlock[];
+};
 type SingleBlock = { kind: "block"; block: NotionBlock };
-type GroupEntry  = ListGroup | SingleBlock;
+type GroupEntry = ListGroup | SingleBlock;
 
 // ── Contenido Notion ──────────────────────────────────────────────────────────
 
@@ -319,7 +192,9 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
             return (
               <ul key={i}>
                 {entry.items.map((item, j) => (
-                  <li key={j}><RichText text={item.text ?? ""} /></li>
+                  <li key={j}>
+                    <RichText text={item.text ?? ""} />
+                  </li>
                 ))}
               </ul>
             );
@@ -327,7 +202,9 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
           return (
             <ol key={i}>
               {entry.items.map((item, j) => (
-                <li key={j}><RichText text={item.text ?? ""} /></li>
+                <li key={j}>
+                  <RichText text={item.text ?? ""} />
+                </li>
               ))}
             </ol>
           );
@@ -341,7 +218,11 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
             return <h4 key={i}>{block.text}</h4>;
           case "paragraph":
             if (!block.text?.trim()) return null;
-            return <p key={i}><RichText text={block.text} /></p>;
+            return (
+              <p key={i}>
+                <RichText text={block.text} />
+              </p>
+            );
           case "code":
             return (
               <pre key={i}>
@@ -352,7 +233,11 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
           case "quote":
             return <blockquote key={i}>{block.text}</blockquote>;
           case "callout":
-            return <div key={i} className="callout"><RichText text={block.text ?? ""} /></div>;
+            return (
+              <div key={i} className="callout">
+                <RichText text={block.text ?? ""} />
+              </div>
+            );
           case "divider":
             return <hr key={i} />;
           case "image":
@@ -361,11 +246,13 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
                 <img
                   src={block.url}
                   alt={block.caption ?? ""}
-                  style={{ width: "100%", borderRadius: 4, border: "1px solid rgba(232,236,239,0.10)" }}
+                  style={{
+                    width: "100%",
+                    borderRadius: 14,
+                    border: "1px solid #E2E8F0",
+                  }}
                 />
-                {block.caption && (
-                  <figcaption>{block.caption}</figcaption>
-                )}
+                {block.caption && <figcaption>{block.caption}</figcaption>}
               </figure>
             );
           default:
@@ -378,50 +265,70 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
-export default async function BlogArticle(
-  { params }: { params: Promise<{ slug: string }> }
-) {
+export default async function BlogArticle({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
   const { slug } = await params;
   const post = await getBlogPost(slug);
   if (!post) notFound();
 
-  const cc = catColors[post.category];
   // Los artículos de salud llevan a la calculadora SAN; el resto, a revisar el
   // turno, que es lo que busca quien llega por «turnos» (Search Console, 10-2026).
   const esSalud = post.category === "Salud" || slug.includes("san");
   const jsonLd = {
-    "@context": "https://schema.org", "@type": "Article",
-    headline: post.title, description: post.metaDescription,
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: post.title,
+    description: post.metaDescription,
     datePublished: post.date,
-    author: { "@type": "Organization", name: "dotaciones.cl — Nexwork SpA", url: "https://dotaciones.cl" },
-    publisher: { "@type": "Organization", name: "dotaciones.cl", url: "https://dotaciones.cl" },
-    mainEntityOfPage: { "@type": "WebPage", "@id": `https://dotaciones.cl/blog/${slug}` },
+    author: {
+      "@type": "Organization",
+      name: "dotaciones.cl — Nexwork SpA",
+      url: "https://dotaciones.cl",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "dotaciones.cl",
+      url: "https://dotaciones.cl",
+    },
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": `https://dotaciones.cl/blog/${slug}`,
+    },
   };
 
   return (
-    <div style={{ fontFamily: "'Geist', system-ui, sans-serif", background: "#0D1B2A" }}>
+    <div className="fuente-a min-h-screen bg-white text-slate-900">
       <style dangerouslySetInnerHTML={{ __html: S }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <SiteNav />
 
       {/* HERO */}
       <div className="art-hero">
         <div className="art-hero-in">
           <Link href="/blog" className="back">
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            <svg
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
             Volver al blog
           </Link>
-          <span
-            className="art-tag"
-            style={{
-              color:       cc?.c ?? "#E8ECEF",
-              borderColor: cc?.b ?? "rgba(232,236,239,0.18)",
-            }}
-          >
-            {post.category}
-          </span>
+          <span className="art-tag">{post.category}</span>
           <h1 className="art-h1">{post.title}</h1>
           <div className="art-meta">
             <span>{post.date}</span>
@@ -433,7 +340,6 @@ export default async function BlogArticle(
 
       {/* CUERPO */}
       <div className="art-body">
-
         {/* Lead */}
         <p className="art-lead">{post.excerpt}</p>
 
@@ -442,17 +348,28 @@ export default async function BlogArticle(
           <div className="cta-top">
             <div>
               <div className="cta-top-t">¿Prefieres calcularlo directo?</div>
-              <div className="cta-top-s">Calculadora SAN gratuita. El resultado en segundos.</div>
+              <div className="cta-top-s">
+                Calculadora SAN gratuita. El resultado en segundos.
+              </div>
             </div>
-            <Link href="/san" className="cta-top-btn">Ir a la calculadora →</Link>
+            <Link href="/san" className="cta-top-btn">
+              Ir a la calculadora →
+            </Link>
           </div>
         ) : (
           <div className="cta-top">
             <div>
-              <div className="cta-top-t">¿Ya tienes tu turno armado? Revisa si cumple la ley.</div>
-              <div className="cta-top-s">Pega tu planilla de Excel. Gratis, sin registro y sin guardar tus datos.</div>
+              <div className="cta-top-t">
+                ¿Ya tienes tu turno armado? Revisa si cumple la ley.
+              </div>
+              <div className="cta-top-s">
+                Pega tu planilla de Excel. Gratis, sin registro y sin guardar
+                tus datos.
+              </div>
             </div>
-            <a href={URL_REVISAR} className="cta-top-btn">Revisar mi turno →</a>
+            <a href={URL_REVISAR} className="cta-top-btn">
+              Revisar mi turno →
+            </a>
           </div>
         )}
 
@@ -463,30 +380,64 @@ export default async function BlogArticle(
         {esSalud ? (
           <div className="cta-bot">
             <h3 className="cta-bot-h">Calcula tu dotación ahora — es gratis</h3>
-            <p className="cta-bot-s">El motor propone las combinaciones válidas de contratos en segundos.</p>
+            <p className="cta-bot-s">
+              El motor propone las combinaciones válidas de contratos en
+              segundos.
+            </p>
             <div className="cta-bot-btns">
-              <Link href="/san" className="cta-bot-p">Calculadora SAN →</Link>
-              <Link href="/calculadora" className="cta-bot-s2">Calculadora Retail / Servicios →</Link>
+              <Link href="/san" className="cta-bot-p">
+                Calculadora SAN →
+              </Link>
+              <Link href="/calculadora" className="cta-bot-s2">
+                Calculadora Retail / Servicios →
+              </Link>
             </div>
           </div>
         ) : (
           <div className="cta-bot">
-            <h3 className="cta-bot-h">¿Tu turno cumple la ley? Compruébalo en un minuto</h3>
-            <p className="cta-bot-s">Pega tu planilla del mes y te marcamos, persona por persona, lo que no cumple: días seguidos, descanso entre jornadas, domingos libres y horas extra.</p>
+            <h3 className="cta-bot-h">
+              ¿Tu turno cumple la ley? Compruébalo en un minuto
+            </h3>
+            <p className="cta-bot-s">
+              Pega tu planilla del mes y te marcamos, persona por persona, lo
+              que no cumple: días seguidos, descanso entre jornadas, domingos
+              libres y horas extra.
+            </p>
             <div className="cta-bot-btns">
-              <a href={URL_REVISAR} className="cta-bot-p">Revisar mi turno gratis →</a>
-              <Link href="/calculadora" className="cta-bot-s2">Calcular mi dotación →</Link>
+              <a href={URL_REVISAR} className="cta-bot-p">
+                Revisar mi turno gratis →
+              </a>
+              <Link href="/calculadora" className="cta-bot-s2">
+                Calcular mi dotación →
+              </Link>
             </div>
           </div>
         )}
 
         {/* Nav inferior */}
-        <div style={{ borderTop: "1px solid rgba(232,236,239,0.10)", paddingTop: 28, marginTop: 28 }}>
+        <div
+          style={{
+            borderTop: "1px solid #E2E8F0",
+            paddingTop: 28,
+            marginTop: 28,
+          }}
+        >
           <Link href="/blog" className="art-back-bottom">
-            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            <svg
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
-            Ver todos los artículos
+            Ver todo el blog
           </Link>
         </div>
       </div>
