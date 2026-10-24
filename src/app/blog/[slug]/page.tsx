@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { getBlogPost, getBlogSlugs, type NotionBlock } from "@/lib/notion-blog";
 import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
+import { URL_REVISAR } from "@/lib/sitio";
 
 export const revalidate = 3600;
 
@@ -385,6 +386,9 @@ export default async function BlogArticle(
   if (!post) notFound();
 
   const cc = catColors[post.category];
+  // Los artículos de salud llevan a la calculadora SAN; el resto, a revisar el
+  // turno, que es lo que busca quien llega por «turnos» (Search Console, 10-2026).
+  const esSalud = post.category === "Salud" || slug.includes("san");
   const jsonLd = {
     "@context": "https://schema.org", "@type": "Article",
     headline: post.title, description: post.metaDescription,
@@ -434,26 +438,47 @@ export default async function BlogArticle(
         <p className="art-lead">{post.excerpt}</p>
 
         {/* CTA top */}
-        <div className="cta-top">
-          <div>
-            <div className="cta-top-t">¿Prefieres calcularlo directo?</div>
-            <div className="cta-top-s">Sin registro. El resultado en segundos.</div>
+        {esSalud ? (
+          <div className="cta-top">
+            <div>
+              <div className="cta-top-t">¿Prefieres calcularlo directo?</div>
+              <div className="cta-top-s">Calculadora SAN gratuita. El resultado en segundos.</div>
+            </div>
+            <Link href="/san" className="cta-top-btn">Ir a la calculadora →</Link>
           </div>
-          <Link href="/calculadora" className="cta-top-btn">Ir a la calculadora →</Link>
-        </div>
+        ) : (
+          <div className="cta-top">
+            <div>
+              <div className="cta-top-t">¿Ya tienes tu turno armado? Revisa si cumple la ley.</div>
+              <div className="cta-top-s">Pega tu planilla de Excel. Gratis, sin registro y sin guardar tus datos.</div>
+            </div>
+            <a href={URL_REVISAR} className="cta-top-btn">Revisar mi turno →</a>
+          </div>
+        )}
 
         {/* Contenido desde Notion */}
         <NotionContent blocks={post.content} />
 
         {/* CTA bottom */}
-        <div className="cta-bot">
-          <h3 className="cta-bot-h">Calcula tu dotación ahora — es gratis</h3>
-          <p className="cta-bot-s">Sin registro. El motor propone todas las combinaciones válidas de contratos en segundos.</p>
-          <div className="cta-bot-btns">
-            <Link href="/calculadora" className="cta-bot-p">Calculadora Retail / Servicios →</Link>
-            <Link href="/san" className="cta-bot-s2">Calculadora SAN →</Link>
+        {esSalud ? (
+          <div className="cta-bot">
+            <h3 className="cta-bot-h">Calcula tu dotación ahora — es gratis</h3>
+            <p className="cta-bot-s">El motor propone las combinaciones válidas de contratos en segundos.</p>
+            <div className="cta-bot-btns">
+              <Link href="/san" className="cta-bot-p">Calculadora SAN →</Link>
+              <Link href="/calculadora" className="cta-bot-s2">Calculadora Retail / Servicios →</Link>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="cta-bot">
+            <h3 className="cta-bot-h">¿Tu turno cumple la ley? Compruébalo en un minuto</h3>
+            <p className="cta-bot-s">Pega tu planilla del mes y te marcamos, persona por persona, lo que no cumple: días seguidos, descanso entre jornadas, domingos libres y horas extra.</p>
+            <div className="cta-bot-btns">
+              <a href={URL_REVISAR} className="cta-bot-p">Revisar mi turno gratis →</a>
+              <Link href="/calculadora" className="cta-bot-s2">Calcular mi dotación →</Link>
+            </div>
+          </div>
+        )}
 
         {/* Nav inferior */}
         <div style={{ borderTop: "1px solid rgba(232,236,239,0.10)", paddingTop: 28, marginTop: 28 }}>

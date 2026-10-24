@@ -23,15 +23,17 @@ const instrumentSerif = Instrument_Serif({
 
 export const metadata: Metadata = {
   title: {
-    default: "Dotaciones.cl — Juan Alegría · Workforce Management Chile",
+    default: "dotaciones.cl — Turnos legales y dotación de personal en Chile",
     template: "%s | Dotaciones.cl",
   },
   description:
-    "15 años dimensionando dotaciones, optimizando turnos y calculando en retail, casinos, aeropuertos y salud. Calculadoras gratuitas y artículos sobre normativa laboral chilena.",
+    "Herramientas gratuitas para revisar si tus turnos cumplen el Código del Trabajo y calcular la dotación de personal en Chile. Guías de jornada, 6x1 y 42 horas.",
   metadataBase: new URL("https://dotaciones.cl"),
   keywords: [
     "calculadora dotación personal",
     "cuánta gente necesito para cubrir turnos",
+    "revisar turnos legales",
+    "calculadora de turnos de trabajo",
     "planificador de turnos Chile",
     "dotación personal retail",
     "dotación hospitalaria SAN",
@@ -41,35 +43,26 @@ export const metadata: Metadata = {
     "dimensionamiento personal",
     "jornada laboral 42 horas Chile",
   ],
-  authors: [{ name: "Juan Alegría" }],
-  creator: "Juan Alegría",
+  authors: [{ name: "Nexwork SpA" }],
+  creator: "Nexwork SpA",
   publisher: "Dotaciones.cl",
   alternates: {
     canonical: "https://dotaciones.cl",
   },
   openGraph: {
-    title: "Dotaciones.cl — Juan Alegría · Workforce Management Chile",
+    title: "dotaciones.cl — Turnos legales y dotación de personal en Chile",
     description:
-      "15 años dimensionando dotaciones en retail, casinos, aeropuertos y salud. Calculadoras gratuitas y normativa laboral chilena.",
+      "Revisa gratis si tu turno cumple la ley y calcula cuánta gente necesitas.",
     url: "https://dotaciones.cl",
     siteName: "Dotaciones.cl",
     locale: "es_CL",
     type: "website",
-    images: [
-      {
-        url: "https://dotaciones.cl/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Dotaciones.cl — Juan Alegría · Workforce Management Chile",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Dotaciones.cl — Juan Alegría",
+    title: "dotaciones.cl — Turnos legales y dotación",
     description:
-      "15 años dimensionando dotaciones en Chile. Calculadoras gratuitas.",
-    images: ["https://dotaciones.cl/og-image.png"],
+      "Revisa gratis si tu turno cumple la ley y calcula cuánta gente necesitas.",
   },
   robots: {
     index: true,
