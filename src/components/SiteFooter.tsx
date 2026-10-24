@@ -10,6 +10,7 @@ const columnas: {
     titulo: "Herramientas",
     enlaces: [
       { label: "Revisar si mi turno es legal", href: URL_REVISAR },
+      { label: "Dividir turnos", href: "/dividir-turnos" },
       { label: "Calculadora de dotación", href: "/calculadora" },
       { label: "Dotación hospitalaria (SAN)", href: "/san" },
       { label: "Calculadora de finiquito", href: "/calculadora/finiquito" },
