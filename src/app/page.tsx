@@ -30,6 +30,13 @@ const herramientas = [
     destacada: true,
   },
   {
+    titulo: "Divide un horario en turnos",
+    texto:
+      "24 horas en 3 turnos, la noche en 2… Parte el horario en turnos iguales, repártelos entre tu equipo y revisa si el resultado cumple la ley.",
+    href: "/dividir-turnos",
+    accion: "Dividir turnos",
+  },
+  {
     titulo: "Calcula cuánta gente necesitas",
     texto:
       "Con la gente que necesitas en cada tramo horario, propone las combinaciones de contratos (completos, part time, 5x2, 6x1) que cubren tu operación, con ausentismo incluido.",

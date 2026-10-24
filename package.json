@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
+    "test": "node --test src/lib/*.test.mjs",
     "format": "biome format --write",
     "check": "biome check . --max-diagnostics=200",
     "check:fix": "biome check . --write --unsafe --max-diagnostics=200"
