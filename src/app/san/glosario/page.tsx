@@ -42,7 +42,7 @@ const TERMS: Term[] = [
 ];
 
 export const metadata = {
-  title: "Glosario SAN | Dotaciones.cl",
+  title: "Glosario SAN",
   description:
     "Glosario de siglas y conceptos usados en la Calculadora SAN (Hospitalaria): RTD, RCD, FC, CR, UCP, y más.",
 };

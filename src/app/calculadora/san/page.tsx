@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Calculadora SAN Hospitalaria Chile | Dotaciones.cl",
+  title: "Calculadora SAN Hospitalaria Chile",
   description:
     "Calcula la dotación normativa del Servicio de Alimentación y Nutrición según OT-SAN MINSAL. RTD, RCD, factores de complejidad y mix de contratos.",
   alternates: { canonical: "https://dotaciones.cl/san" },

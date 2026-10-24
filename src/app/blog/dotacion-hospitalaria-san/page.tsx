@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SanLeadForm } from "./SanLeadForm";
 
 export const metadata = {
-  title: "Dotación hospitalaria según el SAN (Sistema de Análisis de Necesidades) — Dotaciones.cl",
+  title: "Dotación hospitalaria según el SAN (Sistema de Análisis de Necesidades)",
   description:
     "El método SAN es el estándar del Ministerio de Salud para calcular dotación en hospitales públicos. Explicamos cómo aplicarlo, sus indicadores clave y sus limitaciones.",
 };

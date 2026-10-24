@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Cómo calcular cuánta gente necesito para cubrir mis turnos — Dotaciones.cl",
+  title: "Cómo calcular cuánta gente necesito para cubrir mis turnos",
   description:
     "Guía paso a paso para calcular la dotación de personal según horas requeridas, turnos y factor de reemplazo. Con calculadora gratuita incluida. Para retail, restaurantes y salud en Chile.",
   alternates: {

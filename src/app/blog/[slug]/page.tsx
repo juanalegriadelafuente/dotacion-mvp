@@ -16,7 +16,7 @@ export async function generateMetadata(
   const post = await getBlogPost(slug);
   if (!post) return { title: "Artículo no encontrado" };
   return {
-    title: `${post.title} — dotaciones.cl`,
+    title: post.title,
     description: post.metaDescription,
     alternates: { canonical: `https://dotaciones.cl/blog/${slug}` },
     openGraph: {

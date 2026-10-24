@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Guía de uso — Calculadora Retail | Dotaciones.cl",
+  title: "Guía de uso — Calculadora Retail",
   description:
     "Aprende a usar la calculadora de dotación retail paso a paso: días, demanda, contratos, jornadas y exportación a Excel. Incluye ejemplos reales.",
   alternates: { canonical: "https://dotaciones.cl/calculadora/guia" },

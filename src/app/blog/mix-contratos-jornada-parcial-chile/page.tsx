@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Mix de contratos y jornada parcial: cómo cubrir turnos sin sobredotar — Dotaciones.cl",
+  title: "Mix de contratos y jornada parcial: cómo cubrir turnos sin sobredotar",
   description:
     "Cómo combinar contratos de 42, 30 y 20 horas para cubrir turnos de lunes a domingo sin pagar horas extras. Ejemplos prácticos para retail, restaurantes y salud en Chile.",
   alternates: {

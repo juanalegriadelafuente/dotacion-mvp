@@ -24,7 +24,7 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
   title: {
     default: "dotaciones.cl — Turnos legales y dotación de personal en Chile",
-    template: "%s | Dotaciones.cl",
+    template: "%s | dotaciones.cl",
   },
   description:
     "Herramientas gratuitas para revisar si tus turnos cumplen el Código del Trabajo y calcular la dotación de personal en Chile. Guías de jornada, 6x1 y 42 horas.",

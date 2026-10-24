@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: "Calculadora de dotación retail Chile | Dotaciones.cl",
+  title: "Calculadora de dotación retail Chile",
   description:
     "Calcula cuántas personas necesitas en tu tienda retail según demanda por tramos horarios, turnos 6×1, 5×2 y factor de reemplazo. Normativa chilena.",
   alternates: { canonical: "https://dotaciones.cl/calculadora/retail" },
