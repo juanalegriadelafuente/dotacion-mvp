@@ -3,6 +3,7 @@
 // Suscripción al blog. Va a /api/leads (Notion + aviso interno); no le manda
 // correo al suscriptor, así que no puede usarse para llenar la casilla de otro.
 import { useState } from "react";
+import { medir } from "@/lib/medir";
 
 export default function Suscripcion({ oscuro = false }: { oscuro?: boolean }) {
   const [email, setEmail] = useState("");
@@ -20,6 +21,7 @@ export default function Suscripcion({ oscuro = false }: { oscuro?: boolean }) {
       });
       const data = await r.json();
       setEstado(data.ok ? "ok" : "error");
+      if (data.ok) medir("suscripcion");
     } catch {
       setEstado("error");
     }

@@ -7,6 +7,7 @@
 // que es la única versión de la ley (D-ING-1). Llamarlo en cada clic desde acá
 // agotaría su freno por IP, porque todas las visitas saldrían desde Vercel.
 import { useState } from "react";
+import { medir } from "@/lib/medir";
 import { URL_REVISAR } from "@/lib/sitio";
 
 const EJEMPLO: [string, string][] = [
@@ -77,6 +78,7 @@ export default function PlanillaDemo() {
   const conProblemas = new Set(notas.map((n) => n.split(":")[0])).size;
 
   function cambiar(f: number, d: number) {
+    medir("planilla_demo", "/", true);
     setFilas((prev) =>
       prev.map(([n, t], i) => {
         if (i !== f) return [n, t];

@@ -12,7 +12,7 @@ import SiteFooter from "@/components/SiteFooter";
 import SiteNav from "@/components/SiteNav";
 import Suscripcion from "@/components/Suscripcion";
 import { getBlogPosts } from "@/lib/notion-blog";
-import { URL_REVISAR } from "@/lib/sitio";
+import { URL_LITE, URL_REVISAR } from "@/lib/sitio";
 
 export const revalidate = 3600;
 
@@ -147,6 +147,14 @@ export default async function Home() {
                   regla.
                 </p>
                 <span className="ir">Revisar mi planilla</span>
+              </a>
+              <a className="t" href={URL_LITE}>
+                <h3>Arma tus turnos</h3>
+                <p>
+                  Dices cuánta gente necesitas cada día y te devuelve el mes armado, revisado contra
+                  la ley. Gratis hasta 5 personas.
+                </p>
+                <span className="ir">Armar mi mes gratis</span>
               </a>
               <Link className="t" href="/calculadora">
                 <h3>Cuánta gente necesitas</h3>

@@ -11,6 +11,7 @@ import {
   minutosPorPersona,
   repartir,
 } from "@/lib/divisor";
+import { medir } from "@/lib/medir";
 import { URL_REVISAR } from "@/lib/sitio";
 
 const PASOS = [
@@ -89,6 +90,10 @@ export default function Divisor() {
 
   async function copiar(abrir: boolean) {
     if (!planilla) return;
+    medir(
+      "divisor_copiar",
+      abrir ? "/dividir-turnos/revisar" : "/dividir-turnos/copiar",
+    );
     // La pestaña se abre ANTES del await: si no, el navegador la bloquea por no
     // venir directo de un clic.
     const ventana = abrir
@@ -136,9 +141,10 @@ export default function Divisor() {
             max={12}
             className={campo}
             value={n}
-            onChange={(e) =>
-              setN(Math.min(Math.max(Number(e.target.value) || 2, 2), 12))
-            }
+            onChange={(e) => {
+              medir("divisor_uso", "/dividir-turnos", true);
+              setN(Math.min(Math.max(Number(e.target.value) || 2, 2), 12));
+            }}
           />
         </label>
         <label>
@@ -203,7 +209,10 @@ export default function Divisor() {
             className={`${campo} h-[118px] resize-y`}
             placeholder={"Ana\nBeto\nCarla\nDaniel"}
             value={nombres}
-            onChange={(e) => setNombres(e.target.value)}
+            onChange={(e) => {
+              medir("divisor_uso", "/dividir-turnos", true);
+              setNombres(e.target.value);
+            }}
           />
         </label>
         <label>

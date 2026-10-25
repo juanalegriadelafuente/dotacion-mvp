@@ -4,6 +4,7 @@
 // Usa la misma aritmética que la herramienta completa (`lib/divisor.ts`).
 import { useState } from "react";
 import { aHora, dividir, duracionTexto } from "@/lib/divisor";
+import { medir } from "@/lib/medir";
 
 export default function DivisorMini() {
   const [n, setN] = useState(3);
@@ -27,7 +28,10 @@ export default function DivisorMini() {
           max={6}
           step={1}
           value={n}
-          onChange={(e) => setN(Number(e.target.value))}
+          onChange={(e) => {
+            medir("divisor_mini", "/", true);
+            setN(Number(e.target.value));
+          }}
         />
         <b aria-live="polite">{n}</b>
       </div>

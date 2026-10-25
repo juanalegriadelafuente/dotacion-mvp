@@ -92,15 +92,10 @@ export default function DividirTurnos() {
           </div>
 
           <section className="mt-16">
-            <h2 className="titular text-[clamp(26px,3.4vw,36px)]">
-              Ejemplos
-            </h2>
+            <h2 className="titular text-[clamp(26px,3.4vw,36px)]">Ejemplos</h2>
             <dl className="mt-6 grid gap-4 sm:grid-cols-2">
               {ejemplos.map(([t, d]) => (
-                <div
-                  key={t}
-                  className="rounded-2xl border border-white/10 p-5"
-                >
+                <div key={t} className="rounded-2xl border border-white/10 p-5">
                   <dt className="text-[16px] font-semibold">{t}</dt>
                   <dd className="mt-1.5 text-[14.5px] leading-relaxed text-[#9AA8B6]">
                     {d}
