@@ -21,21 +21,21 @@ function Tarjeta({ post }: { post: BlogPost }) {
   return (
     <Link
       href={`/blog/${post.slug}`}
-      className="group flex flex-col rounded-2xl bg-white p-6 ring-1 ring-slate-200 transition hover:-translate-y-1 hover:shadow-xl"
+      className="group flex flex-col rounded-2xl bg-[#112538] p-6 ring-1 ring-white/10 transition hover:-translate-y-1 hover:shadow-xl"
     >
       <div className="flex items-center gap-2 text-[12px]">
-        <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 font-bold text-[#5B4BEA]">
+        <span className="rounded-full bg-[#2BB58D]/10 px-2.5 py-0.5 font-bold text-[#2BB58D]">
           {post.category}
         </span>
-        <span className="text-slate-400">{post.readTime}</span>
+        <span className="text-[#7F8C99]">{post.readTime}</span>
       </div>
-      <h2 className="mt-4 text-[18px] font-bold leading-snug group-hover:text-[#5B4BEA]">
+      <h2 className="mt-4 text-[18px] font-bold leading-snug group-hover:text-[#2BB58D]">
         {post.title}
       </h2>
-      <p className="mt-2 flex-1 text-[14.5px] leading-relaxed text-slate-600">
+      <p className="mt-2 flex-1 text-[14.5px] leading-relaxed text-[#9AA8B6]">
         {post.excerpt}
       </p>
-      <span className="mt-4 text-[13px] text-slate-400">{post.date}</span>
+      <span className="mt-4 text-[13px] text-[#7F8C99]">{post.date}</span>
     </Link>
   );
 }
@@ -46,19 +46,19 @@ export default async function BlogIndex() {
   const resto = posts.filter((p) => p.id !== destacado?.id);
 
   return (
-    <div className="fuente-a min-h-screen bg-white text-slate-900">
+    <div className="noche">
       <SiteNav />
       <main>
         <header className="relative overflow-hidden">
           <div
             aria-hidden="true"
-            className="degradado-marca absolute -top-56 left-[-10%] h-[520px] w-[520px] rounded-full opacity-20 blur-3xl"
+            className="bg-[#117A5E] absolute -top-56 left-[-10%] h-[520px] w-[520px] rounded-full opacity-20 blur-3xl"
           />
           <div className="relative mx-auto max-w-6xl px-4 pb-12 pt-14 sm:px-5">
-            <h1 className="text-[44px] font-extrabold tracking-tight sm:text-[56px]">
-              <span className="texto-degradado">Blog</span>
+            <h1 className="text-[44px] titular sm:text-[56px]">
+              <span className="text-[#2BB58D]">Blog</span>
             </h1>
-            <p className="mt-3 max-w-2xl text-[18px] leading-relaxed text-slate-600">
+            <p className="mt-3 max-w-2xl text-[18px] leading-relaxed text-[#9AA8B6]">
               Normativa, opinión y casos sobre turnos, jornada y dotación de
               personal en Chile.
             </p>
@@ -67,7 +67,7 @@ export default async function BlogIndex() {
 
         <div className="mx-auto max-w-6xl px-4 pb-20 sm:px-5">
           {posts.length === 0 && (
-            <p className="py-20 text-center text-slate-400">
+            <p className="py-20 text-center text-[#7F8C99]">
               No hay artículos publicados todavía.
             </p>
           )}
@@ -75,9 +75,9 @@ export default async function BlogIndex() {
           {destacado && (
             <Link
               href={`/blog/${destacado.slug}`}
-              className="degradado-marca block rounded-3xl p-8 text-white transition-transform hover:-translate-y-1 sm:p-10"
+              className="bg-[#117A5E] block rounded-3xl p-8 text-white transition-transform hover:-translate-y-1 sm:p-10"
             >
-              <span className="rounded-full bg-white/20 px-3 py-1 text-[12px] font-semibold">
+              <span className="rounded-full bg-[#112538]/20 px-3 py-1 text-[12px] font-semibold">
                 {destacado.category} · {destacado.date}
               </span>
               <h2 className="mt-6 max-w-3xl text-[28px] font-extrabold leading-tight sm:text-[36px]">
@@ -100,12 +100,12 @@ export default async function BlogIndex() {
             </div>
           )}
 
-          <section className="mt-16 flex flex-col gap-6 rounded-3xl bg-slate-50 px-6 py-10 ring-1 ring-slate-200 sm:px-10 md:flex-row md:items-center md:justify-between">
+          <section className="mt-16 flex flex-col gap-6 rounded-3xl bg-[#0F2133] px-6 py-10 ring-1 ring-white/10 sm:px-10 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-[24px] font-extrabold">
                 Recibe los artículos nuevos
               </h2>
-              <p className="mt-2 text-slate-600">
+              <p className="mt-2 text-[#9AA8B6]">
                 Cambios de la ley, dictámenes y opinión. Sin spam.
               </p>
             </div>

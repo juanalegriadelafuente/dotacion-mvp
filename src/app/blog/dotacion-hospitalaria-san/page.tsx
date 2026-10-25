@@ -21,9 +21,9 @@ export const metadata: Metadata = {
 };
 
 const h2 =
-  "font-extrabold tracking-tight mt-12 text-[clamp(24px,3vw,32px)] leading-tight";
-const p = "mt-4 text-[16.5px] leading-[1.75] text-slate-700";
-const li = "text-[16px] leading-[1.7] text-slate-700";
+  "titular mt-12 text-[clamp(24px,3vw,32px)] leading-tight";
+const p = "mt-4 text-[16.5px] leading-[1.75] text-[#C9D2DB]";
+const li = "text-[16px] leading-[1.7] text-[#C9D2DB]";
 
 function Tabla({
   cabeza,
@@ -33,9 +33,9 @@ function Tabla({
   filas: (string | number)[][];
 }) {
   return (
-    <div className="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
+    <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10">
       <table className="w-full min-w-[480px] text-left text-[14.5px]">
-        <thead className="bg-slate-50 text-[12px] uppercase tracking-[0.06em] text-slate-500">
+        <thead className="bg-[#0F2133] text-[12px] uppercase tracking-[0.06em] text-[#9AA8B6]">
           <tr>
             {cabeza.map((c) => (
               <th key={c} className="px-4 py-3 font-semibold">
@@ -46,12 +46,12 @@ function Tabla({
         </thead>
         <tbody>
           {filas.map((f) => (
-            <tr key={String(f[0])} className="border-t border-slate-100">
+            <tr key={String(f[0])} className="border-t border-white/5">
               {f.map((c, i) => (
                 <td
                   // biome-ignore lint/suspicious/noArrayIndexKey: columnas fijas de una tabla estática
                   key={i}
-                  className={`px-4 py-2.5 ${i === 0 ? "font-semibold" : "text-slate-700"}`}
+                  className={`px-4 py-2.5 ${i === 0 ? "font-semibold" : "text-[#C9D2DB]"}`}
                 >
                   {c}
                 </td>
@@ -66,24 +66,24 @@ function Tabla({
 
 export default function ArticuloSAN() {
   return (
-    <div className="fuente-a min-h-screen bg-white text-slate-900">
+    <div className="noche">
       <SiteNav />
       <main className="px-4 py-12 sm:px-10 sm:py-16">
         <article className="mx-auto max-w-[760px]">
           <Link
             href="/blog"
-            className="text-[12px] uppercase tracking-[0.1em] text-slate-500 hover:text-[#4338CA]"
+            className="text-[12px] text-[#9AA8B6] hover:text-[#7FE0C1]"
           >
-            ← Volver a las guías
+            ← Volver al blog
           </Link>
-          <p className="mt-8 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#5B4BEA]">
+          <p className="mt-8 text-[12px] font-semibold text-[#2BB58D]">
             Salud · actualizado el 24-10-2026
           </p>
-          <h1 className="font-extrabold tracking-tight mt-3 text-[clamp(32px,5vw,48px)] leading-[1.06]">
+          <h1 className="titular mt-3 text-[clamp(32px,5vw,48px)] leading-[1.06]">
             Dotación del Servicio de Alimentación y Nutrición (SAN): cómo se
             calcula
           </h1>
-          <p className="mt-5 text-[19px] italic leading-relaxed text-slate-600">
+          <p className="mt-5 text-[19px] italic leading-relaxed text-[#9AA8B6]">
             El SAN es la unidad del hospital o la clínica que produce y
             distribuye la alimentación de los pacientes y, cuando hay casino, la
             de los funcionarios. Su dotación no se estima a ojo: se calcula a
@@ -91,13 +91,13 @@ export default function ArticuloSAN() {
             camas que atiende.
           </p>
 
-          <div className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-8 flex flex-col items-start gap-3 rounded-2xl border border-[#2BB58D]/40 bg-[#2BB58D]/10 p-5 sm:flex-row sm:items-center sm:justify-between">
             <span className="text-[15px]">
               ¿Prefieres calcularlo directo con tus datos?
             </span>
             <Link
               href="/san"
-              className="degradado-marca rounded-full px-5 py-2.5 text-[14px] font-bold text-white"
+              className="bg-[#117A5E] rounded-full px-5 py-2.5 text-[14px] font-bold text-white"
             >
               Abrir la calculadora SAN →
             </Link>
@@ -230,7 +230,7 @@ export default function ArticuloSAN() {
               suma un{" "}
               <Link
                 href="/blog/factor-reemplazo-dotacion-chile"
-                className="text-[#5B4BEA] underline-offset-4 hover:underline"
+                className="text-[#2BB58D] underline-offset-4 hover:underline"
               >
                 factor de reemplazo
               </Link>
@@ -243,31 +243,31 @@ export default function ArticuloSAN() {
             </li>
           </ul>
 
-          <div className="mt-12 rounded-xl border border-indigo-200 bg-indigo-50/70 p-6 sm:p-8">
+          <div className="mt-12 rounded-xl border border-[#2BB58D]/40 bg-[#2BB58D]/10 p-6 sm:p-8">
             <h2 className="text-[22px] font-semibold">
               Calcula la dotación de tu SAN
             </h2>
-            <p className="mt-2 text-[15px] leading-relaxed text-slate-600">
+            <p className="mt-2 text-[15px] leading-relaxed text-[#9AA8B6]">
               Ingresa tus raciones, factores y camas. La calculadora aplica las
               mismas tablas de este artículo y propone cómo cubrir las horas con
               contratos.
             </p>
             <Link
               href="/san"
-              className="mt-5 inline-block degradado-marca rounded-full px-6 py-3 text-[15px] font-bold text-white shadow-lg shadow-indigo-500/25"
+              className="mt-5 inline-block bg-[#117A5E] rounded-full px-6 py-3 text-[15px] font-bold text-white shadow-lg shadow-black/40"
             >
               Abrir la calculadora SAN →
             </Link>
-            <p className="mt-4 text-[13px] text-slate-500">
+            <p className="mt-4 text-[13px] text-[#9AA8B6]">
               Las herramientas orientan y no reemplazan la orientación técnica
               oficial ni la evaluación de cada establecimiento.
             </p>
           </div>
 
-          <div className="mt-12 border-t border-slate-200 pt-8 text-[14px]">
+          <div className="mt-12 border-t border-white/10 pt-8 text-[14px]">
             <Link
               href="/blog/mix-contratos-jornada-parcial-chile"
-              className="text-[#5B4BEA] hover:text-[#4338CA]"
+              className="text-[#2BB58D] hover:text-[#7FE0C1]"
             >
               ← Mix de contratos y jornada parcial
             </Link>

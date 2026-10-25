@@ -39,93 +39,93 @@ export async function generateStaticParams() {
 
 const S = `
   /* Sin resets globales: Tailwind ya los trae, y uno sin capa pisaría sus utilidades. */
-  ::selection { background:#E0DCFF; color:#0F172A; }
+  ::selection { background:rgba(43,181,141,.35); color:#EEF1F4; }
 
   /* ── Hero (diseño A, D-ING-9) ── */
   .art-hero { position:relative; overflow:hidden; padding: 56px 20px 48px; }
   .art-hero::before {
     content:""; position:absolute; top:-260px; right:-120px; width:560px; height:560px;
-    border-radius:50%; background:linear-gradient(135deg,#6D5EFC,#22C1C3);
-    opacity:.18; filter:blur(70px); pointer-events:none;
+    border-radius:50%; background:#2BB58D;
+    opacity:.10; filter:blur(90px); pointer-events:none;
   }
   .art-hero-in { position:relative; max-width: 760px; margin: 0 auto; }
   .back {
     display:inline-flex; align-items:center; gap:6px;
-    font-size:14px; font-weight:600; color:#64748B; margin-bottom:28px;
+    font-size:14px; font-weight:600; color:#9AA8B6; margin-bottom:28px;
   }
-  .back:hover { color:#5B4BEA; }
+  .back:hover { color:#2BB58D; }
   .art-tag {
     display:inline-block; margin-bottom:18px;
     font-size:12px; font-weight:700; padding:4px 12px; border-radius:999px;
-    background:#EEF2FF; color:#5B4BEA; border:0;
+    background:rgba(43,181,141,.14); color:#2BB58D; border:0;
   }
   .art-h1 {
-    font-size: clamp(30px, 5vw, 46px); font-weight: 800; color:#0F172A;
-    letter-spacing:-0.02em; line-height:1.1; margin-bottom:18px;
+    font-family: var(--font-instrument-serif), serif; font-size: clamp(38px, 6vw, 64px); font-weight: 400; color:#EEF1F4;
+    letter-spacing:-0.02em; line-height:1.0; margin-bottom:18px;
   }
-  .art-meta { font-size:14px; color:#64748B; display:flex; gap:10px; align-items:center; }
-  .art-dot { width:4px; height:4px; border-radius:50%; background:#CBD5E1; }
+  .art-meta { font-size:14px; color:#9AA8B6; display:flex; gap:10px; align-items:center; }
+  .art-dot { width:4px; height:4px; border-radius:50%; background:rgba(238,241,244,.25); }
 
   /* ── Cuerpo ── */
   .art-body { max-width: 760px; margin: 0 auto; padding: 8px 20px 64px; }
   .art-lead {
-    font-size: clamp(18px, 2.2vw, 20px); color:#334155; line-height:1.6;
-    margin-bottom:32px; padding-bottom:32px; border-bottom:1px solid #E2E8F0;
+    font-size: clamp(18px, 2.2vw, 20px); color:#C9D2DB; line-height:1.6;
+    margin-bottom:32px; padding-bottom:32px; border-bottom:1px solid rgba(238,241,244,.12);
   }
 
   /* ── CTA arriba ── */
   .cta-top {
     display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
-    background:#F5F3FF; border:1px solid #DDD6FE; border-radius:16px;
+    background:rgba(43,181,141,.08); border:1px solid rgba(43,181,141,.30); border-radius:16px;
     padding:18px 22px; margin-bottom:44px;
   }
-  .cta-top-t { font-size:15px; font-weight:700; color:#0F172A; }
-  .cta-top-s { font-size:13.5px; color:#64748B; margin-top:3px; }
+  .cta-top-t { font-size:15px; font-weight:700; color:#EEF1F4; }
+  .cta-top-s { font-size:13.5px; color:#9AA8B6; margin-top:3px; }
   .cta-top-btn {
-    background:linear-gradient(135deg,#6D5EFC,#22C1C3); color:#fff;
+    background:#117A5E; color:#F4FFFB;
     padding:11px 20px; border-radius:999px; font-size:14px; font-weight:700; white-space:nowrap;
-    box-shadow:0 8px 20px -8px rgba(109,94,252,.6);
+    box-shadow:0 10px 30px -12px rgba(43,181,141,.7);
   }
   .cta-top-btn:hover { filter:brightness(1.05); }
 
   /* ── Texto ── */
-  .prose h2 { font-size: clamp(24px, 3vw, 30px); font-weight:800; color:#0F172A; letter-spacing:-0.015em; margin:48px 0 14px; line-height:1.2; }
-  .prose h3 { font-size:21px; font-weight:700; color:#0F172A; margin:36px 0 10px; line-height:1.3; }
-  .prose h4 { font-size:14px; font-weight:700; color:#5B4BEA; margin:28px 0 8px; letter-spacing:.06em; text-transform:uppercase; }
-  .prose p { font-size:17px; color:#334155; line-height:1.8; margin:16px 0; }
+  .prose h2 { font-family: var(--font-instrument-serif), serif; font-size: clamp(28px, 3.4vw, 38px); font-weight:400; color:#EEF1F4; letter-spacing:-0.015em; margin:48px 0 14px; line-height:1.2; }
+  .prose h3 { font-size:21px; font-weight:700; color:#EEF1F4; margin:36px 0 10px; line-height:1.3; }
+  .prose h4 { font-size:14px; font-weight:700; color:#2BB58D; margin:28px 0 8px; letter-spacing:.06em; text-transform:uppercase; }
+  .prose p { font-size:17px; color:#C9D2DB; line-height:1.8; margin:16px 0; }
   .prose ul, .prose ol { padding-left:24px; margin:16px 0; }
-  .prose li { font-size:17px; color:#334155; line-height:1.75; margin:6px 0; }
-  .prose li::marker { color:#6D5EFC; }
-  .prose blockquote { border-left:4px solid #6D5EFC; background:#F8FAFC; padding:14px 20px; margin:28px 0; color:#475569; font-style:italic; border-radius:0 12px 12px 0; }
-  .prose code { background:#F1F5F9; padding:2px 7px; border-radius:6px; font-size:14px; color:#0F172A; font-family: var(--font-geist-mono), monospace; }
-  .prose pre { background:#0F172A; border-radius:14px; overflow:hidden; margin:28px 0; }
-  .prose pre .lang { padding:8px 16px; font-size:11px; color:#94A3B8; border-bottom:1px solid #1E293B; letter-spacing:.1em; text-transform:uppercase; }
-  .prose pre code { background:none; padding:16px; display:block; font-size:13.5px; color:#E2E8F0; line-height:1.65; }
-  .prose hr { border:none; border-top:1px solid #E2E8F0; margin:44px 0; }
-  .prose .callout { background:#F5F3FF; border:1px solid #DDD6FE; border-radius:14px; padding:18px 20px; margin:24px 0; font-size:16px; color:#334155; line-height:1.7; }
-  .prose strong { font-weight:700; color:#0F172A; }
-  .prose a { color:#5B4BEA; text-decoration:underline; text-underline-offset:3px; }
-  .prose a:hover { color:#4338CA; }
+  .prose li { font-size:17px; color:#C9D2DB; line-height:1.75; margin:6px 0; }
+  .prose li::marker { color:#2BB58D; }
+  .prose blockquote { border-left:4px solid #2BB58D; background:#0F2133; padding:14px 20px; margin:28px 0; color:#9AA8B6; font-style:italic; border-radius:0 12px 12px 0; }
+  .prose code { background:rgba(238,241,244,.08); padding:2px 7px; border-radius:6px; font-size:14px; color:#EEF1F4; font-family: var(--font-geist-mono), monospace; }
+  .prose pre { background:#081321; border-radius:14px; overflow:hidden; margin:28px 0; }
+  .prose pre .lang { padding:8px 16px; font-size:11px; color:#7F8C99; border-bottom:1px solid rgba(238,241,244,.10); letter-spacing:.1em; text-transform:uppercase; }
+  .prose pre code { background:none; padding:16px; display:block; font-size:13.5px; color:rgba(238,241,244,.12); line-height:1.65; }
+  .prose hr { border:none; border-top:1px solid rgba(238,241,244,.12); margin:44px 0; }
+  .prose .callout { background:rgba(43,181,141,.08); border:1px solid rgba(43,181,141,.30); border-radius:14px; padding:18px 20px; margin:24px 0; font-size:16px; color:#C9D2DB; line-height:1.7; }
+  .prose strong { font-weight:700; color:#EEF1F4; }
+  .prose a { color:#2BB58D; text-decoration:underline; text-underline-offset:3px; }
+  .prose a:hover { color:#7FE0C1; }
   .prose table { width:100%; border-collapse:collapse; margin:24px 0; font-size:15px; }
-  .prose th, .prose td { border-bottom:1px solid #E2E8F0; padding:10px 12px; text-align:left; color:#334155; }
-  .prose th { color:#0F172A; font-weight:700; background:#F8FAFC; }
-  figure figcaption { text-align:center; font-size:13px; color:#94A3B8; margin-top:10px; }
+  .prose th, .prose td { border-bottom:1px solid rgba(238,241,244,.12); padding:10px 12px; text-align:left; color:#C9D2DB; }
+  .prose th { color:#EEF1F4; font-weight:700; background:#0F2133; }
+  figure figcaption { text-align:center; font-size:13px; color:#7F8C99; margin-top:10px; }
 
   /* ── CTA abajo ── */
   .cta-bot {
-    background:linear-gradient(135deg,#6D5EFC,#22C1C3); color:#fff;
+    background:#112538; border:1px solid rgba(238,241,244,.10); color:#EEF1F4;
     border-radius:24px; padding:36px; margin-top:56px;
   }
-  .cta-bot-h { font-size:26px; font-weight:800; line-height:1.2; margin-bottom:10px; color:#fff; }
-  .cta-bot-s { font-size:15.5px; color:rgba(255,255,255,.88); line-height:1.6; margin-bottom:24px; }
+  .cta-bot-h { font-family: var(--font-instrument-serif), serif; font-size:32px; font-weight:400; line-height:1.1; margin-bottom:10px; color:#EEF1F4; }
+  .cta-bot-s { font-size:15.5px; color:#9AA8B6; line-height:1.6; margin-bottom:24px; }
   .cta-bot-btns { display:flex; gap:10px; flex-wrap:wrap; }
-  .cta-bot-p { display:inline-flex; align-items:center; gap:6px; background:#fff; color:#0F172A; padding:12px 22px; border-radius:999px; font-size:15px; font-weight:700; }
-  .cta-bot-p:hover { background:#F1F5F9; }
-  .cta-bot-s2 { display:inline-flex; align-items:center; gap:6px; border:1.5px solid rgba(255,255,255,.6); color:#fff; padding:11px 20px; border-radius:999px; font-size:15px; font-weight:600; }
+  .cta-bot-p { display:inline-flex; align-items:center; gap:6px; background:#117A5E; color:#F4FFFB; padding:12px 22px; border-radius:999px; font-size:15px; font-weight:700; }
+  .cta-bot-p:hover { background:#13906E; }
+  .cta-bot-s2 { display:inline-flex; align-items:center; gap:6px; border:1.5px solid rgba(238,241,244,.25); color:#EEF1F4; padding:11px 20px; border-radius:999px; font-size:15px; font-weight:600; }
   .cta-bot-s2:hover { background:rgba(255,255,255,.12); }
 
-  .art-back-bottom { font-size:14px; font-weight:600; color:#64748B; display:inline-flex; align-items:center; gap:6px; }
-  .art-back-bottom:hover { color:#5B4BEA; }
+  .art-back-bottom { font-size:14px; font-weight:600; color:#9AA8B6; display:inline-flex; align-items:center; gap:6px; }
+  .art-back-bottom:hover { color:#2BB58D; }
 
   @media (max-width: 768px) {
     .cta-top { flex-direction:column; align-items:flex-start; }
@@ -249,7 +249,7 @@ function NotionContent({ blocks }: { blocks: NotionBlock[] }) {
                   style={{
                     width: "100%",
                     borderRadius: 14,
-                    border: "1px solid #E2E8F0",
+                    border: "1px solid rgba(238,241,244,.12)",
                   }}
                 />
                 {block.caption && <figcaption>{block.caption}</figcaption>}
@@ -300,7 +300,7 @@ export default async function BlogArticle({
   };
 
   return (
-    <div className="fuente-a min-h-screen bg-white text-slate-900">
+    <div className="noche">
       <style dangerouslySetInnerHTML={{ __html: S }} />
       <script
         type="application/ld+json"
@@ -417,7 +417,7 @@ export default async function BlogArticle({
         {/* Nav inferior */}
         <div
           style={{
-            borderTop: "1px solid #E2E8F0",
+            borderTop: "1px solid rgba(238,241,244,.12)",
             paddingTop: 28,
             marginTop: 28,
           }}

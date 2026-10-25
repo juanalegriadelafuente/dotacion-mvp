@@ -28,7 +28,7 @@ export default function Suscripcion({ oscuro = false }: { oscuro?: boolean }) {
   if (estado === "ok") {
     return (
       <p
-        className={`text-[15px] font-semibold ${oscuro ? "text-white" : "text-[#5B4BEA]"}`}
+        className={`text-[15px] font-semibold ${oscuro ? "text-white" : "text-[#2BB58D]"}`}
       >
         Listo. Te escribiremos cuando publiquemos algo nuevo.
       </p>
@@ -52,15 +52,15 @@ export default function Suscripcion({ oscuro = false }: { oscuro?: boolean }) {
         placeholder="tu@correo.cl"
         className={`flex-1 rounded-full px-5 py-3 text-[15px] outline-none ${
           oscuro
-            ? "bg-white/15 text-white placeholder:text-white/60 focus:bg-white/25"
-            : "bg-white text-slate-900 ring-1 ring-slate-300 focus:ring-2 focus:ring-[#6D5EFC]"
+            ? "bg-[#112538]/15 text-white placeholder:text-white/60 focus:bg-[#112538]/25"
+            : "bg-[#112538] text-[#EEF1F4] ring-1 ring-white/20 focus:ring-2 focus:ring-[#2BB58D]"
         }`}
       />
       <button
         type="submit"
         disabled={estado === "enviando"}
         className={`rounded-full px-6 py-3 text-[15px] font-bold disabled:opacity-60 ${
-          oscuro ? "bg-white text-slate-900" : "bg-slate-900 text-white"
+          oscuro ? "bg-[#EEF1F4] text-[#0B1724]" : "bg-[#0B1724] text-white"
         }`}
       >
         {estado === "enviando" ? "Enviando…" : "Suscribirme"}
