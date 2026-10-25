@@ -31,3 +31,8 @@ create or replace view public.eventos_por_dia as
   select dia, evento, coalesce(lugar, '') as lugar, coalesce(origen, '') as origen, count(*) as n
   from public.eventos
   group by 1, 2, 3, 4;
+
+-- Una vista se salta el RLS de su tabla y Supabase la expone a la API pública:
+-- se ejecuta con los permisos de quien consulta y nadie del navegador la lee.
+alter view public.eventos_por_dia set (security_invoker = true);
+revoke all on public.eventos_por_dia from anon, authenticated;
