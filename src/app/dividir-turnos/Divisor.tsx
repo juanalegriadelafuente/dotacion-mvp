@@ -35,8 +35,8 @@ function fechaCorta(iso: string): string {
 }
 
 const campo =
-  "w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[16px] text-slate-900 outline-none focus:border-[#6D5EFC] focus:ring-2 focus:ring-[#6D5EFC]/20";
-const etiqueta = "mb-1.5 block text-[13px] font-semibold text-slate-700";
+  "w-full rounded-xl border border-white/20 bg-[#112538] px-3 py-2.5 text-[16px] text-[#EEF1F4] outline-none focus:border-[#2BB58D] focus:ring-2 focus:ring-[#2BB58D]/20";
+const etiqueta = "mb-1.5 block text-[13px] font-semibold text-[#C9D2DB]";
 
 export default function Divisor() {
   const [desde, setDesde] = useState("08:00");
@@ -104,7 +104,7 @@ export default function Divisor() {
   }
 
   return (
-    <div className="rounded-3xl bg-white p-5 ring-1 ring-slate-200 shadow-[0_30px_80px_-30px_rgba(76,60,200,.30)] sm:p-8">
+    <div className="rounded-3xl bg-[#112538] p-5 ring-1 ring-white/10 shadow-[0_40px_80px_-40px_rgba(0,0,0,.8)] sm:p-8">
       {/* ── 1 · El horario ── */}
       <h2 className="text-[18px] font-semibold">
         1. ¿Qué horario hay que cubrir?
@@ -156,16 +156,16 @@ export default function Divisor() {
           </select>
         </label>
       </div>
-      <p className="mt-2 text-[13px] text-slate-500">
+      <p className="mt-2 text-[13px] text-[#9AA8B6]">
         Si «hasta» es antes que «desde», el horario cruza la medianoche. Si son
         iguales, son 24 horas.
       </p>
 
       {valido && (
         <div className="mt-6">
-          <p className="text-[15px] text-slate-700">
+          <p className="text-[15px] text-[#C9D2DB]">
             {duracionTexto(total)} en {n} turnos de unas{" "}
-            <strong className="text-slate-900">
+            <strong className="text-[#EEF1F4]">
               {duracionTexto(Math.round(total / n))}
             </strong>
             :
@@ -174,15 +174,15 @@ export default function Divisor() {
             {tramos.map((t, i) => (
               <li
                 key={`${t.inicio}-${t.fin}`}
-                className="flex items-baseline justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3"
+                className="flex items-baseline justify-between rounded-md border border-white/10 bg-[#0F2133] px-4 py-3"
               >
-                <span className="text-[14px] text-slate-500">
+                <span className="text-[14px] text-[#9AA8B6]">
                   Turno {i + 1}
                 </span>
                 <span className="font-mono text-[17px] font-semibold">
                   {aHora(t.inicio)} a {aHora(t.fin)}
                 </span>
-                <span className="text-[13px] text-slate-500">
+                <span className="text-[13px] text-[#9AA8B6]">
                   {duracionTexto(t.fin - t.inicio)}
                 </span>
               </li>
@@ -194,7 +194,7 @@ export default function Divisor() {
       {/* ── 2 · Repartir ── */}
       <h2 className="mt-10 text-[18px] font-semibold">
         2. Repartir entre personas{" "}
-        <span className="font-normal text-slate-500">(opcional)</span>
+        <span className="font-normal text-[#9AA8B6]">(opcional)</span>
       </h2>
       <div className="mt-4 grid gap-3 sm:grid-cols-[2fr_1fr_1fr]">
         <label>
@@ -227,7 +227,7 @@ export default function Divisor() {
           />
         </label>
       </div>
-      <p className="mt-2 text-[13px] text-slate-500">
+      <p className="mt-2 text-[13px] text-[#9AA8B6]">
         Los turnos se reparten en rueda: cada día la rotación sigue donde quedó
         el anterior. Los nombres no se envían a ningún lado: todo se calcula en
         tu navegador.
@@ -241,9 +241,9 @@ export default function Divisor() {
               mismo día. Agrega personas o reduce los turnos.
             </p>
           )}
-          <div className="overflow-x-auto rounded-md border border-slate-200">
+          <div className="overflow-x-auto rounded-md border border-white/10">
             <table className="w-full min-w-[420px] text-left text-[14px]">
-              <thead className="bg-slate-50 text-[12px] uppercase tracking-[0.08em] text-slate-500">
+              <thead className="bg-[#0F2133] text-[12px] uppercase tracking-[0.08em] text-[#9AA8B6]">
                 <tr>
                   <th className="px-3 py-2.5 font-semibold">Día</th>
                   {tramos.map((t) => (
@@ -258,8 +258,8 @@ export default function Divisor() {
               </thead>
               <tbody>
                 {fechas.map((f) => (
-                  <tr key={f} className="border-t border-slate-100">
-                    <td className="whitespace-nowrap px-3 py-2 text-slate-600">
+                  <tr key={f} className="border-t border-white/5">
+                    <td className="whitespace-nowrap px-3 py-2 text-[#9AA8B6]">
                       {fechaCorta(f)}
                     </td>
                     {tramos.map((t, i) => (
@@ -281,7 +281,7 @@ export default function Divisor() {
             {Object.entries(horas).map(([p, m]) => (
               <li
                 key={p}
-                className="rounded-full border border-slate-200 px-3 py-1"
+                className="rounded-full border border-white/10 px-3 py-1"
               >
                 {p}: <strong>{duracionTexto(m)}</strong> en {diasOk}{" "}
                 {diasOk === 1 ? "día" : "días"}
@@ -290,11 +290,11 @@ export default function Divisor() {
           </ul>
 
           {/* ── 3 · Revisar ── */}
-          <div className="mt-8 rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5">
+          <div className="mt-8 rounded-2xl border border-[#2BB58D]/40 bg-[#2BB58D]/10 p-5">
             <h2 className="text-[18px] font-semibold">
               3. ¿Este reparto cumple la ley?
             </h2>
-            <p className="mt-2 text-[14.5px] leading-relaxed text-slate-600">
+            <p className="mt-2 text-[14.5px] leading-relaxed text-[#9AA8B6]">
               Dividir parejo no asegura que sea legal: los días seguidos, el
               descanso entre jornadas, los domingos libres y las horas semanales
               se revisan aparte. Copia la planilla y pégala en la revisión
@@ -304,26 +304,26 @@ export default function Divisor() {
               <button
                 type="button"
                 onClick={() => copiar(true)}
-                className="degradado-marca rounded-full px-6 py-3 text-[15px] font-bold text-white shadow-lg shadow-indigo-500/25"
+                className="bg-[#117A5E] rounded-full px-6 py-3 text-[15px] font-bold text-white shadow-lg shadow-black/40"
               >
                 Copiar y revisar si es legal
               </button>
               <button
                 type="button"
                 onClick={() => copiar(false)}
-                className="rounded-md border border-slate-300 px-5 py-3 text-[15px] font-semibold hover:bg-slate-50"
+                className="rounded-md border border-white/20 px-5 py-3 text-[15px] font-semibold hover:bg-[#112538]/5"
               >
                 Solo copiar la planilla
               </button>
             </div>
             {copiado === "copiado" && (
-              <output className="mt-3 block text-[14px] text-[#5B4BEA]">
+              <output className="mt-3 block text-[14px] text-[#2BB58D]">
                 Copiada. En la página de revisión, pégala con Ctrl+V (en el
                 celular, mantén presionado y elige «Pegar»).
               </output>
             )}
             {copiado === "error" && (
-              <output className="mt-3 block text-[14px] text-amber-600">
+              <output className="mt-3 block text-[14px] text-[#F5D547]">
                 Tu navegador no dejó copiar. Selecciona la tabla, cópiala y
                 pégala en la revisión.
               </output>

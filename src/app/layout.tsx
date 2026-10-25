@@ -5,9 +5,10 @@ import {
   Geist,
   Geist_Mono,
   Instrument_Serif,
-  Plus_Jakarta_Sans,
+  Caveat,
 } from "next/font/google";
 import "./globals.css";
+import "./noche.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,11 +20,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Tipografía del diseño de dotaciones.cl (D-ING-9, dirección A).
-const jakarta = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
+// La «mano» del diseño Noche (D-ING-10): las notas en tinta roja sobre la
+// planilla. Sólo para anotaciones, nunca para texto de lectura.
+const caveat = Caveat({
+  variable: "--font-caveat",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["600", "700"],
 });
 
 const instrumentSerif = Instrument_Serif({
@@ -97,7 +99,7 @@ export default function RootLayout({
   return (
     <html lang="es-CL">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${jakarta.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${caveat.variable} antialiased`}
       >
         {children}
         <Analytics />
