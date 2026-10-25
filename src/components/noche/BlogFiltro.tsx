@@ -4,6 +4,7 @@
 // llegan del servidor (Notion); acá sólo se filtran.
 import Link from "next/link";
 import { useState } from "react";
+import { medir } from "@/lib/medir";
 
 export interface ArticuloLista {
   id: string;
@@ -38,7 +39,10 @@ export default function BlogFiltro({
             type="button"
             className={`chip${t === tema ? " activo" : ""}`}
             aria-pressed={t === tema}
-            onClick={() => setTema(t)}
+            onClick={() => {
+              medir("blog_filtro", "/", true);
+              setTema(t);
+            }}
           >
             {t}
           </button>

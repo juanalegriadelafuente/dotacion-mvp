@@ -8,3 +8,7 @@
  */
 export const URL_REVISAR =
   "https://kaden.cl/verificador?utm_source=dotaciones&utm_medium=web";
+
+/** Armar los turnos del mes, gratis hasta 5 personas (Kaden Lite). Lite guarda
+ *  el `utm_source`, así que las cuentas que nacen desde acá se pueden contar. */
+export const URL_LITE = "https://lite.kaden.cl/?utm_source=dotaciones";

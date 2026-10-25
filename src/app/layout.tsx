@@ -1,5 +1,6 @@
 // src/app/layout.tsx
 import { Analytics } from "@vercel/analytics/react";
+import Medicion from "@/components/Medicion";
 import type { Metadata } from "next";
 import {
   Geist,
@@ -103,6 +104,7 @@ export default function RootLayout({
       >
         {children}
         <Analytics />
+        <Medicion />
       </body>
     </html>
   );

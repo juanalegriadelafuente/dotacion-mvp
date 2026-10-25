@@ -1,10 +1,11 @@
 // src/components/SiteFooter.tsx
 // Diseño Noche (D-ING-10).
 import Link from "next/link";
-import { URL_REVISAR } from "@/lib/sitio";
+import { URL_LITE, URL_REVISAR } from "@/lib/sitio";
 
 const enlaces: { label: string; href: string }[] = [
   { label: "Revisar mi turno", href: URL_REVISAR },
+  { label: "Arma tus turnos", href: URL_LITE },
   { label: "Dividir turnos", href: "/dividir-turnos" },
   { label: "Calculadora de dotación", href: "/calculadora" },
   { label: "Blog", href: "/blog" },

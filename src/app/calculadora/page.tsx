@@ -5,6 +5,7 @@ import Link from "next/link";
 import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 import { calculate, type CalcInput, type CalcResult, type Mix, type DayKey } from "@/lib/engine";
+import { medir } from "@/lib/medir";
 import { SlotDemandGrid, computeStats } from "@/components/SlotDemandGrid";
 
 // ─── Constantes laborales Chile ───────────────────────────────────────────────
@@ -486,6 +487,7 @@ export default function CalculadoraPage() {
     setContracts(prev => prev.filter(c => c.id !== id));
 
   const handleCalculate = () => {
+    medir("dotacion_calculo", "/calculadora");
     setLoading(true);
     setEmailPassed(false);
     setResult(null);
