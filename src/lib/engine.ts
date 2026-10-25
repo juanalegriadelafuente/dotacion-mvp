@@ -93,20 +93,26 @@ type Jornada = {
   sundayAvailability: number;
   // Qué días puede cubrir este tipo de jornada
   eligibleDays: "all" | "weekdays" | "weekend";
-  maxHours: number;
+  maxHours: number | null;
 };
 
+// `maxHours: null` = topa en la jornada legal vigente (`fullHoursPerWeek`: 42 h
+// desde el 26-04-2026, 40 h desde el 26-04-2028, Ley 21.561). Antes decía 40 fijo
+// y, al pasar el contrato completo a 42, el motor lo descartaba entero y
+// recomendaba puro part time. El 4×3 sí topa en 40: con 4 días, cada jornada no
+// puede pasar de 10 horas (Art. 28 inc. 2).
 const JORNADAS: Jornada[] = [
-  { id: "J_5X2",        name: "5×2 rot. (cualquier día)",   sundayAvailability: 0.20,  eligibleDays: "all",      maxHours: 40 },
-  { id: "J_5X2_LV",     name: "5×2 L-V (fijo)",            sundayAvailability: 0.0,   eligibleDays: "weekdays", maxHours: 40 },
-  { id: "J_6X1",        name: "6×1 (rotativo)",             sundayAvailability: 0.143, eligibleDays: "all",      maxHours: 40 },
+  { id: "J_5X2",        name: "5×2 rot. (cualquier día)",   sundayAvailability: 0.20,  eligibleDays: "all",      maxHours: null },
+  { id: "J_5X2_LV",     name: "5×2 L-V (fijo)",            sundayAvailability: 0.0,   eligibleDays: "weekdays", maxHours: null },
+  { id: "J_6X1",        name: "6×1 (rotativo)",             sundayAvailability: 0.143, eligibleDays: "all",      maxHours: null },
   { id: "J_4X3",        name: "4×3 (concentrada)",          sundayAvailability: 0.25,  eligibleDays: "all",      maxHours: 40 },
   { id: "J_PT_WEEKEND", name: "PT fin de semana (Sáb+Dom)", sundayAvailability: 1.0,   eligibleDays: "weekend",  maxHours: 20 },
   { id: "J_PT_WEEKDAY", name: "PT días de semana (L–V)",    sundayAvailability: 0.0,   eligibleDays: "weekdays", maxHours: 20 },
 ];
 
-function jornadasParaContrato(h: number, ptOk: boolean, hasSun: boolean): Jornada[] {
-  if (h > 40) return [JORNADAS.find(j => j.id === "J_5X2_LV")!]; // >40h solo L-V fijo
+function jornadasParaContrato(h: number, ptOk: boolean, hasSun: boolean, jornadaLegal: number): Jornada[] {
+  // Un contrato sobre la jornada legal no es una jornada ordinaria: no se ofrece.
+  if (h > jornadaLegal) return [];
 
   if (h > 20) {
     const out: Jornada[] = [
@@ -175,15 +181,16 @@ function buildCandidates(
   contracts: ContractType[],
   ptOk: boolean,
   hasSun: boolean,
+  jornadaLegal: number,
 ): Candidate[] {
   const out: Candidate[] = [];
   for (const c of contracts) {
     if (c.hoursPerWeek <= 0 || !c.name) continue;
-    for (const j of jornadasParaContrato(c.hoursPerWeek, ptOk, hasSun)) {
+    for (const j of jornadasParaContrato(c.hoursPerWeek, ptOk, hasSun, jornadaLegal)) {
       // Respetar los patrones que el usuario habilitó para este contrato
       if (c.allowedJornadaIds && c.allowedJornadaIds.length > 0
           && !c.allowedJornadaIds.includes(j.id)) continue;
-      if (c.hoursPerWeek > j.maxHours) continue;
+      if (c.hoursPerWeek > (j.maxHours ?? jornadaLegal)) continue;
       let dailyHours: number;
       if (j.eligibleDays === "weekend")  dailyHours = c.hoursPerWeek / 2;
       else if (j.eligibleDays === "weekdays") dailyHours = c.hoursPerWeek / 5;
@@ -386,7 +393,7 @@ export function calculate(input: CalcInput): CalcResult {
   const hasCosts = input.contracts.some(c => c.costPerHour != null && c.costPerHour > 0);
 
   // 2. Candidatos
-  const cands = buildCandidates(input.contracts, ptOk, hasSun);
+  const cands = buildCandidates(input.contracts, ptOk, hasSun, input.fullHoursPerWeek);
   if (cands.length === 0) {
     warns.push("⚠️ Sin contratos válidos. Agrega al menos un contrato.");
     return emptyResult(rf, fullH, totalHoursRaw, totalTarget, breakHours, overlapHours, gapHours, warns);
