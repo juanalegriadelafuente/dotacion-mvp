@@ -2,7 +2,8 @@
 //
 // Cómo se ve la planilla del Kit mientras se arma: las alertas a la izquierda del
 // nombre y las horas al cierre de cada semana (el diseño que Juan aprobó el
-// 28-10). Cuatro casos de ejemplo; los nombres son inventados.
+// 28-10). Cuatro casos de ejemplo, con los mensajes que escribe la planilla de
+// verdad; los nombres son inventados.
 
 type Semana = { d: string[]; h: number; malos?: number[]; hMala?: boolean };
 type Fila = { nombre: string; alerta?: string; semanas: Semana[] };
@@ -17,7 +18,7 @@ const FILAS: Fila[] = [
   },
   {
     nombre: "Diego",
-    alerta: "7 días seguidos (el saliente cuenta)",
+    alerta: "7 días seguidos.",
     semanas: [
       { d: ["T", "T", "T", "T", "T", "N", "S"], h: 42, malos: [6] },
       { d: ["", "T", "T", "T", "T", "T", ""], h: 35 },
@@ -25,7 +26,7 @@ const FILAS: Fila[] = [
   },
   {
     nombre: "Rocío",
-    alerta: "35 h en la semana; su contrato es de 30",
+    alerta: "Semana de 35 h (máx. 30).",
     semanas: [
       { d: ["M", "M", "M", "M", "", "", ""], h: 28 },
       { d: ["M", "M", "M", "M", "M", "", ""], h: 35, hMala: true },
@@ -33,7 +34,7 @@ const FILAS: Fila[] = [
   },
   {
     nombre: "Tomás",
-    alerta: "Martes: 8 h de descanso tras la tarde",
+    alerta: "1 descanso(s) de menos de 12 h.",
     semanas: [
       { d: ["T", "M", "", "T", "T", "T", ""], h: 35, malos: [1] },
       { d: ["T", "T", "T", "", "T", "T", ""], h: 35 },
@@ -75,7 +76,7 @@ export default function MuestraPlanilla() {
           <thead>
             <tr className="text-[12px] text-[#9AA8B6]">
               <th scope="col" className="w-[190px] text-left font-normal">
-                Alertas
+                Errores
               </th>
               <th scope="col" className="w-[76px] text-left font-normal">
                 Nombre
@@ -102,7 +103,7 @@ export default function MuestraPlanilla() {
                 <td
                   className={`min-w-[190px] pr-2 text-[13px] leading-tight ${f.alerta ? "text-[#FF6B6B]" : "text-[#2BB58D]"}`}
                 >
-                  {f.alerta ?? "Sin alertas"}
+                  {f.alerta ?? "OK"}
                 </td>
                 <th scope="row" className="min-w-[64px] text-left text-[14px] font-normal">
                   {f.nombre}

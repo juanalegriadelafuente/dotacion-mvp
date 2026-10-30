@@ -203,7 +203,7 @@ export default async function KitTurnos() {
                 <span className="font-normal text-[#9AA8B6]">(.xlsx)</span>
               </h3>
               <p className="leading-relaxed text-[#C3CCD5]">
-                Escribes el código del turno en cada día y la columna de alertas
+                Escribes el código del turno en cada día y la columna «Errores»
                 te dice qué está mal, persona por persona:
               </p>
               <ul className="list-disc space-y-1 pl-5">
