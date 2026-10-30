@@ -105,7 +105,10 @@ export default function MuestraPlanilla() {
                 >
                   {f.alerta ?? "OK"}
                 </td>
-                <th scope="row" className="min-w-[64px] text-left text-[14px] font-normal">
+                <th
+                  scope="row"
+                  className="min-w-[64px] text-left text-[14px] font-normal"
+                >
                   {f.nombre}
                 </th>
                 {f.semanas.flatMap((s, si) => [
