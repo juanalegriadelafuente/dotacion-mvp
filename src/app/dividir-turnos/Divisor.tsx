@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 // src/app/dividir-turnos/Divisor.tsx
 import { useMemo, useState } from "react";
 import {
@@ -338,6 +339,19 @@ export default function Divisor() {
               </output>
             )}
           </div>
+
+          {/* ── 4 · El mes completo en Excel (Kit Turnos) ── */}
+          <p className="mt-5 text-[14.5px] leading-relaxed text-[#9AA8B6]">
+            ¿Armas el mes completo en Excel? La planilla del{" "}
+            <Link
+              href="/kit-turnos"
+              className="font-semibold text-[#2BB58D] underline"
+            >
+              Kit Turnos Legales
+            </Link>{" "}
+            hace estas cuentas mientras armas: días seguidos, horas de cada
+            semana, domingos libres y descanso entre turnos.
+          </p>
         </div>
       )}
     </div>

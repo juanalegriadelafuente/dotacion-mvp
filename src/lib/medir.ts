@@ -16,6 +16,7 @@ export const EVENTOS = [
   "dotacion_calculo",
   "suscripcion",
   "blog_filtro",
+  "kit_click",
   "kit_comprar",
   "kit_pagado",
 ] as const;

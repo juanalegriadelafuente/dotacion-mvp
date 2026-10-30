@@ -1111,7 +1111,7 @@ export default function CalculadoraPage() {
                 </p>
               )}
 
-              <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <div className="mt-5 grid gap-3 md:grid-cols-3">
                 <a
                   href={URL_LITE}
                   className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 hover:border-blue-300 transition-colors"
@@ -1136,6 +1136,18 @@ export default function CalculadoraPage() {
                     de la ley.
                   </p>
                 </a>
+                <Link
+                  href="/kit-turnos"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 hover:border-blue-300 transition-colors"
+                >
+                  <p className="text-sm font-semibold text-slate-800">
+                    ¿Prefieres Excel? Kit Turnos Legales →
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Planilla que avisa los errores mientras armas, más una guía
+                    con la ley de cada regla.
+                  </p>
+                </Link>
               </div>
             </div>
           </section>

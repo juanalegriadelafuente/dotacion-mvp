@@ -407,8 +407,8 @@ export default async function BlogArticle({
               <a href={URL_REVISAR} className="cta-bot-p">
                 Revisar mi turno gratis →
               </a>
-              <Link href="/calculadora" className="cta-bot-s2">
-                Calcular mi dotación →
+              <Link href="/kit-turnos" className="cta-bot-s2">
+                Planilla Excel + guía: Kit Turnos →
               </Link>
             </div>
           </div>

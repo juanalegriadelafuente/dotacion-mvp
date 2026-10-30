@@ -22,6 +22,11 @@ export default function Medicion() {
         medir("revisar_click", location.pathname);
       else if (a.href.includes("lite.kaden.cl"))
         medir("lite_click", location.pathname);
+      else if (
+        a.pathname === "/kit-turnos" &&
+        location.pathname !== "/kit-turnos"
+      )
+        medir("kit_click", location.pathname);
     }
     document.addEventListener("click", alHacerClic, { capture: true });
     return () =>
