@@ -51,6 +51,7 @@ export default function Privacidad() {
           <p style={{ marginBottom: 8 }}>Solo los datos que tú nos proporcionas voluntariamente:</p>
           <ul>
             <li><strong>Email y nombre</strong> — cuando solicitas un análisis IA o te suscribes al blog.</li>
+            <li><strong>Email</strong> — cuando compras el Kit Turnos Legales, para enviarte el enlace de descarga.</li>
             <li><strong>Empresa y cargo</strong> — opcionales, en el formulario de análisis.</li>
             <li><strong>Datos del cálculo</strong> — parámetros ingresados en la calculadora para generar el análisis. No se asocian a tu identidad sin consentimiento.</li>
           </ul>
@@ -63,6 +64,7 @@ export default function Privacidad() {
       content: (
         <ul>
           <li>Enviarte el análisis IA de tu dotación por correo electrónico.</li>
+          <li>Entregarte lo que compraste (el enlace de descarga del Kit) y atender reclamos sobre esa compra.</li>
           <li>Enviarte nuevos artículos del blog si te suscribiste (cancelable en cualquier momento).</li>
           <li>Mejorar la herramienta a partir del uso agregado y anónimo.</li>
           <li>Contactarte si expresaste interés en consultoría o servicios de Nexwork SpA.</li>
@@ -76,6 +78,8 @@ export default function Privacidad() {
           <li><strong>Vercel</strong> — hosting y despliegue del sitio web.</li>
           <li><strong>Resend</strong> — envío de correos electrónicos transaccionales.</li>
           <li><strong>Anthropic (Claude)</strong> — generación del análisis IA.</li>
+          <li><strong>Flow</strong> — procesa el pago de las compras. dotaciones.cl no ve ni guarda los datos de tu tarjeta.</li>
+          <li><strong>Kaden (Nexwork SpA)</strong> — registra la compra, envía el enlace de descarga y entrega el archivo.</li>
           <li><strong>Notion</strong> — almacenamiento interno de leads y gestión de contenido.</li>
         </ul>
       ),
@@ -89,7 +93,7 @@ export default function Privacidad() {
     {
       title: "6. Retención de datos",
       content: (
-        <p>Conservamos tus datos mientras mantengas una relación activa con dotaciones.cl. Puedes solicitar la eliminación en cualquier momento escribiéndonos a <a href="mailto:contacto@dotaciones.cl">contacto@dotaciones.cl</a>.</p>
+        <p>Conservamos tus datos mientras mantengas una relación activa con dotaciones.cl. En una compra, el correo y el enlace de descarga se borran automáticamente cuando el enlace vence (30 días); el registro de la venta, sin el correo, se conserva por obligación tributaria. Puedes solicitar la eliminación en cualquier momento escribiéndonos a <a href="mailto:contacto@dotaciones.cl">contacto@dotaciones.cl</a>.</p>
       ),
     },
     {
@@ -128,7 +132,7 @@ export default function Privacidad() {
       <div className="hero">
         <div className="hero-in">
           <h1 className="h1">Política de Privacidad</h1>
-          <div className="updated">Última actualización: 12 de abril de 2026</div>
+          <div className="updated">Última actualización: 30 de octubre de 2026</div>
         </div>
       </div>
 

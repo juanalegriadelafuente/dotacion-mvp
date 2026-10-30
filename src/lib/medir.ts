@@ -16,6 +16,8 @@ export const EVENTOS = [
   "dotacion_calculo",
   "suscripcion",
   "blog_filtro",
+  "kit_comprar",
+  "kit_pagado",
 ] as const;
 
 export type Evento = (typeof EVENTOS)[number];

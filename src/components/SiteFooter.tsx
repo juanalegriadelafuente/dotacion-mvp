@@ -7,6 +7,7 @@ const enlaces: { label: string; href: string }[] = [
   { label: "Revisar mi turno", href: URL_REVISAR },
   { label: "Arma tus turnos", href: URL_LITE },
   { label: "Dividir turnos", href: "/dividir-turnos" },
+  { label: "Kit Turnos (planilla + guía)", href: "/kit-turnos" },
   { label: "Calculadora de dotación", href: "/calculadora" },
   { label: "Blog", href: "/blog" },
   { label: "Quiénes somos", href: "/nosotros" },

@@ -14,7 +14,8 @@ create table if not exists public.eventos (
   origen text,
   constraint ck_eventos_evento check (evento in (
     'visita', 'revisar_click', 'lite_click', 'planilla_demo', 'divisor_mini',
-    'divisor_uso', 'divisor_copiar', 'dotacion_calculo', 'suscripcion', 'blog_filtro'
+    'divisor_uso', 'divisor_copiar', 'dotacion_calculo', 'suscripcion', 'blog_filtro',
+    'kit_comprar', 'kit_pagado'
   )),
   constraint ck_eventos_lugar check (lugar ~ '^[a-z0-9/_.-]{1,80}$'),
   constraint ck_eventos_origen check (origen ~ '^[a-z0-9._-]{1,40}$')
