@@ -19,7 +19,7 @@ export async function enviarCorreoLista(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "Juan de dotaciones.cl <no-reply@dotaciones.cl>",
+      from: "Juan de Dotaciones <no-reply@dotaciones.cl>",
       reply_to: "hola@kaden.cl",
       to: [destino],
       subject: correo.asunto,
@@ -32,8 +32,10 @@ export async function enviarCorreoLista(
     }),
   });
   if (!res.ok) {
-    // Sin la dirección: un correo no va a los registros.
-    console.error("lista-revision: Resend respondió", res.status);
+    // Solo el tipo de error: el mensaje podría traer la dirección, y un correo no
+    // va a los registros.
+    const error = await res.json().catch(() => null);
+    console.error("lista-revision: Resend respondió", res.status, error?.name);
     return false;
   }
   return true;
