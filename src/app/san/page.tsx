@@ -845,7 +845,7 @@ export default function SanPage() {
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Análisis IA de tu dotación SAN</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Interpretación normativa, alertas legales y cómo presentarlo ante el directorio — gratis
+                    Qué tan ajustada queda la operación y cómo presentarlo ante el directorio — gratis
                   </p>
                 </div>
                 <span className="text-xs font-medium text-[#1B4332] bg-[#D8F3DC] px-2 py-1 rounded-full">

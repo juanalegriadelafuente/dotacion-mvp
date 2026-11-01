@@ -86,7 +86,8 @@ Reglas de formato:
 - Sin títulos, sin #, sin **, sin bullet points
 - Máximo 120 palabras por párrafo
 - Tono profesional y directo, español chileno formal
-- Si un dato no está en el JSON, no lo menciones No menciones leyes, artículos, dictámenes, topes de horas ni digas si algo es legal o ilegal: esa revisión la hace el verificador de Kaden, no este análisis.`;
+- Si un dato no está en el JSON, no lo menciones
+- No menciones leyes, artículos, dictámenes, topes de horas ni digas si algo es legal o ilegal: esa revisión la hace el verificador de Kaden, no este análisis.`;
 
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
