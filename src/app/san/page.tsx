@@ -843,9 +843,9 @@ export default function SanPage() {
             <div className="mx-5 mb-5 mt-2 rounded-xl border border-[#52B788]/30 bg-gradient-to-br from-[#D8F3DC] to-[#F0FDF4] overflow-hidden">
               <div className="px-5 py-4 border-b border-[#52B788]/20 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">Análisis IA de tu dotación SAN</p>
+                  <p className="text-sm font-semibold text-slate-800">Resumen de tu dotación SAN</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Qué tan ajustada queda la operación y cómo presentarlo ante el directorio — gratis
+                    Las cifras principales de tu cálculo, para tenerlas a mano — gratis
                   </p>
                 </div>
                 <span className="text-xs font-medium text-[#1B4332] bg-[#D8F3DC] px-2 py-1 rounded-full">
@@ -863,7 +863,7 @@ export default function SanPage() {
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
-                      Obtener análisis IA gratuito
+                      Obtener resumen gratuito
                     </button>
                   ) : (
                     <div className="space-y-3">
@@ -912,12 +912,12 @@ export default function SanPage() {
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                             </svg>
-                            Analizando con IA…
+                            Preparando…
                           </>
-                        ) : "Ver mi análisis →"}
+                        ) : "Ver mi resumen →"}
                       </button>
                       <p className="text-xs text-slate-400 text-center">
-                        Sin spam. Solo usamos tu email para enviarte el análisis.
+                        Sin spam.
                       </p>
                     </div>
                   )}
@@ -928,7 +928,7 @@ export default function SanPage() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    <span className="text-xs font-medium">Análisis generado por Nexwork SpA</span>
+                    <span className="text-xs font-medium">Resumen de tu cálculo</span>
                   </div>
                   {analisisIA && (
                     <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap bg-white rounded-lg p-4 border border-slate-100">

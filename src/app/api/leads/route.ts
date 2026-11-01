@@ -4,16 +4,14 @@ import ExcelJS from "exceljs";
 import {
   correoValido,
   escaparHtml,
-  limpiarResultados,
   origenValido,
   permiteCorreo,
-  permiteIA,
 } from "@/lib/proteccion";
+import { resumenRetail } from "@/lib/resumen-dotacion";
 
 const NOTION_API_KEY     = process.env.NOTION_API_KEY!;
 const NOTION_DATABASE_ID = process.env.NOTION_LEADS_DATABASE_ID!;
 const RESEND_API_KEY     = process.env.RESEND_API_KEY!;
-const ANTHROPIC_API_KEY  = process.env.ANTHROPIC_API_KEY!;
 const NOTIFY_EMAIL       = process.env.NOTIFY_EMAIL || "juan.alegria.delafuente@gmail.com";
 
 export const runtime = "nodejs";
@@ -72,55 +70,6 @@ async function saveToNotion(payload: {
 }
 
 // Sin GET: el diagnóstico público exponía la estructura de la base de Notion.
-
-// ─── Anthropic ────────────────────────────────────────────────────────────────
-
-async function generateAnalisis(
-  resultados: Record<string, unknown>, sector: string, calculadora: string,
-): Promise<string> {
-  const prompt = `Eres un experto en gestión de personas y dotación, parte del equipo de Nexwork SpA.
-
-Un profesional de RRHH acaba de calcular su dotación en dotaciones.cl.
-Sector: ${sector}
-Calculadora: ${calculadora}
-
-Estos son los datos EXACTOS del cálculo. Analiza ÚNICAMENTE lo que está aquí — no inventes datos ni situaciones que no estén en este JSON:
-
-${JSON.stringify(resultados, null, 2)}
-
-Escribe un análisis ejecutivo en exactamente 3 párrafos, en prosa corrida sin títulos ni bullet points:
-
-PÁRRAFO 1 — Qué dice el resultado: Describe el mix sugerido usando solo los números del JSON.
-
-PÁRRAFO 2 — Qué mirar antes de decidir: Comenta qué tan ajustada queda la operación según la holgura y la cantidad de personas del JSON.
-
-PÁRRAFO 3 — Cómo presentarlo: Recomendación concreta para defender esta dotación ante gerencia.
-
-Reglas: Sin títulos, sin #, sin **, sin bullets. Máximo 120 palabras por párrafo. Español chileno formal. No menciones leyes, artículos, dictámenes, topes de horas ni digas si algo es legal o ilegal: esa revisión la hace el verificador de Kaden, no este análisis.`;
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 800,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json();
-    console.error("Anthropic error:", err);
-    throw new Error("Error generando análisis");
-  }
-
-  const data = await res.json();
-  return data.content[0].text as string;
-}
 
 // ─── Excel en memoria ─────────────────────────────────────────────────────────
 
@@ -258,14 +207,14 @@ async function sendEmailDotacion(payload: {
     <div style="padding:32px;">
       <p style="margin:0 0 6px;font-size:15px;font-weight:600;color:#0f172a;">Hola${payload.nombre ? ` ${escaparHtml(payload.nombre)}` : ""},</p>
       <p style="margin:0 0 24px;font-size:14px;color:#64748b;line-height:1.6;">
-        Adjunto encontrarás el Excel con las <strong>${payload.totalMixes} combinaciones válidas</strong> de dotación calculadas para tu operación, ordenadas por eficiencia.
+        Adjunto encontrarás el Excel con ${payload.totalMixes === 1 ? "la <strong>única combinación válida</strong>" : `las <strong>${payload.totalMixes} combinaciones válidas</strong>`} de dotación calculadas para tu operación, ordenadas por eficiencia.
       </p>
       <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 18px;margin-bottom:24px;">
         <p style="margin:0;font-size:13px;font-weight:600;color:#15803d;">${filename}</p>
-        <p style="margin:2px 0 0;font-size:12px;color:#16a34a;">${payload.totalMixes} combinaciones · 3 hojas · Resumen + Tabla completa + Mixes destacados</p>
+        <p style="margin:2px 0 0;font-size:12px;color:#16a34a;">${payload.totalMixes === 1 ? "1 combinación" : `${payload.totalMixes} combinaciones`} · 3 hojas · Resumen + Tabla completa + Mixes destacados</p>
       </div>
       <div style="background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;border-left:3px solid #2563eb;padding:20px 24px;margin-bottom:28px;">
-        <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">Análisis ejecutivo</p>
+        <p style="margin:0 0 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#94a3b8;">Resumen del cálculo</p>
         <p style="margin:0;font-size:14px;color:#1e293b;line-height:1.75;white-space:pre-wrap;">${escaparHtml(payload.analisis, 5000)}</p>
       </div>
       <a href="https://dotaciones.cl/calculadora" style="display:inline-block;padding:11px 22px;background:#0f172a;color:#fff;font-size:13px;font-weight:600;border-radius:6px;text-decoration:none;">Volver a la calculadora →</a>
@@ -273,7 +222,7 @@ async function sendEmailDotacion(payload: {
     <div style="padding:18px 32px;border-top:1px solid #e2e8f0;background:#f8fafc;">
       <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.6;">
         © ${new Date().getFullYear()} dotaciones.cl · Nexwork SpA · Chile<br>
-        Recibiste este correo porque solicitaste un análisis IA en dotaciones.cl.
+        Recibiste este correo porque pediste tu resultado en dotaciones.cl.
       </p>
     </div>
   </div>
@@ -285,7 +234,7 @@ async function sendEmailDotacion(payload: {
     body: JSON.stringify({
       from: "Dotaciones <no-reply@kaden.cl>",
       to: [payload.to],
-      subject: `Tu análisis de dotación — ${payload.totalMixes} combinaciones calculadas`,
+      subject: `Tu dotación calculada — ${payload.totalMixes === 1 ? "1 combinación" : `${payload.totalMixes} combinaciones`}`,
       html,
       attachments: [{ filename, content: excelB64 }],
     }),
@@ -453,7 +402,7 @@ export async function POST(req: NextRequest) {
       console.error("Notion save failed:", notionError);
     }
 
-    // 2a. Flujo finiquito — email directo, sin análisis IA ni Excel
+    // 2a. Flujo finiquito — email directo, sin resumen ni Excel
     if (esFiniquito) {
       try {
         await sendEmailFiniquito({ to: email, nombre: nombre || "", origenLabel });
@@ -463,7 +412,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // 2b. Flujo dotación (retail / SAN) — análisis IA + Excel + email
+    // 2b. Flujo dotación (retail / SAN) — resumen + Excel + email
     // Siempre notificar internamente (nuevo lead)
     try {
       await fetch("https://api.resend.com/emails", {
@@ -486,18 +435,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Solo enviar email al usuario si hay resultados + mixes (flujo completo)
-    let analisis: string | null = null;
-    if (resultados && (await permiteIA(req))) {
-      try {
-        analisis = await generateAnalisis(
-          limpiarResultados(resultados) as Record<string, unknown>,
-          String(sector       || "Retail / Servicios").slice(0, 60),
-          String(calculadora  || "Retail / Servicios").slice(0, 60),
-        );
-      } catch (e) {
-        console.error("Análisis IA failed (non-fatal):", e);
-      }
-    }
+    const analisis = Array.isArray(mixes) && mixes.length ? resumenRetail(mixes, resultados) : null;
 
     if (Array.isArray(mixes) && mixes.length) {
       try {
@@ -515,7 +453,7 @@ export async function POST(req: NextRequest) {
         await sendEmailDotacion({
           to: email,
           nombre: nombre || "",
-          analisis: analisis || "Análisis no disponible en este momento.",
+          analisis: analisis ?? "",
           calculadora: calculadora || "Retail / Servicios",
           excelBuffer,
           totalMixes: mixes.length,

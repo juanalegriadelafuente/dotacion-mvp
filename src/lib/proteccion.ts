@@ -1,7 +1,7 @@
 // src/lib/proteccion.ts
 //
-// Frenos para las rutas públicas que gastan plata o reputación: llamadas a
-// Claude (Anthropic) y correos que salen desde dotaciones.cl (Resend).
+// Frenos para las rutas públicas que gastan plata o reputación: los correos que
+// salen del sitio (Resend).
 //
 // Dos capas, porque en Vercel cada instancia tiene su propia memoria:
 // 1. Memoria de la instancia: corta ráfagas al tiro y sin red.
@@ -9,11 +9,9 @@
 //    supabase/uso_diario.sql): el tope que de verdad manda, compartido por todas
 //    las instancias.
 //
-// Si el contador de Supabase no responde:
-// - la IA se CIERRA (fail-closed): preferimos perder un análisis a pagar un
-//   bucle de otro; la calculadora sigue funcionando sin el texto.
-// - el correo sigue saliendo, frenado solo por la memoria de la instancia: el
-//   interesado que dejó su correo tiene que recibir su resultado.
+// Si el contador de Supabase no responde, el correo sigue saliendo, frenado solo
+// por la memoria de la instancia: el interesado que dejó su correo tiene que
+// recibir su resultado.
 //
 // Ni la IP ni el correo se guardan en claro: se guarda un hash con sal
 // (Ley 21.719, minimización).
@@ -112,27 +110,6 @@ function tope(nombre: string, porDefecto: number): number {
 }
 
 /**
- * ¿Se puede gastar en una llamada a Claude ahora? Por IP: 5 por hora y 10 al día.
- * Global: 200 al día (con Haiku y 800 tokens de salida, del orden de USD 1 al día
- * en el peor caso). Ajustable con IA_TOPE_IP_DIA e IA_TOPE_GLOBAL_DIA.
- */
-export async function permiteIA(req: Request): Promise<boolean> {
-  const ip = huella(ipDe(req));
-  if (superaEnMemoria(`ia:${ip}`, 5, 60 * 60 * 1000)) return false;
-  if (
-    (await dentroDelTopeDiario(`ia:ip:${ip}`, tope("IA_TOPE_IP_DIA", 10))) !==
-    true
-  )
-    return false;
-  return (
-    (await dentroDelTopeDiario(
-      "ia:global",
-      tope("IA_TOPE_GLOBAL_DIA", 200),
-    )) === true
-  );
-}
-
-/**
  * ¿Se puede mandar un correo a esta dirección? Máximo 3 al día por dirección
  * (nadie pide más de tres resultados al día) y 300 al día en total, para que
  * nadie use dotaciones.cl para llenar la casilla de otro.
@@ -172,38 +149,4 @@ export function escaparHtml(texto: unknown, maximo = 300): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-/**
- * Deja en `resultados` solo números, booleanos, textos cortos y estructuras
- * chicas. Lo que llega a Claude no puede ser un párrafo arbitrario: sería una
- * puerta para usarnos de proxy gratis («ignora lo anterior y escribe…»).
- */
-export function limpiarResultados(valor: unknown, profundidad = 0): unknown {
-  if (profundidad > 4) return null;
-  if (typeof valor === "number") return Number.isFinite(valor) ? valor : null;
-  if (typeof valor === "boolean" || valor === null) return valor;
-  if (typeof valor === "string") return valor.slice(0, 80);
-  if (Array.isArray(valor))
-    return valor.slice(0, 20).map((v) => limpiarResultados(v, profundidad + 1));
-  if (typeof valor === "object") {
-    const salida: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(valor as Record<string, unknown>).slice(
-      0,
-      40,
-    )) {
-      salida[k.slice(0, 40)] = limpiarResultados(v, profundidad + 1);
-    }
-    return salida;
-  }
-  return null;
-}
-
-/** Opciones fijas para los textos que van al prompt. */
-export function unoDe<T extends string>(
-  valor: unknown,
-  opciones: readonly T[],
-  porDefecto: T,
-): T {
-  return opciones.includes(valor as T) ? (valor as T) : porDefecto;
 }

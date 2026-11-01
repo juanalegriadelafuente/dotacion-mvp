@@ -50,7 +50,7 @@ export default function Privacidad() {
         <>
           <p style={{ marginBottom: 8 }}>Solo los datos que tú nos proporcionas voluntariamente:</p>
           <ul>
-            <li><strong>Email y nombre</strong> — cuando solicitas un análisis IA o te suscribes al blog.</li>
+            <li><strong>Email y nombre</strong> — cuando pides tu resultado o te suscribes al blog.</li>
             <li><strong>Empresa y cargo</strong> — opcionales, en el formulario de análisis.</li>
             <li><strong>Datos del cálculo</strong> — parámetros ingresados en la calculadora para generar el análisis. No se asocian a tu identidad sin consentimiento.</li>
           </ul>
@@ -62,7 +62,7 @@ export default function Privacidad() {
       title: "3. Finalidad del tratamiento",
       content: (
         <ul>
-          <li>Enviarte el análisis IA de tu dotación por correo electrónico.</li>
+          <li>Enviarte el resultado de tu dotación por correo electrónico.</li>
           <li>Enviarte nuevos artículos del blog si te suscribiste (cancelable en cualquier momento).</li>
           <li>Enviarte la lista de revisión de turnos y dos correos más, si la pediste. Tu correo se borra al darte de baja o al enviar el último.</li>
           <li>Mejorar la herramienta a partir del uso agregado y anónimo.</li>
@@ -76,7 +76,6 @@ export default function Privacidad() {
         <ul>
           <li><strong>Vercel</strong> — hosting y despliegue del sitio web.</li>
           <li><strong>Resend</strong> — envío de correos electrónicos transaccionales.</li>
-          <li><strong>Anthropic (Claude)</strong> — generación del análisis IA.</li>
           <li><strong>Notion</strong> — almacenamiento interno de leads y gestión de contenido.</li>
         </ul>
       ),
