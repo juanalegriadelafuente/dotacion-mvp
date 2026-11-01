@@ -5,6 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
+      disallow: ["/lista-revision-turnos.pdf", "/lista-revision/baja"],
     },
     sitemap: "https://dotaciones.cl/sitemap.xml",
   };

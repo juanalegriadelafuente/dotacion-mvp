@@ -411,6 +411,16 @@ export default async function BlogArticle({
                 Calcular mi dotación →
               </Link>
             </div>
+            <p className="cta-bot-s" style={{ marginTop: 16, marginBottom: 0 }}>
+              ¿Prefieres revisarlo a mano?{" "}
+              <Link
+                href="/lista-revision"
+                style={{ textDecoration: "underline" }}
+              >
+                Descarga gratis la lista de 10 preguntas
+              </Link>
+              .
+            </p>
           </div>
         )}
 

@@ -64,6 +64,7 @@ export default function Privacidad() {
         <ul>
           <li>Enviarte el análisis IA de tu dotación por correo electrónico.</li>
           <li>Enviarte nuevos artículos del blog si te suscribiste (cancelable en cualquier momento).</li>
+          <li>Enviarte la lista de revisión de turnos y dos correos más, si la pediste. Tu correo se borra al darte de baja o al enviar el último.</li>
           <li>Mejorar la herramienta a partir del uso agregado y anónimo.</li>
           <li>Contactarte si expresaste interés en consultoría o servicios de Nexwork SpA.</li>
         </ul>
