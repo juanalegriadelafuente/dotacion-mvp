@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     );
     const datos = limpiarResultados(resultados);
 
-    const prompt = `Eres un experto en gestión de personas y legislación laboral chilena, parte del equipo de Nexwork SpA.
+    const prompt = `Eres un experto en gestión de personas y dotación, parte del equipo de Nexwork SpA.
 
 Un profesional de RRHH acaba de calcular su dotación en dotaciones.cl.
 Sector: ${sectorOk}
@@ -78,7 +78,7 @@ Escribe un análisis ejecutivo en exactamente 3 párrafos, en prosa corrida sin 
 
 PÁRRAFO 1 — Qué dice el resultado: Describe el mix sugerido usando solo los números del JSON. Menciona headcount, tipo de contratos, horas totales y holgura tal como aparecen. Nada más.
 
-PÁRRAFO 2 — Alertas legales: Menciona solo los riesgos del Código del Trabajo que sean directamente aplicables al tipo de contrato y jornada que aparece en el mix. Si el mix es correcto y no hay alertas evidentes, dilo brevemente. No inventes riesgos hipotéticos.
+PÁRRAFO 2 — Qué mirar antes de decidir: Comenta qué tan ajustada queda la operación según la holgura y la cantidad de personas del JSON.
 
 PÁRRAFO 3 — Cómo presentarlo: Una recomendación concreta y breve de cómo defender esta dotación ante gerencia o directorio, basada en los números reales del cálculo.
 
@@ -86,7 +86,7 @@ Reglas de formato:
 - Sin títulos, sin #, sin **, sin bullet points
 - Máximo 120 palabras por párrafo
 - Tono profesional y directo, español chileno formal
-- Si un dato no está en el JSON, no lo menciones`;
+- Si un dato no está en el JSON, no lo menciones No menciones leyes, artículos, dictámenes, topes de horas ni digas si algo es legal o ilegal: esa revisión la hace el verificador de Kaden, no este análisis.`;
 
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

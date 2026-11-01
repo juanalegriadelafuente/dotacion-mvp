@@ -78,7 +78,7 @@ async function saveToNotion(payload: {
 async function generateAnalisis(
   resultados: Record<string, unknown>, sector: string, calculadora: string,
 ): Promise<string> {
-  const prompt = `Eres un experto en gestión de personas y legislación laboral chilena, parte del equipo de Nexwork SpA.
+  const prompt = `Eres un experto en gestión de personas y dotación, parte del equipo de Nexwork SpA.
 
 Un profesional de RRHH acaba de calcular su dotación en dotaciones.cl.
 Sector: ${sector}
@@ -92,11 +92,11 @@ Escribe un análisis ejecutivo en exactamente 3 párrafos, en prosa corrida sin 
 
 PÁRRAFO 1 — Qué dice el resultado: Describe el mix sugerido usando solo los números del JSON.
 
-PÁRRAFO 2 — Alertas legales: Menciona solo los riesgos del Código del Trabajo directamente aplicables. Si no hay alertas evidentes, dilo brevemente.
+PÁRRAFO 2 — Qué mirar antes de decidir: Comenta qué tan ajustada queda la operación según la holgura y la cantidad de personas del JSON.
 
 PÁRRAFO 3 — Cómo presentarlo: Recomendación concreta para defender esta dotación ante gerencia.
 
-Reglas: Sin títulos, sin #, sin **, sin bullets. Máximo 120 palabras por párrafo. Español chileno formal.`;
+Reglas: Sin títulos, sin #, sin **, sin bullets. Máximo 120 palabras por párrafo. Español chileno formal. No menciones leyes, artículos, dictámenes, topes de horas ni digas si algo es legal o ilegal: esa revisión la hace el verificador de Kaden, no este análisis.`;
 
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
