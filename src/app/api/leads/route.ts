@@ -283,7 +283,7 @@ async function sendEmailDotacion(payload: {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: "Dotaciones <no-reply@dotaciones.cl>",
+      from: "Dotaciones <no-reply@kaden.cl>",
       to: [payload.to],
       subject: `Tu análisis de dotación — ${payload.totalMixes} combinaciones calculadas`,
       html,
@@ -378,7 +378,7 @@ async function sendEmailFiniquito(payload: {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: "Dotaciones <no-reply@dotaciones.cl>",
+      from: "Dotaciones <no-reply@kaden.cl>",
       to: [payload.to],
       subject: "Tu resumen de finiquito — qué revisar antes de firmar",
       html: htmlUsuario,
@@ -395,7 +395,7 @@ async function sendEmailFiniquito(payload: {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: "Dotaciones <no-reply@dotaciones.cl>",
+      from: "Dotaciones <no-reply@kaden.cl>",
       to: [NOTIFY_EMAIL],
       subject: `Nuevo lead: ${payload.origenLabel} — ${payload.nombre || payload.to}`,
       html: htmlNotif,
@@ -470,7 +470,7 @@ export async function POST(req: NextRequest) {
         method: "POST",
         headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: "Dotaciones <no-reply@dotaciones.cl>",
+          from: "Dotaciones <no-reply@kaden.cl>",
           to: [NOTIFY_EMAIL],
           subject: `Nuevo lead: ${origenLabel} — ${String(nombre || email).slice(0, 80)}`,
           html: `<p style="font-family:Arial;font-size:14px;color:#0f172a;">

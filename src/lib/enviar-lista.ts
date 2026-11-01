@@ -19,7 +19,7 @@ export async function enviarCorreoLista(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "Juan de Dotaciones <no-reply@dotaciones.cl>",
+      from: "Juan de Dotaciones <no-reply@kaden.cl>",
       reply_to: "hola@kaden.cl",
       to: [destino],
       subject: correo.asunto,
